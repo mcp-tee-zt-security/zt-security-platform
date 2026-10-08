@@ -19,7 +19,7 @@ This documentation describes the **4.75.0 Revision 2** codebase. It is intention
 
 ## Current implementation boundaries
 
-- The backend contains a Spring Boot governance/execution reference layer under `backend/`.
+- The single Spring Boot backend is apps/authorization-api; it includes the integrated SDK governance lifecycle.
 - The canonical SDK contracts live under `sdk/contracts/`.
 - Python, TypeScript, Java and Go SDKs consume the same contract model.
 - Kubernetes policy integration lives under `k8s/operator/` and the SDK Kubernetes contract.

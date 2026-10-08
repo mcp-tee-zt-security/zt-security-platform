@@ -16,9 +16,28 @@ func (c *Client) GovernedExecute(ctx context.Context, a ActionContext, evidence,
 	if d["decision"] == "DENY" {
 		return GovernedResult{Decision: d}, nil
 	}
+	var savedEvidence map[string]any
+	if evidence != nil {
+		if err := c.CreateEvidence(ctx, evidence, &savedEvidence); err != nil {
+			return GovernedResult{Decision: d}, err
+		}
+	}
+	requiresApproval := d["decision"] == "STEP_UP" || d["decision"] == "REQUIRE_APPROVAL"
+	if requiresApproval && approval == nil {
+		if err := c.RequestApproval(ctx, map[string]any{"decision": d, "action": a.Action, "resource": a.Resource}, &approval); err != nil {
+			return GovernedResult{Decision: d, Evidence: savedEvidence}, err
+		}
+	}
+	evidenceIDs := []string{}
+	if savedEvidence != nil {
+		evidenceIDs = append(evidenceIDs, toString(savedEvidence["id"]))
+	}
 	var con map[string]any
-	if err := c.CreateExecutionContract(ctx, map[string]any{"action": a.Action, "resource": a.Resource, "policyDecision": d, "evidence": evidence, "approval": approval}, &con); err != nil {
+	if err := c.CreateExecutionContract(ctx, map[string]any{"action": a.Action, "resource": a.Resource, "policyDecision": d, "evidenceIds": evidenceIDs, "approval": approval}, &con); err != nil {
 		return GovernedResult{Decision: d}, err
+	}
+	if requiresApproval && approval["status"] != "APPROVED" {
+		return GovernedResult{Decision: d, Evidence: savedEvidence, Approval: approval, Contract: con}, nil
 	}
 	var ex map[string]any
 	if err := c.ExecuteContract(ctx, toString(con["id"]), &ex); err != nil {
@@ -28,7 +47,7 @@ func (c *Client) GovernedExecute(ctx context.Context, a ActionContext, evidence,
 	if err := c.VerifyExecution(ctx, toString(ex["id"]), &v); err != nil {
 		return GovernedResult{Decision: d, Contract: con, Execution: ex}, err
 	}
-	return GovernedResult{Decision: d, Evidence: evidence, Approval: approval, Contract: con, Execution: ex, Verification: v}, nil
+	return GovernedResult{Decision: d, Evidence: savedEvidence, Approval: approval, Contract: con, Execution: ex, Verification: v}, nil
 }
 func toString(v any) string {
 	if s, ok := v.(string); ok {

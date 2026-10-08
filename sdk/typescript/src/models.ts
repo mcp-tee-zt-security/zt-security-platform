@@ -1,4 +1,4 @@
-export type Decision = "ALLOW" | "DENY" | "REQUIRE_APPROVAL";
+export type Decision = "ALLOW" | "DENY" | "STEP_UP" | "REQUIRE_APPROVAL";
 
 export type ActionContext = {
   subject: string;

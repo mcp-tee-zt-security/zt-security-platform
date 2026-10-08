@@ -41,6 +41,9 @@ public class ZtSecurityClient {
     public JsonNode post(String path, Object body) {
         return request("POST", path, body, null);
     }
+    public JsonNode toJson(Object value) {
+        return json.valueToTree(value);
+    }
 
     public JsonNode post(String path, Object body, String idempotencyKey) {
         return request("POST", path, body, idempotencyKey);

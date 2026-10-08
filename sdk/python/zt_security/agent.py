@@ -1,4 +1,5 @@
 from typing import Any
+from dataclasses import replace
 
 from .models import ActionContext
 
@@ -28,5 +29,7 @@ class AgentRuntime:
                 "resource": context.resource,
             },
         )
+        context = replace(context, attributes={**context.attributes, "task_id": mission["externalTaskId"],
+            "tool_id": context.attributes.get("tool_id", mission["toolIds"][0])})
         execution = self.client.governance.execute(context, **kwargs)
         return {"mission": mission, "execution": execution}

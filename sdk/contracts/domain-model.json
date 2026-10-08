@@ -1,24 +1,496 @@
 {
-  "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "$id":"https://zt.security/schemas/4.75/domain-model.json",
-  "title":"ZT Security Platform Canonical Domain Model",
-  "version":"4.75.0",
-  "type":"object",
-  "properties":{
-    "IdentityRef":{"$ref":"#/$defs/IdentityRef"},"Attestation":{"$ref":"#/$defs/Attestation"},"Capability":{"$ref":"#/$defs/Capability"},"PolicyDecision":{"$ref":"#/$defs/PolicyDecision"},"Evidence":{"$ref":"#/$defs/Evidence"},"Approval":{"$ref":"#/$defs/Approval"},"ExecutionContract":{"$ref":"#/$defs/ExecutionContract"},"Verification":{"$ref":"#/$defs/Verification"},"Agent":{"$ref":"#/$defs/Agent"},"Mission":{"$ref":"#/$defs/Mission"},"Simulation":{"$ref":"#/$defs/Simulation"},"FederationTrust":{"$ref":"#/$defs/FederationTrust"}
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zt.security/schemas/4.75/domain-model.json",
+  "title": "ZT Security Integrated Domain Model",
+  "version": "4.75.0",
+  "type": "object",
+  "properties": {
+    "IdentityRef": {
+      "$ref": "#/$defs/IdentityRef"
+    },
+    "ActionContext": {
+      "$ref": "#/$defs/ActionContext"
+    },
+    "Attestation": {
+      "$ref": "#/$defs/Attestation"
+    },
+    "Capability": {
+      "$ref": "#/$defs/Capability"
+    },
+    "PolicyDecision": {
+      "$ref": "#/$defs/PolicyDecision"
+    },
+    "Evidence": {
+      "$ref": "#/$defs/Evidence"
+    },
+    "Approval": {
+      "$ref": "#/$defs/Approval"
+    },
+    "ExecutionContract": {
+      "$ref": "#/$defs/ExecutionContract"
+    },
+    "Execution": {
+      "$ref": "#/$defs/Execution"
+    },
+    "Verification": {
+      "$ref": "#/$defs/Verification"
+    },
+    "Agent": {
+      "$ref": "#/$defs/Agent"
+    },
+    "Mission": {
+      "$ref": "#/$defs/Mission"
+    },
+    "Simulation": {
+      "$ref": "#/$defs/Simulation"
+    },
+    "FederationTrust": {
+      "$ref": "#/$defs/FederationTrust"
+    }
   },
-  "$defs":{
-    "IdentityRef":{"type":"object","required":["subject","tenantId"],"properties":{"subject":{"type":"string"},"tenantId":{"type":"string"},"workspaceId":{"type":"string"},"attributes":{"type":"object"}}},
-    "Attestation":{"type":"object","required":["subject","status"],"properties":{"subject":{"type":"string"},"status":{"enum":["VALID","INVALID","UNKNOWN"]},"issuer":{"type":"string"},"claims":{"type":"object"},"expiresAt":{"type":"string","format":"date-time"}}},
-    "Capability":{"type":"object","required":["name","allowed"],"properties":{"name":{"type":"string"},"allowed":{"type":"boolean"},"scope":{"type":"array","items":{"type":"string"}},"constraints":{"type":"object"}}},
-    "PolicyDecision":{"type":"object","required":["decision"],"properties":{"decision":{"enum":["ALLOW","DENY","REQUIRE_APPROVAL"]},"policyId":{"type":"string"},"reason":{"type":"string"},"riskScore":{"type":"number"},"obligations":{"type":"array","items":{"type":"string"}}}},
-    "Evidence":{"type":"object","required":["type","subject"],"properties":{"id":{"type":"string"},"type":{"type":"string"},"subject":{"type":"string"},"hash":{"type":"string"},"source":{"type":"string"},"metadata":{"type":"object"}}},
-    "Approval":{"type":"object","required":["action","status"],"properties":{"id":{"type":"string"},"action":{"type":"string"},"status":{"enum":["PENDING","APPROVED","REJECTED","EXPIRED"]},"approver":{"type":"string"},"reason":{"type":"string"}}},
-    "ExecutionContract":{"type":"object","required":["action","resource"],"properties":{"id":{"type":"string"},"action":{"type":"string"},"resource":{"type":"string"},"policyDecision":{"$ref":"#/$defs/PolicyDecision"},"approval":{"$ref":"#/$defs/Approval"},"evidenceIds":{"type":"array","items":{"type":"string"}},"expiresAt":{"type":"string","format":"date-time"}}},
-    "Verification":{"type":"object","required":["status"],"properties":{"status":{"enum":["VERIFIED","FAILED","PARTIAL"]},"checks":{"type":"array","items":{"type":"string"}},"evidenceIds":{"type":"array","items":{"type":"string"}}}},
-    "Agent":{"type":"object","required":["id","name","capabilities"],"properties":{"id":{"type":"string"},"name":{"type":"string"},"capabilities":{"type":"array","items":{"type":"string"}},"skills":{"type":"array","items":{"type":"string"}},"attestationRef":{"type":"string"}}},
-    "Mission":{"type":"object","required":["objective","agentId"],"properties":{"id":{"type":"string"},"objective":{"type":"string"},"agentId":{"type":"string"},"constraints":{"type":"object"},"approvalMode":{"enum":["AUTO","HUMAN_REQUIRED","POLICY_DRIVEN"]}}},
-    "Simulation":{"type":"object","required":["scenario"],"properties":{"id":{"type":"string"},"scenario":{"type":"string"},"attackPaths":{"type":"array","items":{"type":"string"}},"counterfactuals":{"type":"array","items":{"type":"string"}}}},
-    "FederationTrust":{"type":"object","required":["sourceOrganization","targetOrganization","status"],"properties":{"sourceOrganization":{"type":"string"},"targetOrganization":{"type":"string"},"status":{"enum":["PENDING","ACTIVE","REVOKED"]},"scopes":{"type":"array","items":{"type":"string"}}}}
+  "$defs": {
+    "IdentityRef": {
+      "type": "object",
+      "required": [
+        "subject",
+        "tenantId"
+      ],
+      "properties": {
+        "subject": {
+          "type": "string"
+        },
+        "tenantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "ActionContext": {
+      "type": "object",
+      "required": [
+        "subject",
+        "action",
+        "resource"
+      ],
+      "properties": {
+        "subject": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string",
+          "pattern": "^[^/]+/.+$"
+        },
+        "tenantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "Attestation": {
+      "type": "object",
+      "required": [
+        "verified"
+      ],
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "Capability": {
+      "type": "object",
+      "required": [
+        "allowed"
+      ],
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "PolicyDecision": {
+      "type": "object",
+      "required": [
+        "requestId",
+        "decision",
+        "reason"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "traceId": {
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "ALLOW",
+            "DENY",
+            "STEP_UP"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "risk": {
+          "type": "object",
+          "properties": {
+            "score": {
+              "type": "number"
+            },
+            "level": {
+              "type": "string"
+            }
+          }
+        },
+        "matchedPolicies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "audit": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "Evidence": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "subject",
+        "payload",
+        "digest"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "type": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "tenantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "traceId": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "digest": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Approval": {
+      "type": "object",
+      "required": [
+        "id",
+        "requestId",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "tenantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "enum": [
+            "PENDING",
+            "APPROVED",
+            "REJECTED",
+            "EXPIRED"
+          ]
+        },
+        "approverId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ExecutionContract": {
+      "type": "object",
+      "required": [
+        "id",
+        "action",
+        "resource",
+        "decisionId",
+        "status",
+        "expiresAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "action": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "decisionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "approvalId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "status": {
+          "enum": [
+            "READY",
+            "PENDING_APPROVAL",
+            "SUCCEEDED",
+            "FAILED",
+            "UNSUPPORTED"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Execution": {
+      "type": "object",
+      "required": [
+        "id",
+        "contractId",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "contractId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "enum": [
+            "SUCCEEDED",
+            "FAILED",
+            "UNSUPPORTED"
+          ]
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Verification": {
+      "type": "object",
+      "required": [
+        "id",
+        "executionId",
+        "verified"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "traceId": {
+          "type": "string"
+        }
+      }
+    },
+    "Agent": {
+      "type": "object",
+      "required": [
+        "id",
+        "externalId",
+        "identityType",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "externalId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "identityType": {
+          "const": "AI_AGENT"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "Mission": {
+      "type": "object",
+      "required": [
+        "id",
+        "externalTaskId",
+        "agentIdentityId",
+        "toolIds"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "externalTaskId": {
+          "type": "string"
+        },
+        "agentIdentityId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "type": "string"
+        },
+        "toolIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Simulation": {
+      "type": "object",
+      "required": [
+        "id",
+        "spec",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "spec": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "FederationTrust": {
+      "type": "object",
+      "required": [
+        "id",
+        "spec",
+        "status",
+        "trusted"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "spec": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "status": {
+          "const": "PENDING_VERIFICATION"
+        },
+        "trusted": {
+          "const": false
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    }
   }
 }

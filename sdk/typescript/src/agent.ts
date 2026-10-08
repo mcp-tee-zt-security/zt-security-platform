@@ -20,7 +20,10 @@ export class AgentRuntime {
       objective: context.action,
       resource: context.resource,
     });
-    const execution = await this.client.governance.execute(context, options);
+    const execution = await this.client.governance.execute({ ...context,
+      attributes: { ...context.attributes, task_id: mission.externalTaskId,
+        tool_id: context.attributes?.tool_id ?? mission.toolIds[0] }
+    }, options);
     return { mission, execution };
   }
 }

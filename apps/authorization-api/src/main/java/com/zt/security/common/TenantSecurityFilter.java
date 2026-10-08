@@ -23,6 +23,12 @@ public class TenantSecurityFilter extends OncePerRequestFilter {
         res.sendError(403,"tenant mismatch");
         return;
     }
+    if(a instanceof JwtAuthenticationToken jwt){
+        String workspaceClaim=jwt.getToken().getClaimAsString("workspace_id");
+        if(workspaceClaim!=null&&!workspaceClaim.equalsIgnoreCase(req.getHeader("X-Workspace-Id"))){
+            res.sendError(403,"workspace mismatch");return;
+        }
+    }
     if(tenant!=null) {
         try {
             UUID.fromString(tenant);

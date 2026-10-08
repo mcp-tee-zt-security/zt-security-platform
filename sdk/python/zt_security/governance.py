@@ -44,7 +44,7 @@ class GovernanceFacade:
             self.client.create_evidence(evidence) if evidence is not None else None
         )
         created_approval = approval
-        if decision.get("decision") == "REQUIRE_APPROVAL" and not created_approval:
+        if decision.get("decision") in ("STEP_UP", "REQUIRE_APPROVAL") and not created_approval:
             created_approval = self.client.request_approval(
                 {
                     "action": context.action,
@@ -66,6 +66,10 @@ class GovernanceFacade:
                 "approval": created_approval,
             }
         )
+        if decision.get("decision") in ("STEP_UP", "REQUIRE_APPROVAL") and (
+            not created_approval or created_approval.get("status") != "APPROVED"
+        ):
+            return GovernedExecutionResult(decision, created_evidence, created_approval, contract, None, None)
         execution = (
             self.client.execute_contract(contract["id"], {})
             if contract.get("id")

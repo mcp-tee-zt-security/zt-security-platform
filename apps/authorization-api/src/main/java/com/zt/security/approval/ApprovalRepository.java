@@ -6,4 +6,5 @@ UUID>{
     List<Approval> findByTenantIdOrderByCreatedAtDesc(UUID t);
     Optional<Approval> findByIdAndTenantId(UUID id,
     UUID t);
+    List<Approval> findByTenantIdAndRequestIdOrderByCreatedAtDesc(UUID tenantId,UUID requestId);
     }

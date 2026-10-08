@@ -26,7 +26,7 @@ export class GovernanceFacade {
       ? await this.client.createEvidence(options.evidence)
       : undefined;
     const approval =
-      decision.decision === "REQUIRE_APPROVAL"
+      ["STEP_UP", "REQUIRE_APPROVAL"].includes(decision.decision)
         ? (options.approval ??
           (await this.client.requestApproval({
             action: context.action,
@@ -42,6 +42,9 @@ export class GovernanceFacade {
       evidenceIds: evidence?.id ? [evidence.id] : [],
       approval,
     });
+    if (["STEP_UP", "REQUIRE_APPROVAL"].includes(decision.decision) && approval?.status !== "APPROVED") {
+      return { decision, evidence, approval, contract };
+    }
     const execution = await this.client.executeContract(contract.id, {});
     const verification = await this.client.verifyExecution(execution.id, {});
 

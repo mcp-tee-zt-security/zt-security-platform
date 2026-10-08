@@ -4,7 +4,7 @@
 
 ## 1. What this repository is
 
-This repository contains the existing Zero Trust / Cyber Defense platform together with the 4.75 R2 governance and developer-platform reference layer.
+This repository contains the Zero Trust / Cyber Defense platform with the 4.75 SDK governance lifecycle integrated into apps/authorization-api.
 
 The 4.x governance model is:
 
@@ -21,41 +21,15 @@ Identity
   → Audit / Observability
 ```
 
-The original 3.x/4.0 application and infrastructure code remains in the repository. The 4.75 R2 backend and SDK are **not a replacement for every legacy service**; they provide a concrete governance/execution reference layer and common developer contracts.
+The existing application and infrastructure remain. apps/authorization-api is the single executable backend for the dashboard and SDK. The independent in-memory reference backend has been retired.
 
-## 2. Important: there are two backend paths
+## 2. One executable backend
 
-Do not confuse these two parts of the repository:
+`docker/docker-compose.yml` starts `apps/authorization-api` on port 8080, the dashboard on port 3000, PostgreSQL, Redis, and the existing data-plane/infrastructure services.
 
-### A. Existing runnable platform stack
+Dashboard and SDK requests share the existing policy engine, authentication, approvals and audit pipeline. SDK lifecycle records are persisted in PostgreSQL and emitted through the existing event outbox. There is no second backend process to start.
 
-`docker/docker-compose.yml` starts the existing application stack:
-
-```text
-PostgreSQL
-Redis
-Keycloak
-authorization-api       :8080
-policy-data-plane       :8091
-policy-data-plane-1
-policy-data-plane-2
-OTel Collector
-Envoy
-Dashboard               :3000
-```
-
-This is the primary **demo/integration environment** currently wired into Docker Compose.
-
-### B. 4.75 R2 reference backend
-
-`backend/` is a separate Spring Boot reference execution layer.
-
-It exposes the 4.75 governance/execution APIs directly and is intentionally kept separate from the existing `authorization-api` application. It is useful for SDK/API development, unit tests, and validating the 4.75 execution model.
-
-This separation is currently a cleanup item: future maintenance should make the relationship between the existing control-plane services and the 4.75 reference backend clearer without duplicating business logic.
-
----
-
+The `backend/` directory contains only a migration notice. See `docs/api/4.75_BACKEND_API.md` for request compatibility and unsupported external integrations.
 # 3. Step-by-step: run the application
 
 ## Prerequisites
@@ -63,7 +37,7 @@ This separation is currently a cleanup item: future maintenance should make the 
 Recommended local tools:
 
 - Docker + Docker Compose
-- JDK 21 for `backend/`
+- JDK 17 for the integrated authorization API
 - Maven 3.9+
 - Python 3.10+
 - Node.js 20+
@@ -159,61 +133,17 @@ make reset
 
 ---
 
-# 4. Step-by-step: run the 4.75 R2 backend
+# 4. SDK governance on the integrated backend
 
-The reference backend is separate from the Docker Compose `authorization-api` service.
+Use the same authorization-api at http://localhost:8080. SDK requests require a valid API key and UUID tenant header; include the workspace header for workspace policies.
 
-## Start
+The API accepts the dashboard's structured principal/action/resource request and the SDK's subject/action/resource/attributes request. SDK resources use `type/id`; SDK subjects must be registered identities. AI-agent SDK requests require `attributes.task_id` and `attributes.tool_id`.
 
-```bash
-cd backend
-mvn spring-boot:run
-```
+Decisions use ALLOW, STEP_UP and DENY. STEP_UP uses the existing approval queue. A pending approval stops the high-level SDK workflow; approve through the existing endpoint and explicitly execute the saved contract afterward.
 
-It uses Spring Boot's default HTTP port unless overridden.
+Evidence, contracts, execution attempts, verification and lifecycle events persist in PostgreSQL. No external executor is installed by default: an authorized execution attempt returns UNSUPPORTED, and verification returns false. Attestation/capability verification returns HTTP 501 until a real verifier is configured. Federation trust registration remains pending, and Kubernetes policy registration does not apply anything to a cluster.
 
-## Test governance evaluation
-
-```bash
-curl -X POST http://localhost:8080/v1/actions/evaluate \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "identity":"developer",
-    "action":"read",
-    "resource":"policy/example",
-    "context":{"environment":"local"}
-  }'
-```
-
-If the Docker `authorization-api` is already using port 8080, run the reference backend on another port, for example:
-
-```bash
-mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=18080"
-```
-
-Then use `http://localhost:18080` for the examples above.
-
-## 4.1 Reference backend API groups
-
-| Group | Purpose |
-|---|---|
-| `/v1/actions/evaluate` | Policy/governance decision |
-| `/v1/identity/*` | Identity resolution |
-| `/v1/attestation/*` | Attestation verification |
-| `/v1/capabilities/*` | Capability checks |
-| `/v1/evidence/*` | Evidence creation/verification |
-| `/v1/approvals/*` | Approval lifecycle |
-| `/v1/execution/*` | Execution contract, execution and verification |
-| `/v1/governance/policies/*` | Policy lint/blast-radius/as-code operations |
-| `/v1/federation/*` | Federation reference operations |
-| `/v1/agents/*` | Agent and mission reference operations |
-| `/v1/simulations/*` | Simulation reference operations |
-| `/v1/kubernetes/*` | Kubernetes policy reference operation |
-| `/v1/runtime/*` | Runtime session operations |
-| `/v1/observability/*` | Metrics and security event inspection |
-
----
-
+For endpoint details and examples see `docs/api/4.75_BACKEND_API.md`.
 # 5. Step-by-step: run tests and quality checks
 
 ## Repository quality baseline
@@ -271,17 +201,13 @@ mvn test
 cd ../../..
 ```
 
-## 4.75 reference backend
+## Integrated authorization API
 
 ```bash
-cd backend
-mvn test
-mvn verify
-cd ..
+mvn -pl apps/authorization-api -am test
 ```
 
-`mvn verify` is the intended formatting/checkstyle quality gate for the backend.
-
+The integration package is part of the root Maven build. There is no separate backend Maven project.
 ## Dashboard
 
 ```bash
@@ -311,7 +237,7 @@ and use the existing smoke-test script where supported by the local PowerShell e
 
 | Directory | What it contains | Current status |
 |---|---|---|
-| `backend/` | 4.75 reference backend execution layer, governance, observability and tests | Active |
+| `backend/` | Migration notice; independent application retired | Retired |
 | `apps/` | Existing authorization/control-plane application and integrations | Active |
 | `sdk/` | Python, TypeScript, Java and Go SDKs, contracts, examples and CLI | Active |
 | `dashboard/` | Web security dashboard | Active |
@@ -386,7 +312,7 @@ This repository is currently in maintenance and cleanup mode. No new platform fe
 
 | Directory | Status | Purpose |
 |---|---|---|
-| `backend/` | Active | 4.75 reference backend execution layer |
+| `backend/` | Retired | Migration notice; executable code moved to authorization-api |
 | `apps/` | Active | Existing authorization/control-plane application |
 | `sdk/` | Active | Python, TypeScript, Java and Go SDKs |
 | `dashboard/` | Active | Web UI |

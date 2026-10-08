@@ -35,6 +35,12 @@ FilterChain c)throws ServletException,IOException {
                         s.sendError(400,"X-Tenant-Id required for service client");
                         return;
                         }
+                    if(!pc.getTenantId().toString().equalsIgnoreCase(r.getHeader("X-Tenant-Id"))){
+                        s.sendError(403,"service client tenant mismatch");return;
+                    }
+                    if(pc.getWorkspaceId()!=null&&!pc.getWorkspaceId().toString().equalsIgnoreCase(r.getHeader("X-Workspace-Id"))){
+                        s.sendError(403,"service client workspace mismatch");return;
+                    }
                         SecurityContextHolder.getContext().setAuthentication(new
 UsernamePasswordAuthenticationToken("client:"+
                         pc.getClientId(),

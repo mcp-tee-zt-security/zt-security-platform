@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-Decision = Literal["ALLOW", "DENY", "REQUIRE_APPROVAL"]
+Decision = Literal["ALLOW", "DENY", "STEP_UP", "REQUIRE_APPROVAL"]
 
 
 @dataclass(frozen=True)

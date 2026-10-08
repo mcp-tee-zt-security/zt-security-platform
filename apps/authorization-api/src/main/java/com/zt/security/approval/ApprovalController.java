@@ -8,12 +8,15 @@ import java.util.*;
 @RestController @RequestMapping("/v1/approvals") public class ApprovalController {
     final ApprovalRepository repo;
     final TenantSession tenantSession;
+    final com.zt.security.integration.GovernanceStore records;
     ApprovalController(ApprovalRepository r,
-    TenantSession ts){
+    TenantSession ts,com.zt.security.integration.GovernanceStore records){
         repo=r;
         tenantSession=ts;
+        this.records=records;
     }
- record Create(UUID requestId,String approverId,String reason,String payload,Integer ttlMinutes,String approvalType){
+ record Create(UUID requestId,String approverId,String reason,String payload,Integer ttlMinutes,String approvalType,
+ Map<String,Object> decision,Map<String,Object> policyDecision,String action,String resource){
  }
  @GetMapping @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','AUDITOR','APPROVER')") @Transactional(readOnly=
  true) List<Approval> list(@RequestHeader("X-Tenant-Id") UUID t){
@@ -24,13 +27,23 @@ import java.util.*;
      return rows;
      }
  @PostMapping @PreAuthorize("hasAnyRole('PLATFORM','ADMIN')") @Transactional Approval
-create(@RequestHeader("X-Tenant-Id") UUID t,
+create(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader(value="X-Workspace-Id",required=false) UUID workspace,
  @RequestBody Create x){
-     tenantSession.set(t);
+     records.scope(t,workspace);
+     UUID requestId=x.requestId();
+     Map<String,Object> decision=x.decision()!=null?x.decision():x.policyDecision();
+     if(decision!=null){
+         var stored=records.get(t,workspace,"DECISION",String.valueOf(decision.get("id")),false);
+         requestId=com.zt.security.integration.GovernanceStore.uuid(stored.get("requestId"));
+         if(!"STEP_UP".equals(stored.get("decision")))throw new IllegalArgumentException("Decision does not require approval");
+         var existing=repo.findByTenantIdAndRequestIdOrderByCreatedAtDesc(t,requestId);
+         if(!existing.isEmpty())return existing.get(0);
+     }
+     if(requestId==null)throw new IllegalArgumentException("requestId or persisted policy decision is required");
      Approval a=new Approval();
      a.setId(UUID.randomUUID());
      a.setTenantId(t);
-     a.setRequestId(x.requestId());
+     a.setRequestId(requestId);
      a.setApproverId(x.approverId());
      a.setReason(x.reason());
      a.setPayload(x.payload()==null?"{}":x.payload());
@@ -40,6 +53,11 @@ create(@RequestHeader("X-Tenant-Id") UUID t,
      (x.ttlMinutes()==null?30:x.ttlMinutes()))*60L));
      return repo.save(a);
      }
+ @PostMapping("/{id}/approve") @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','APPROVER')") @Transactional
+ public Approval approve(@RequestHeader("X-Tenant-Id") UUID tenant,@PathVariable UUID id,
+ org.springframework.security.core.Authentication actor){
+     return decision(tenant,id,"APPROVED",actor);
+ }
  @PostMapping("/{id}/decision") @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','APPROVER')") @Transactional
 Approval decision(@RequestHeader("X-Tenant-Id") UUID t,
  @PathVariable UUID id,@RequestParam String status,org.springframework.security.core.Authentication actor){

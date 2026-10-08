@@ -1,9 +1,13 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
-  title: ZeroTrust Security Platform SDK Contract
+  title: ZT Security Integrated Authorization and SDK API
   version: 4.75.0
+  description: |
+    One server: apps/authorization-api. Existing dashboard requests and SDK requests share policy and approval enforcement.
+    Resources in SDK requests use type/id and subjects must be registered identities.
+    No external executor, attestation verifier, capability verifier or Kubernetes apply connector is installed by default.
 servers:
-  - url: /api
+  - url: http://localhost:8080
 security:
   - ApiKeyAuth: []
 components:
@@ -12,36 +16,855 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
+  parameters:
+    Tenant:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema: {type: string, format: uuid}
+    Workspace:
+      name: X-Workspace-Id
+      in: header
+      required: false
+      schema: {type: string, format: uuid}
+  responses:
+    Object:
+      description: Operation result; inspect status/verified/applied rather than assuming success.
+      content:
+        application/json:
+          schema: {type: object, additionalProperties: true}
+    Error:
+      description: Authentication, authorization, validation, conflict or missing scoped resource.
+      content:
+        application/json:
+          schema: {type: object, additionalProperties: true}
   schemas:
-    Principal: {type: object, required: [id,type], properties: {id: {type: string}, type: {type: string}, attributes: {type: object, additionalProperties: true}}}
-    Resource: {type: object, required: [type,id], properties: {type: {type: string}, id: {type: string}, attributes: {type: object, additionalProperties: true}}}
-    Action: {type: object, required: [name], properties: {name: {type: string}}}
-    Decision: {type: object, properties: {decision: {type: string}, risk: {type: number}, reason: {type: string}, evidenceId: {type: string}}}
+    Principal:
+      type: object
+      required: [id, type]
+      properties:
+        id: {type: string}
+        type: {type: string}
+        attributes: {type: object, additionalProperties: true}
+    Action:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string}
+    Resource:
+      type: object
+      required: [type, id]
+      properties:
+        type: {type: string}
+        id: {type: string}
+        attributes: {type: object, additionalProperties: true}
+    StructuredRequest:
+      type: object
+      required: [principal, action, resource]
+      properties:
+        principal: {$ref: '#/components/schemas/Principal'}
+        action: {$ref: '#/components/schemas/Action'}
+        resource: {$ref: '#/components/schemas/Resource'}
+        context: {type: object, additionalProperties: true}
+    SdkRequest:
+      type: object
+      required: [subject, action, resource]
+      properties:
+        subject: {type: string, description: Registered identity externalId}
+        action: {type: string}
+        resource: {type: string, pattern: '^[^/]+/.+$', example: bank_account/ACC-1001}
+        tenantId: {type: string, format: uuid, description: Must match X-Tenant-Id}
+        attributes:
+          type: object
+          additionalProperties: true
+          description: AI_AGENT requests require task_id and tool_id; amount and other runtime context are supplied here.
+    EvaluateRequest:
+      oneOf:
+        - {$ref: '#/components/schemas/StructuredRequest'}
+        - {$ref: '#/components/schemas/SdkRequest'}
+    Decision:
+      type: object
+      required: [requestId, decision, reason]
+      properties:
+        id: {type: string, format: uuid, description: Durable SDK decision identifier}
+        requestId: {type: string, format: uuid}
+        traceId: {type: string}
+        decision: {type: string, enum: [ALLOW, STEP_UP, DENY]}
+        reason: {type: string}
+        risk:
+          type: object
+          properties:
+            score: {type: number}
+            level: {type: string}
+        matchedPolicies: {type: array, items: {type: object, additionalProperties: true}}
+        audit: {type: object, additionalProperties: true}
+    ExecutionContract:
+      type: object
+      required: [action, resource, policyDecision]
+      properties:
+        action: {type: string}
+        resource: {type: string, description: Exact type/id from stored decision}
+        policyDecision:
+          type: object
+          required: [id]
+          properties:
+            id: {type: string, format: uuid}
+        evidenceIds: {type: array, items: {type: string, format: uuid}}
+        approval:
+          type: object
+          nullable: true
+          properties:
+            id: {type: string, format: uuid}
 paths:
-  /v1/actions/evaluate: {post: {operationId: evaluate, responses: {'200': {description: Policy decision}}}}
-  /v1/runtime/sessions: {post: {operationId: startRuntimeSession, responses: {'200': {description: Session}}}}
-  /v1/runtime/sessions/{id}: {get: {operationId: getRuntimeSession, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Session}}}}
-  /v1/runtime/sessions/{id}/check: {post: {operationId: runtimeCheck, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Decision}}}}
-  /v1/runtime/sessions/{id}/end: {post: {operationId: endRuntimeSession, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Session}}}}
-  /v1/governance/policies/lint: {post: {operationId: policyLint, responses: {'200': {description: Lint result}}}}
-  /v1/governance/policies/{id}/blast-radius: {get: {operationId: policyBlastRadius, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Blast radius}}}}
-  /v1/governance/policies/{id}/as-code: {get: {operationId: exportPolicy, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Policy}}}}
-  /v1/identity/resolve: {post: {operationId: resolveIdentity, responses: {'200': {description: Identity}}}}
-  /v1/attestation/verify: {post: {operationId: verifyAttestation, responses: {'200': {description: Attestation}}}}
-  /v1/capabilities/check: {post: {operationId: checkCapability, responses: {'200': {description: Capability}}}}
-  /v1/evidence: {post: {operationId: createEvidence, responses: {'200': {description: Evidence}}}}
-  /v1/evidence/{id}/verify: {post: {operationId: verifyEvidence, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Evidence verification}}}}
-  /v1/approvals: {post: {operationId: requestApproval, responses: {'200': {description: Approval}}}}
-  /v1/approvals/{id}/approve: {post: {operationId: approve, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Approval}}}}
-  /v1/execution/contracts: {post: {operationId: createExecutionContract, responses: {'200': {description: Execution contract}}}}
-  /v1/execution/contracts/{id}/execute: {post: {operationId: executeContract, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Execution}}}}
-  /v1/execution/{id}/verify: {post: {operationId: verifyExecution, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Verification}}}}
-  /v1/federation/organizations: {post: {operationId: registerOrganization, responses: {'200': {description: Organization}}}}
-  /v1/federation/trust: {post: {operationId: establishTrust, responses: {'200': {description: Trust}}}}
-  /v1/agents: {post: {operationId: registerAgent, responses: {'200': {description: Agent}}}}
-  /v1/agents/{id}/missions: {post: {operationId: createMission, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Mission}}}}
-  /v1/simulations: {post: {operationId: createSimulation, responses: {'200': {description: Simulation}}}}
-  /v1/simulations/{id}/run: {post: {operationId: runSimulation, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Simulation result}}}}
-  /v1/kubernetes/policies: {post: {operationId: applyKubernetesPolicy, responses: {'200': {description: Kubernetes policy}}}}
-  /v1/observability/metrics: {get: {operationId: getObservabilityMetrics, responses: {'200': {description: Platform security metrics}}}}
-  /v1/observability/events: {get: {operationId: replaySecurityEvents, parameters: [{name: traceId,in:query,required:false,schema:{type:string}}, {name: limit,in:query,required:false,schema:{type:integer,minimum:1,maximum:500}}], responses: {'200': {description: Security event replay}}}}
+  /v1/actions/evaluate:
+    post:
+      operationId: evaluate
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: Idempotency-Key
+          in: header
+          schema: {type: string, maxLength: 200}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EvaluateRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/runtime/sessions:
+    post:
+      operationId: startRuntimeSession
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/runtime/sessions/{id}:
+    get:
+      operationId: getRuntimeSession
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/runtime/sessions/{id}/check:
+    post:
+      operationId: runtimeCheck
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StructuredRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/runtime/sessions/{id}/end:
+    post:
+      operationId: endRuntimeSession
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/governance/policies/lint:
+    post:
+      operationId: policyLint
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/governance/policies/{id}/blast-radius:
+    get:
+      operationId: policyBlastRadius
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/governance/policies/{id}/as-code:
+    get:
+      operationId: exportPolicy
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/identity/resolve:
+    post:
+      operationId: resolveIdentity
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/attestation/verify:
+    post:
+      operationId: verifyAttestation
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      responses:
+        '501':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/capabilities/check:
+    post:
+      operationId: checkCapability
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      responses:
+        '501':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/evidence:
+    post:
+      operationId: createEvidence
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/evidence/{id}/verify:
+    post:
+      operationId: verifyEvidence
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/approvals:
+    post:
+      operationId: requestApproval
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/approvals/{id}/approve:
+    post:
+      operationId: approve
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/execution/contracts:
+    post:
+      operationId: createExecutionContract
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExecutionContract'}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/execution/contracts/{id}:
+    get:
+      operationId: getExecutionContract
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/execution/contracts/{id}/execute:
+    post:
+      operationId: executeContract
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/execution/{id}/verify:
+    post:
+      operationId: verifyExecution
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/federation/organizations:
+    post:
+      operationId: registerOrganization
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/federation/trust:
+    post:
+      operationId: establishTrust
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/agents:
+    post:
+      operationId: registerAgent
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/agents/{id}/missions:
+    post:
+      operationId: createMission
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/simulations:
+    post:
+      operationId: createSimulation
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/simulations/{id}/run:
+    post:
+      operationId: runSimulation
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/kubernetes/policies:
+    post:
+      operationId: applyKubernetesPolicy
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/observability/metrics:
+    get:
+      operationId: getObservabilityMetrics
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/observability/events:
+    get:
+      operationId: replaySecurityEvents
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: traceId
+          in: query
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 500, default: 100}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/operations/sre/incidents/{incidentId}/events:
+    post:
+      operationId: recordSreEvent
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: incidentId
+          in: path
+          required: true
+          schema: {type: string}
+        - name: eventType
+          in: query
+          required: true
+          schema: {type: string}
+        - name: severity
+          in: query
+          required: true
+          schema: {type: string}
+        - name: source
+          in: query
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: false
+        content:
+          text/plain:
+            schema: {type: string}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: listSreEvents
+      parameters:
+        - {$ref: '#/components/parameters/Tenant'}
+        - {$ref: '#/components/parameters/Workspace'}
+        - name: incidentId
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          $ref: '#/components/responses/Object'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+
