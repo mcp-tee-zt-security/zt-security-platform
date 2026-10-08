@@ -1,41 +1,62 @@
 from __future__ import annotations
 
-import json
-from typing import Any, Iterator
-from urllib.request import Request, urlopen
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
+
+from .errors import ZtSecurityConfigurationError
+from .models import JsonObject, SecurityEvent
+from .transport import Timeout, TokenProvider
+
+if TYPE_CHECKING:
+    from .client import ZtSecurityClient
+
+
+class EventReplay:
+    """One bounded JSON snapshot, newest first. This is not a live SSE stream."""
+
+    def __init__(self, client: ZtSecurityClient):
+        self._client = client
+
+    def replay(self, *, trace_id: str | None = None, limit: int = 100) -> Iterator[SecurityEvent]:
+        yield from self._client.replay_events_typed(trace_id, limit)
 
 
 class EventStream:
-    """Read Server-Sent Event replays from the security event fabric."""
+    """Compatibility name for JSON replay; the integrated server does not provide SSE."""
 
     def __init__(
         self,
         base_url: str,
-        api_key: str,
-        tenant_id: str,
+        api_key: str | None = None,
+        tenant_id: str | None = None,
         workspace_id: str | None = None,
-        timeout: int = 30,
+        timeout: Timeout = 30,
+        *,
+        client_id: str | None = None,
+        bearer_token: str | TokenProvider | None = None,
     ):
-        self.base_url = base_url.rstrip("/")
-        self.api_key = api_key
-        self.tenant_id = tenant_id
-        self.workspace_id = workspace_id
-        self.timeout = timeout
+        from .client import ZtSecurityClient
 
-    def replay(self, path: str, *, limit: int = 100) -> Iterator[dict[str, Any]]:
-        headers = {
-            "x-api-key": self.api_key,
-            "x-tenant-id": self.tenant_id,
-        }
-        if self.workspace_id:
-            headers["x-workspace-id"] = self.workspace_id
-
-        request = Request(
-            f"{self.base_url}{path}?limit={limit}",
-            headers=headers,
+        self._client = ZtSecurityClient(
+            base_url, api_key, tenant_id, workspace_id, timeout,
+            client_id=client_id, bearer_token=bearer_token,
         )
-        with urlopen(request, timeout=self.timeout) as response:
-            for line in response:
-                decoded = line.decode().strip()
-                if decoded.startswith("data:"):
-                    yield json.loads(decoded[5:].strip())
+
+    def replay(
+        self, path: str = "/v1/observability/events", *, limit: int = 100,
+        trace_id: str | None = None,
+    ) -> Iterator[JsonObject]:
+        if path != "/v1/observability/events":
+            raise ZtSecurityConfigurationError("JSON replay supports /v1/observability/events only")
+        yield from self._client.replay_events(trace_id, limit)
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> EventStream:
+        self._client.__enter__()
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
+

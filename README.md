@@ -151,7 +151,7 @@ For endpoint details and examples see `docs/api/4.75_BACKEND_API.md`.
 From the repository root:
 
 ```bash
-bash quality/check.sh
+bash scripts/quality/check.sh
 ```
 
 The script currently checks Python compilation, Python line length, TypeScript, Go formatting/tests, Java lexical safety, and Java/TypeScript line-length reports.
@@ -241,7 +241,7 @@ and use the existing smoke-test script where supported by the local PowerShell e
 | `apps/` | Existing authorization/control-plane application and integrations | Active |
 | `sdk/` | Python, TypeScript, Java and Go SDKs, contracts, examples and CLI | Active |
 | `dashboard/` | Web security dashboard | Active |
-| `policy/` | Policy assets and policy configuration | Active |
+| `docs/policy/` | Policy DSL grammar reference and examples; runtime policies are stored in the database | Reference |
 | `k8s/` | Kubernetes deployment manifests and policy draft synchronization operator | Active |
 | `infra/` | Current infrastructure, including CDK and Envoy; unused historical snapshots removed | Active |
 | `docker/` | Local/demo Compose stack and supporting configuration | Active |
@@ -249,11 +249,11 @@ and use the existing smoke-test script where supported by the local PowerShell e
 | `ops/observability/` | Prometheus/Grafana operational deployment configuration and dashboards | Active |
 | `docs/` | Current architecture, API, security, operations, SDK and platform documentation | Active |
 | `scripts/` | Canonical operational and smoke-test scripts | Active |
-| `quality/` | Static quality, formatting and audit tooling | Active |
+| `scripts/quality/` | Static quality, formatting and audit tooling | Active |
 | `runbooks/` | Operational procedures; keep only procedures still used | Review |
 | `benchmarks/` | Performance test assets | Review |
-| `chaos/` | Chaos/resilience test assets | Review |
-| `config/` | Shared configuration | Active |
+| `scripts/windows/chaos/` | Windows chaos/resilience test scripts | Review |
+| `ops/private-llm/` | Private LLM configuration examples | Active |
 
 Historical `validation/` suites and unused versioned Kubernetes/infrastructure snapshots have been removed from the active development tree. Duplicate demo scripts have also been removed; only the canonical `start-demo.ps1`, `stop-demo.ps1` and `reset-demo.ps1` remain.
 
@@ -316,7 +316,7 @@ This repository is currently in maintenance and cleanup mode. No new platform fe
 | `apps/` | Active | Existing authorization/control-plane application |
 | `sdk/` | Active | Python, TypeScript, Java and Go SDKs |
 | `dashboard/` | Active | Web UI |
-| `policy/` | Active | Policy definitions and policy assets |
+| `docs/policy/` | Reference | Policy DSL grammar reference and examples; runtime policies are stored in the database |
 | `k8s/` | Active | Kubernetes deployment manifests and policy draft synchronization operator |
 | `infra/` | Active | Current infrastructure; unused legacy snapshots removed |
 | `docker/` | Active | Local/demo container stack |
@@ -324,11 +324,11 @@ This repository is currently in maintenance and cleanup mode. No new platform fe
 | `ops/observability/` | Active | Prometheus/Grafana operational configuration |
 | `docs/` | Active | Current project documentation |
 | `scripts/` | Active | Canonical operational scripts; duplicates removed |
-| `quality/` | Active | Formatting/lint/static quality checks |
+| `scripts/quality/` | Active | Formatting/lint/static quality checks |
 | `runbooks/` | Review | Operational procedures; remove obsolete entries as discovered |
 | `benchmarks/` | Review | Performance artifacts; retain only if still used |
-| `chaos/` | Review | Chaos test artifacts; retain only if still used |
-| `config/` | Active | Shared configuration |
+| `scripts/windows/chaos/` | Review | Chaos test scripts; retain only if still used |
+| `ops/private-llm/` | Active | Private LLM configuration examples |
 
 
 

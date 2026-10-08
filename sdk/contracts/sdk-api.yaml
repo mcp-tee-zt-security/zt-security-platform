@@ -1,870 +1,2118 @@
-openapi: 3.0.3
-info:
-  title: ZT Security Integrated Authorization and SDK API
-  version: 4.75.0
-  description: |
-    One server: apps/authorization-api. Existing dashboard requests and SDK requests share policy and approval enforcement.
-    Resources in SDK requests use type/id and subjects must be registered identities.
-    No external executor, attestation verifier, capability verifier or Kubernetes apply connector is installed by default.
-servers:
-  - url: http://localhost:8080
-security:
-  - ApiKeyAuth: []
-components:
-  securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-  parameters:
-    Tenant:
-      name: X-Tenant-Id
-      in: header
-      required: true
-      schema: {type: string, format: uuid}
-    Workspace:
-      name: X-Workspace-Id
-      in: header
-      required: false
-      schema: {type: string, format: uuid}
-  responses:
-    Object:
-      description: Operation result; inspect status/verified/applied rather than assuming success.
-      content:
-        application/json:
-          schema: {type: object, additionalProperties: true}
-    Error:
-      description: Authentication, authorization, validation, conflict or missing scoped resource.
-      content:
-        application/json:
-          schema: {type: object, additionalProperties: true}
-  schemas:
-    Principal:
-      type: object
-      required: [id, type]
-      properties:
-        id: {type: string}
-        type: {type: string}
-        attributes: {type: object, additionalProperties: true}
-    Action:
-      type: object
-      required: [name]
-      properties:
-        name: {type: string}
-    Resource:
-      type: object
-      required: [type, id]
-      properties:
-        type: {type: string}
-        id: {type: string}
-        attributes: {type: object, additionalProperties: true}
-    StructuredRequest:
-      type: object
-      required: [principal, action, resource]
-      properties:
-        principal: {$ref: '#/components/schemas/Principal'}
-        action: {$ref: '#/components/schemas/Action'}
-        resource: {$ref: '#/components/schemas/Resource'}
-        context: {type: object, additionalProperties: true}
-    SdkRequest:
-      type: object
-      required: [subject, action, resource]
-      properties:
-        subject: {type: string, description: Registered identity externalId}
-        action: {type: string}
-        resource: {type: string, pattern: '^[^/]+/.+$', example: bank_account/ACC-1001}
-        tenantId: {type: string, format: uuid, description: Must match X-Tenant-Id}
-        attributes:
-          type: object
-          additionalProperties: true
-          description: AI_AGENT requests require task_id and tool_id; amount and other runtime context are supplied here.
-    EvaluateRequest:
-      oneOf:
-        - {$ref: '#/components/schemas/StructuredRequest'}
-        - {$ref: '#/components/schemas/SdkRequest'}
-    Decision:
-      type: object
-      required: [requestId, decision, reason]
-      properties:
-        id: {type: string, format: uuid, description: Durable SDK decision identifier}
-        requestId: {type: string, format: uuid}
-        traceId: {type: string}
-        decision: {type: string, enum: [ALLOW, STEP_UP, DENY]}
-        reason: {type: string}
-        risk:
-          type: object
-          properties:
-            score: {type: number}
-            level: {type: string}
-        matchedPolicies: {type: array, items: {type: object, additionalProperties: true}}
-        audit: {type: object, additionalProperties: true}
-    ExecutionContract:
-      type: object
-      required: [action, resource, policyDecision]
-      properties:
-        action: {type: string}
-        resource: {type: string, description: Exact type/id from stored decision}
-        policyDecision:
-          type: object
-          required: [id]
-          properties:
-            id: {type: string, format: uuid}
-        evidenceIds: {type: array, items: {type: string, format: uuid}}
-        approval:
-          type: object
-          nullable: true
-          properties:
-            id: {type: string, format: uuid}
-paths:
-  /v1/actions/evaluate:
-    post:
-      operationId: evaluate
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: Idempotency-Key
-          in: header
-          schema: {type: string, maxLength: 200}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/EvaluateRequest'}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/runtime/sessions:
-    post:
-      operationId: startRuntimeSession
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/runtime/sessions/{id}:
-    get:
-      operationId: getRuntimeSession
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/runtime/sessions/{id}/check:
-    post:
-      operationId: runtimeCheck
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/StructuredRequest'}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/runtime/sessions/{id}/end:
-    post:
-      operationId: endRuntimeSession
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/governance/policies/lint:
-    post:
-      operationId: policyLint
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/governance/policies/{id}/blast-radius:
-    get:
-      operationId: policyBlastRadius
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/governance/policies/{id}/as-code:
-    get:
-      operationId: exportPolicy
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/identity/resolve:
-    post:
-      operationId: resolveIdentity
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/attestation/verify:
-    post:
-      operationId: verifyAttestation
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      responses:
-        '501':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/capabilities/check:
-    post:
-      operationId: checkCapability
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      responses:
-        '501':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/evidence:
-    post:
-      operationId: createEvidence
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/evidence/{id}/verify:
-    post:
-      operationId: verifyEvidence
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/approvals:
-    post:
-      operationId: requestApproval
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/approvals/{id}/approve:
-    post:
-      operationId: approve
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/execution/contracts:
-    post:
-      operationId: createExecutionContract
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/ExecutionContract'}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/execution/contracts/{id}:
-    get:
-      operationId: getExecutionContract
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/execution/contracts/{id}/execute:
-    post:
-      operationId: executeContract
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/execution/{id}/verify:
-    post:
-      operationId: verifyExecution
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/federation/organizations:
-    post:
-      operationId: registerOrganization
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/federation/trust:
-    post:
-      operationId: establishTrust
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/agents:
-    post:
-      operationId: registerAgent
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/agents/{id}/missions:
-    post:
-      operationId: createMission
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/simulations:
-    post:
-      operationId: createSimulation
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/simulations/{id}/run:
-    post:
-      operationId: runSimulation
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/kubernetes/policies:
-    post:
-      operationId: applyKubernetesPolicy
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {type: object, additionalProperties: true}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/observability/metrics:
-    get:
-      operationId: getObservabilityMetrics
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/observability/events:
-    get:
-      operationId: replaySecurityEvents
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: traceId
-          in: query
-          schema: {type: string}
-        - name: limit
-          in: query
-          schema: {type: integer, minimum: 1, maximum: 500, default: 100}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-  /v1/operations/sre/incidents/{incidentId}/events:
-    post:
-      operationId: recordSreEvent
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: incidentId
-          in: path
-          required: true
-          schema: {type: string}
-        - name: eventType
-          in: query
-          required: true
-          schema: {type: string}
-        - name: severity
-          in: query
-          required: true
-          schema: {type: string}
-        - name: source
-          in: query
-          required: true
-          schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          text/plain:
-            schema: {type: string}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-    get:
-      operationId: listSreEvents
-      parameters:
-        - {$ref: '#/components/parameters/Tenant'}
-        - {$ref: '#/components/parameters/Workspace'}
-        - name: incidentId
-          in: path
-          required: true
-          schema: {type: string}
-      responses:
-        '200':
-          $ref: '#/components/responses/Object'
-        '400':
-          $ref: '#/components/responses/Error'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-
+"openapi": "3.0.3"
+"info":
+  "title": "ZT Security Integrated Authorization and SDK API"
+  "version": "4.75.0"
+  "description": "Common contract revision 1.0.0. Existing structured and SDK-shaped requests share the authoritative authorization server. Python SDK 2.1.0 targets this contract. Success HTTP status does not imply external execution or verification. Preserve additive fields; unknown decision/execution states must fail closed."
+"x-contract-revision": "1.0.0"
+"servers":
+  -
+    "url": "http://localhost:8080"
+"security":
+  -
+    "ApiKeyAuth": []
+  -
+    "BearerAuth": []
+"components":
+  "securitySchemes":
+    "ApiKeyAuth":
+      "type": "apiKey"
+      "in": "header"
+      "name": "X-API-Key"
+    "BearerAuth":
+      "type": "http"
+      "scheme": "bearer"
+      "description": "Requires server OIDC configuration."
+  "parameters":
+    "Tenant":
+      "name": "X-Tenant-Id"
+      "in": "header"
+      "required": true
+      "schema":
+        "type": "string"
+        "format": "uuid"
+    "Workspace":
+      "name": "X-Workspace-Id"
+      "in": "header"
+      "required": false
+      "schema":
+        "type": "string"
+        "format": "uuid"
+      "description": "Required for workspace-owned policies/resources and workspace-bound credentials."
+    "Client":
+      "name": "X-Client-Id"
+      "in": "header"
+      "required": false
+      "schema":
+        "type": "string"
+      "description": "Required when X-API-Key is a service-client secret; not needed for the platform API key."
+  "responses":
+    "Object":
+      "description": "Operation result. Inspect status/verified/applied/trusted; do not infer success from HTTP 200."
+      "content":
+        "application/json":
+          "schema":
+            "type": "object"
+            "additionalProperties": true
+    "Error":
+      "description": "Failure. Status drives SDK exception classification; diagnostic wire error/message fields are not a globally uniform machine-code system."
+      "headers":
+        "X-Request-Id":
+          "schema":
+            "type": "string"
+          "description": "Optional correlation identifier."
+        "Retry-After":
+          "schema":
+            "type": "string"
+          "description": "Seconds or HTTP date when supplied; never retry earlier."
+      "content":
+        "application/json":
+          "schema":
+            "$ref": "#/components/schemas/ApiError"
+        "text/plain":
+          "schema":
+            "type": "string"
+  "schemas":
+    "ApiError":
+      "type": "object"
+      "properties":
+        "status":
+          "type": "integer"
+        "error":
+          "type": "string"
+        "message":
+          "type": "string"
+        "timestamp":
+          "type": "string"
+          "format": "date-time"
+        "path":
+          "type": "string"
+        "requestId":
+          "type": "string"
+      "additionalProperties": true
+    "Principal":
+      "type": "object"
+      "required":
+        - "id"
+        - "type"
+      "properties":
+        "id":
+          "type": "string"
+        "type":
+          "type": "string"
+        "attributes":
+          "type": "object"
+          "additionalProperties": true
+      "additionalProperties": true
+    "Action":
+      "type": "object"
+      "required":
+        - "name"
+      "properties":
+        "name":
+          "type": "string"
+      "additionalProperties": true
+    "Resource":
+      "type": "object"
+      "required":
+        - "type"
+        - "id"
+      "properties":
+        "type":
+          "type": "string"
+        "id":
+          "type": "string"
+        "attributes":
+          "type": "object"
+          "additionalProperties": true
+      "additionalProperties": true
+    "StructuredRequest":
+      "type": "object"
+      "required":
+        - "principal"
+        - "action"
+        - "resource"
+      "properties":
+        "principal":
+          "$ref": "#/components/schemas/Principal"
+        "action":
+          "$ref": "#/components/schemas/Action"
+        "resource":
+          "$ref": "#/components/schemas/Resource"
+        "context":
+          "type": "object"
+          "additionalProperties": true
+      "additionalProperties": true
+    "SdkRequest":
+      "type": "object"
+      "required":
+        - "subject"
+        - "action"
+        - "resource"
+      "properties":
+        "subject":
+          "type": "string"
+          "description": "Registered identity externalId. Identity type/attributes are resolved by the server."
+        "action":
+          "type": "string"
+        "resource":
+          "type": "string"
+          "pattern": "^[^/]+/.+$"
+          "example": "bank_account/ACC-1001"
+        "tenantId":
+          "type": "string"
+          "format": "uuid"
+          "description": "If present, must match X-Tenant-Id."
+        "attributes":
+          "type": "object"
+          "additionalProperties": true
+          "description": "AI_AGENT subjects require task_id and tool_id; runtime inputs such as amount belong here."
+      "additionalProperties": true
+    "EvaluateRequest":
+      "oneOf":
+        -
+          "$ref": "#/components/schemas/StructuredRequest"
+        -
+          "$ref": "#/components/schemas/SdkRequest"
+    "Risk":
+      "type": "object"
+      "required":
+        - "score"
+        - "level"
+      "properties":
+        "score":
+          "type": "number"
+          "minimum": 0
+          "maximum": 100
+        "level":
+          "type": "string"
+      "additionalProperties": true
+    "Decision":
+      "type": "object"
+      "required":
+        - "requestId"
+        - "decision"
+        - "reason"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+          "description": "Required for SDK-shaped responses; absent from structured responses."
+        "requestId":
+          "type": "string"
+          "format": "uuid"
+        "traceId":
+          "type": "string"
+        "decision":
+          "type": "string"
+          "enum":
+            - "ALLOW"
+            - "STEP_UP"
+            - "DENY"
+        "reason":
+          "type": "string"
+        "risk":
+          "$ref": "#/components/schemas/Risk"
+        "matchedPolicies":
+          "type": "array"
+          "items":
+            "type": "object"
+            "additionalProperties": true
+        "audit":
+          "type": "object"
+          "additionalProperties": true
+        "latencyMs":
+          "type": "integer"
+          "minimum": 0
+        "decidedAt":
+          "type": "string"
+          "format": "date-time"
+        "createdAt":
+          "type": "string"
+          "format": "date-time"
+      "additionalProperties": true
+    "EvidenceRequest":
+      "type": "object"
+      "additionalProperties": true
+      "properties":
+        "type":
+          "type": "string"
+        "subject":
+          "type": "string"
+        "traceId":
+          "type": "string"
+        "tenantId":
+          "type": "string"
+          "format": "uuid"
+      "description": "The complete submitted JSON object is stored as the evidence payload."
+    "Evidence":
+      "type": "object"
+      "required":
+        - "id"
+        - "type"
+        - "subject"
+        - "payload"
+        - "digest"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "tenantId":
+          "type": "string"
+          "format": "uuid"
+        "type":
+          "type": "string"
+        "subject":
+          "type": "string"
+        "payload":
+          "type": "object"
+          "additionalProperties": true
+        "digest":
+          "type": "string"
+          "pattern": "^[0-9a-fA-F]{64}$"
+        "traceId":
+          "type": "string"
+        "createdAt":
+          "type": "string"
+          "format": "date-time"
+      "additionalProperties": true
+    "EvidenceVerification":
+      "type": "object"
+      "required":
+        - "id"
+        - "verified"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "verified":
+          "type": "boolean"
+        "verificationType":
+          "type": "string"
+      "additionalProperties": true
+    "DecisionReference":
+      "type": "object"
+      "required":
+        - "id"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+      "additionalProperties": true
+    "ApprovalRequest":
+      "type": "object"
+      "properties":
+        "requestId":
+          "type": "string"
+          "format": "uuid"
+        "decision":
+          "$ref": "#/components/schemas/DecisionReference"
+        "policyDecision":
+          "$ref": "#/components/schemas/DecisionReference"
+        "action":
+          "type": "string"
+        "resource":
+          "type": "string"
+        "approverId":
+          "type": "string"
+        "reason":
+          "type": "string"
+        "payload":
+          "type": "string"
+          "description": "JSON encoded as a string, matching the existing approval API."
+        "ttlMinutes":
+          "type": "integer"
+          "default": 30
+        "approvalType":
+          "type": "string"
+      "additionalProperties": true
+      "anyOf":
+        -
+          "required":
+            - "requestId"
+        -
+          "required":
+            - "decision"
+        -
+          "required":
+            - "policyDecision"
+    "Approval":
+      "type": "object"
+      "required":
+        - "id"
+        - "requestId"
+        - "status"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "tenantId":
+          "type": "string"
+          "format": "uuid"
+        "requestId":
+          "type": "string"
+          "format": "uuid"
+        "status":
+          "type": "string"
+          "enum":
+            - "PENDING"
+            - "APPROVED"
+            - "REJECTED"
+            - "EXPIRED"
+        "approverId":
+          "type": "string"
+          "nullable": true
+        "reason":
+          "type": "string"
+          "nullable": true
+        "expiresAt":
+          "type": "string"
+          "format": "date-time"
+          "nullable": true
+        "decidedAt":
+          "type": "string"
+          "format": "date-time"
+          "nullable": true
+        "decidedBy":
+          "type": "string"
+          "nullable": true
+        "createdAt":
+          "type": "string"
+          "format": "date-time"
+      "additionalProperties": true
+    "ExecutionContractRequest":
+      "type": "object"
+      "required":
+        - "action"
+        - "resource"
+        - "policyDecision"
+      "properties":
+        "action":
+          "type": "string"
+        "resource":
+          "type": "string"
+          "description": "Exact type/id from the stored decision."
+        "policyDecision":
+          "$ref": "#/components/schemas/DecisionReference"
+        "evidenceIds":
+          "type": "array"
+          "items":
+            "type": "string"
+            "format": "uuid"
+        "approval":
+          "type": "object"
+          "nullable": true
+          "properties":
+            "id":
+              "type": "string"
+              "format": "uuid"
+          "required":
+            - "id"
+      "additionalProperties": true
+    "ExecutionContract":
+      "type": "object"
+      "required":
+        - "id"
+        - "action"
+        - "resource"
+        - "decisionId"
+        - "status"
+        - "expiresAt"
+        - "evidenceIds"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "tenantId":
+          "type": "string"
+          "format": "uuid"
+        "action":
+          "type": "string"
+        "resource":
+          "type": "string"
+        "decisionId":
+          "type": "string"
+          "format": "uuid"
+        "status":
+          "type": "string"
+          "enum":
+            - "READY"
+            - "PENDING_APPROVAL"
+            - "SUCCEEDED"
+            - "FAILED"
+            - "UNSUPPORTED"
+        "expiresAt":
+          "type": "string"
+          "format": "date-time"
+        "approvalId":
+          "type": "string"
+          "format": "uuid"
+          "nullable": true
+        "evidenceIds":
+          "type": "array"
+          "items":
+            "type": "string"
+            "format": "uuid"
+        "executionId":
+          "type": "string"
+          "format": "uuid"
+        "traceId":
+          "type": "string"
+        "request":
+          "$ref": "#/components/schemas/StructuredRequest"
+        "createdAt":
+          "type": "string"
+          "format": "date-time"
+      "additionalProperties": true
+    "Execution":
+      "type": "object"
+      "required":
+        - "id"
+        - "contractId"
+        - "status"
+        - "result"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "contractId":
+          "type": "string"
+          "format": "uuid"
+        "status":
+          "type": "string"
+          "enum":
+            - "SUCCEEDED"
+            - "FAILED"
+            - "UNSUPPORTED"
+        "result":
+          "type": "object"
+          "additionalProperties": true
+        "traceId":
+          "type": "string"
+        "startedAt":
+          "type": "string"
+          "format": "date-time"
+        "completedAt":
+          "type": "string"
+          "format": "date-time"
+      "additionalProperties": true
+    "Verification":
+      "type": "object"
+      "required":
+        - "id"
+        - "executionId"
+        - "verified"
+        - "reason"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "executionId":
+          "type": "string"
+          "format": "uuid"
+        "verified":
+          "type": "boolean"
+        "reason":
+          "type": "string"
+        "traceId":
+          "type": "string"
+        "createdAt":
+          "type": "string"
+          "format": "date-time"
+      "additionalProperties": true
+    "IdentityResolution":
+      "type": "object"
+      "required":
+        - "resolved"
+        - "subject"
+      "properties":
+        "resolved":
+          "type": "boolean"
+        "subject":
+          "type": "string"
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "identityType":
+          "type": "string"
+        "status":
+          "type": "string"
+        "reason":
+          "type": "string"
+      "additionalProperties": true
+    "MissionRequest":
+      "type": "object"
+      "properties":
+        "objective":
+          "type": "string"
+        "purpose":
+          "type": "string"
+        "resource":
+          "type": "string"
+        "externalTaskId":
+          "type": "string"
+        "toolIds":
+          "type": "array"
+          "items":
+            "type": "string"
+            "format": "uuid"
+      "additionalProperties": true
+    "Mission":
+      "type": "object"
+      "required":
+        - "id"
+        - "externalTaskId"
+        - "agentIdentityId"
+        - "toolIds"
+        - "status"
+        - "expiresAt"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "externalTaskId":
+          "type": "string"
+        "agentIdentityId":
+          "type": "string"
+          "format": "uuid"
+        "toolIds":
+          "type": "array"
+          "minItems": 1
+          "items":
+            "type": "string"
+            "format": "uuid"
+        "status":
+          "type": "string"
+        "expiresAt":
+          "type": "string"
+          "format": "date-time"
+        "subject":
+          "type": "string"
+      "additionalProperties": true
+    "SecurityEvent":
+      "type": "object"
+      "required":
+        - "eventId"
+        - "tenantId"
+        - "eventType"
+        - "occurredAt"
+        - "subject"
+        - "payload"
+      "properties":
+        "eventId":
+          "type": "string"
+          "format": "uuid"
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "tenantId":
+          "type": "string"
+          "format": "uuid"
+        "workspaceId":
+          "type": "string"
+          "format": "uuid"
+          "nullable": true
+        "eventType":
+          "type": "string"
+        "occurredAt":
+          "type": "string"
+          "format": "date-time"
+        "subject":
+          "type": "string"
+        "traceId":
+          "type": "string"
+          "nullable": true
+        "correlationId":
+          "type": "string"
+          "nullable": true
+        "payload":
+          "type": "object"
+          "additionalProperties": true
+        "evidenceRefs":
+          "type": "array"
+          "items":
+            "type": "string"
+            "format": "uuid"
+      "additionalProperties": true
+    "Metrics":
+      "type": "object"
+      "required":
+        - "policyDecisions"
+        - "executions"
+        - "executionFailures"
+        - "executionFailureRate"
+        - "verifications"
+        - "eventCount"
+      "properties":
+        "policyDecisions":
+          "type": "integer"
+          "minimum": 0
+        "executions":
+          "type": "integer"
+          "minimum": 0
+        "executionFailures":
+          "type": "integer"
+          "minimum": 0
+        "executionFailureRate":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+        "verifications":
+          "type": "integer"
+          "minimum": 0
+        "eventCount":
+          "type": "integer"
+          "minimum": 0
+        "recordCounts":
+          "type": "object"
+          "additionalProperties":
+            "type": "integer"
+            "minimum": 0
+      "additionalProperties": true
+    "RuntimeStartRequest":
+      "type": "object"
+      "required":
+        - "agent"
+      "properties":
+        "agent":
+          "type": "string"
+        "taskId":
+          "type": "string"
+          "nullable": true
+        "source":
+          "type": "string"
+        "metadata":
+          "type": "object"
+          "additionalProperties": true
+      "additionalProperties": true
+    "SreEvent":
+      "type": "object"
+      "required":
+        - "id"
+        - "tenantId"
+        - "incidentId"
+        - "eventType"
+        - "severity"
+        - "source"
+        - "eventTime"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "tenantId":
+          "type": "string"
+          "format": "uuid"
+        "incidentId":
+          "type": "string"
+        "eventType":
+          "type": "string"
+        "severity":
+          "type": "string"
+        "source":
+          "type": "string"
+        "eventTime":
+          "type": "string"
+          "format": "date-time"
+        "correlationKey":
+          "type": "string"
+          "nullable": true
+        "details":
+          "type": "string"
+      "additionalProperties": true
+"paths":
+  "/v1/actions/evaluate":
+    "post":
+      "operationId": "evaluate"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "Idempotency-Key"
+          "in": "header"
+          "schema":
+            "type": "string"
+            "minLength": 1
+            "maxLength": 200
+          "description": "Use one key and one identical body across attempts; scope is tenant/workspace."
+      "x-sdk-retry-policy": "idempotency-key-required"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Decision"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/EvaluateRequest"
+  "/v1/runtime/sessions":
+    "post":
+      "operationId": "startRuntimeSession"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/RuntimeStartRequest"
+  "/v1/runtime/sessions/{id}":
+    "get":
+      "operationId": "getRuntimeSession"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "safe-read"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+  "/v1/runtime/sessions/{id}/check":
+    "post":
+      "operationId": "runtimeCheck"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+        -
+          "name": "Idempotency-Key"
+          "in": "header"
+          "schema":
+            "type": "string"
+            "minLength": 1
+            "maxLength": 200
+          "description": "Server accepts a key, but this endpoint is not enabled for SDK automatic replay."
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Decision"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/StructuredRequest"
+  "/v1/runtime/sessions/{id}/end":
+    "post":
+      "operationId": "endRuntimeSession"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": false
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+  "/v1/governance/policies/lint":
+    "post":
+      "operationId": "policyLint"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+  "/v1/governance/policies/{id}/blast-radius":
+    "get":
+      "operationId": "policyBlastRadius"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "safe-read"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+  "/v1/governance/policies/{id}/as-code":
+    "get":
+      "operationId": "exportPolicy"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "safe-read"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+  "/v1/identity/resolve":
+    "post":
+      "operationId": "resolveIdentity"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/IdentityResolution"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+  "/v1/attestation/verify":
+    "post":
+      "operationId": "verifyAttestation"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "501":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+  "/v1/capabilities/check":
+    "post":
+      "operationId": "checkCapability"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "501":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+  "/v1/evidence":
+    "post":
+      "operationId": "createEvidence"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Evidence"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/EvidenceRequest"
+  "/v1/evidence/{id}/verify":
+    "post":
+      "operationId": "verifyEvidence"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/EvidenceVerification"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": false
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+  "/v1/approvals":
+    "post":
+      "operationId": "requestApproval"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Approval"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/ApprovalRequest"
+  "/v1/approvals/{id}/approve":
+    "post":
+      "operationId": "approve"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Approval"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": false
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+  "/v1/execution/contracts":
+    "post":
+      "operationId": "createExecutionContract"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/ExecutionContract"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/ExecutionContractRequest"
+  "/v1/execution/contracts/{id}":
+    "get":
+      "operationId": "getExecutionContract"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "safe-read"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/ExecutionContract"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+  "/v1/execution/contracts/{id}/execute":
+    "post":
+      "operationId": "executeContract"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Execution"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": false
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+      "description": "External execution may be UNSUPPORTED. No connector is installed by default. Do not automatically replay after an ambiguous failure."
+  "/v1/execution/{id}/verify":
+    "post":
+      "operationId": "verifyExecution"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Verification"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": false
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+      "description": "verified=true requires a connector to verify a real successful external execution."
+  "/v1/federation/organizations":
+    "post":
+      "operationId": "registerOrganization"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+  "/v1/federation/trust":
+    "post":
+      "operationId": "establishTrust"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+      "description": "organizationId is required. Registers PENDING_VERIFICATION; trusted=false."
+  "/v1/agents":
+    "post":
+      "operationId": "registerAgent"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+  "/v1/agents/{id}/missions":
+    "post":
+      "operationId": "createMission"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Mission"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/MissionRequest"
+  "/v1/simulations":
+    "post":
+      "operationId": "createSimulation"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+  "/v1/simulations/{id}/run":
+    "post":
+      "operationId": "runSimulation"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": false
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+  "/v1/kubernetes/policies":
+    "post":
+      "operationId": "applyKubernetesPolicy"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Object"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "additionalProperties": true
+      "description": "Registers intent as NOT_APPLIED; applied=false until an apply connector exists."
+  "/v1/observability/metrics":
+    "get":
+      "operationId": "getObservabilityMetrics"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+      "x-sdk-retry-policy": "safe-read"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Metrics"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+  "/v1/observability/events":
+    "get":
+      "operationId": "replaySecurityEvents"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "traceId"
+          "in": "query"
+          "schema":
+            "type": "string"
+        -
+          "name": "limit"
+          "in": "query"
+          "schema":
+            "type": "integer"
+            "minimum": 1
+            "maximum": 500
+            "default": 100
+      "x-sdk-retry-policy": "safe-read"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "type": "array"
+                "items":
+                  "$ref": "#/components/schemas/SecurityEvent"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "description": "One bounded newest-first JSON snapshot. No SSE or cursor pagination."
+  "/v1/operations/sre/incidents/{incidentId}/events":
+    "post":
+      "operationId": "recordSreEvent"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "incidentId"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+        -
+          "name": "eventType"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+        -
+          "name": "severity"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+        -
+          "name": "source"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+        -
+          "name": "tenantId"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+            "format": "uuid"
+          "description": "If supplied, must match X-Tenant-Id."
+        -
+          "name": "correlationKey"
+          "in": "query"
+          "schema":
+            "type": "string"
+      "x-sdk-retry-policy": "no-automatic-retry"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/SreEvent"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+      "requestBody":
+        "required": false
+        "content":
+          "text/plain":
+            "schema":
+              "type": "string"
+    "get":
+      "operationId": "listSreEvents"
+      "parameters":
+        -
+          "$ref": "#/components/parameters/Tenant"
+        -
+          "$ref": "#/components/parameters/Workspace"
+        -
+          "$ref": "#/components/parameters/Client"
+        -
+          "name": "incidentId"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+      "x-sdk-retry-policy": "safe-read"
+      "responses":
+        "200":
+          "description": "Validated operation response."
+          "content":
+            "application/json":
+              "schema":
+                "type": "array"
+                "items":
+                  "$ref": "#/components/schemas/SreEvent"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "502":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+        "504":
+          "$ref": "#/components/responses/Error"
+"x-sdk-transport-policy":
+  "retryableHttpStatuses":
+    - 429
+    - 502
+    - 503
+    - 504
+  "unsafeMutationReplay": "disabled"
+  "evaluationKeyMaxLength": 200
+  "redirects": "refused"
+  "retryAfter": "seconds-or-http-date; never shorten; return error above configured maximum"
+  "timeout": "per-attempt connect/read inactivity, not a total workflow deadline"

@@ -4,9 +4,29 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zt-security-sdk"
-version = "2.0.0"
+version = "2.1.0"
+description = "Synchronous typed SDK for the integrated ZT Security authorization and governance API"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["requests>=2.32,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "build>=1", "PyYAML>=6", "jsonschema>=4"]
+
+[project.urls]
+Repository = "https://github.com/mcp-tee-zt-security/zt-security-platform"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["zt_security*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+zt_security = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.black]
 line-length = 100
