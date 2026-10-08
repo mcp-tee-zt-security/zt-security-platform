@@ -3,9 +3,15 @@ kind: ZeroTrustPolicy
 metadata:
   name: production-api
 spec:
-  workload: payment-api
-  identityRequired: true
-  attestationRequired: true
-  capabilities: [read-secret, outbound-network]
-  decision: governed
-  approvalRequired: true
+  policyText: |
+    policy "restricted_data_export" {
+      priority 5
+      effect deny
+      description "Block external export of restricted data"
+      principal.type == "AI_AGENT"
+      action == "data.export"
+      condition {
+        resource.classification in ["CONFIDENTIAL", "RESTRICTED"]
+        and destination.type == "external"
+      }
+    }

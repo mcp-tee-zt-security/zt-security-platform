@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zt-policy-operator
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: zt-policy-operator}
+  template:
+    metadata:
+      labels: {app: zt-policy-operator}
+    spec:
+      serviceAccountName: zt-policy-operator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: operator
+          image: zt-security/policy-operator:local
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+            - name: PLATFORM_URL
+              value: https://authorization.example.com
+            - name: PLATFORM_TENANT_ID
+              valueFrom: {secretKeyRef: {name: zt-policy-operator-platform, key: tenant-id}}
+            - name: PLATFORM_WORKSPACE_ID
+              valueFrom: {secretKeyRef: {name: zt-policy-operator-platform, key: workspace-id, optional: true}}
+            - name: PLATFORM_TOKEN_FILE
+              value: /var/run/platform/bearer-token
+          volumeMounts:
+            - name: platform-token
+              mountPath: /var/run/platform
+              readOnly: true
+          ports: [{name: probes, containerPort: 8081}]
+          readinessProbe: {httpGet: {path: /readyz, port: probes}}
+          livenessProbe: {httpGet: {path: /healthz, port: probes}}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+      volumes:
+        - name: platform-token
+          secret:
+            secretName: zt-policy-operator-platform
+            defaultMode: 0440
+            items:
+              - {key: bearer-token, path: bearer-token}

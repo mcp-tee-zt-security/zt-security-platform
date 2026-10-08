@@ -9,6 +9,12 @@ spec:
       ports: [{protocol: TCP, port: 8080}]
   egress:
     - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: zt-security}}}]
-      ports: [{protocol: TCP, port: 5432}]
+      ports: [{protocol: TCP, port: 5432}, {protocol: TCP, port: 6379}]
     - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    # HTTPS for OIDC discovery/JWKS and configured external integrations.
+    # Narrow these CIDRs to the actual identity/integration endpoints in the environment overlay.
+    - to:
+        - ipBlock: {cidr: 0.0.0.0/0}
+        - ipBlock: {cidr: "::/0"}
+      ports: [{protocol: TCP, port: 443}]

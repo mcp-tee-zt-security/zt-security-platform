@@ -16,10 +16,13 @@ spec:
       terminationGracePeriodSeconds: 60
       securityContext:
         runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: authorization-api
-          image: zt-security/authorization-api:3.24.0
+          image: zt-security/authorization-api:local
           imagePullPolicy: IfNotPresent
           ports: [{name: http, containerPort: 8080}]
           envFrom:
@@ -34,6 +37,12 @@ spec:
             capabilities: {drop: [ALL]}
           readinessProbe: {httpGet: {path: /actuator/health/readiness, port: http}, initialDelaySeconds: 20, periodSeconds: 10}
           livenessProbe: {httpGet: {path: /actuator/health/liveness, port: http}, initialDelaySeconds: 40, periodSeconds: 20}
+          startupProbe: {httpGet: {path: /actuator/health/liveness, port: http}, periodSeconds: 5, failureThreshold: 60}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 256Mi}
 ---
 apiVersion: v1
 kind: Service

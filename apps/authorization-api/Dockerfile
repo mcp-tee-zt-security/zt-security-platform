@@ -7,5 +7,7 @@ RUN mvn -q -pl apps/authorization-api -am -DskipTests package
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/apps/authorization-api/target/authorization-api-2.0.0.jar app.jar
+RUN groupadd --gid 10001 zt && useradd --uid 10001 --gid 10001 --no-create-home zt
+USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","app.jar"]

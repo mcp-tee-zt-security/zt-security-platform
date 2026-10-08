@@ -14,14 +14,18 @@ spec:
     - name: v1alpha1
       served: true
       storage: true
+      additionalPrinterColumns:
+        - {name: Phase, type: string, jsonPath: .status.phase}
+        - {name: Reason, type: string, jsonPath: .status.reason}
       schema:
         openAPIV3Schema:
           type: object
           properties:
             spec:
               type: object
-              required: [workload, identityRequired, attestationRequired]
+              required: [policyText]
               properties:
+                policyText: {type: string, minLength: 1, maxLength: 65536}
                 workload: {type: string}
                 identityRequired: {type: boolean}
                 attestationRequired: {type: boolean}
@@ -33,4 +37,8 @@ spec:
               properties:
                 phase: {type: string}
                 observedHash: {type: string}
+                observedGeneration: {type: integer, format: int64}
+                platformPolicyId: {type: string}
+                reason: {type: string}
+                message: {type: string}
       subresources: {status: {}}

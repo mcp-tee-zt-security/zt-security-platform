@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zt-security-config
+  namespace: zt-security
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+  DB_SCHEMA: "zt_security_475"
+  REDIS_HOST: "redis.zt-security.svc.cluster.local"
+  REDIS_PORT: "6379"
+  ZT_OIDC_ENABLED: "true"
+  ZT_OIDC_ISSUER_URI: "https://identity.example.com/realms/zt"
+  MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+  MANAGEMENT_ENDPOINT_HEALTH_GROUP_READINESS_INCLUDE: "readinessState,db,redis"
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "never"
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,prometheus"

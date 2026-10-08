@@ -242,7 +242,7 @@ and use the existing smoke-test script where supported by the local PowerShell e
 | `sdk/` | Python, TypeScript, Java and Go SDKs, contracts, examples and CLI | Active |
 | `dashboard/` | Web security dashboard | Active |
 | `policy/` | Policy assets and policy configuration | Active |
-| `k8s/` | Current Kubernetes manifests; `3.24` is retained because it is an active deployment tree | Active |
+| `k8s/` | Kubernetes deployment manifests and policy draft synchronization operator | Active |
 | `infra/` | Current infrastructure, including CDK and Envoy; unused historical snapshots removed | Active |
 | `docker/` | Local/demo Compose stack and supporting configuration | Active |
 | `observability/` | Current observability assets/contracts | Active |
@@ -267,7 +267,7 @@ The repository is now in cleanup mode. The following changes have already been a
 4. Removed duplicate `scripts/scripts-*-demo.ps1` files.
 5. Removed root/dashboard package `version` metadata because the project is not treating those values as release identifiers during active development. Dependency/library versions remain where package managers require them.
 6. Retained `infra/envoy/3.3/envoy.yaml` because `docker/docker-compose.yml` references it directly.
-7. Retained `k8s/3.24` because it remains an active Kubernetes deployment tree and has not been proven obsolete.
+7. Reorganized Kubernetes deployment manifests under `k8s/deploy/`; operator resources remain under `k8s/operator/`.
 
 No new platform capability is introduced by these changes.
 
@@ -317,7 +317,7 @@ This repository is currently in maintenance and cleanup mode. No new platform fe
 | `sdk/` | Active | Python, TypeScript, Java and Go SDKs |
 | `dashboard/` | Active | Web UI |
 | `policy/` | Active | Policy definitions and policy assets |
-| `k8s/` | Active | Current Kubernetes manifests only |
+| `k8s/` | Active | Kubernetes deployment manifests and policy draft synchronization operator |
 | `infra/` | Active | Current infrastructure; unused legacy snapshots removed |
 | `docker/` | Active | Local/demo container stack |
 | `observability/` | Active | Current observability contracts/assets |
