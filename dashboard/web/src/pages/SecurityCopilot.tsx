@@ -27,11 +27,12 @@ const Metric=({label,value}:{label:string,value:any})=>
 </div>
 </div>;
 
-export default function SecurityCopilot(){
+export default function SecurityCopilot({contextLabel,initialScenario}:{contextLabel?:string;initialScenario?:string}={}){
 const [data,setData]=React.useState<any>(null),[scenario,
-setScenario]=React.useState('high-value AI agent payment transfer'),
+setScenario]=React.useState(initialScenario||'high-value AI agent payment transfer'),
  [draft,setDraft]=React.useState<any>(null),[err,setErr]=React.useState(''),
  [busy,setBusy]=React.useState(false);
+ React.useEffect(()=>{if(initialScenario){setScenario(initialScenario);setDraft(null)}},[initialScenario]);
  const load=async()=>{setBusy(true);
      try{setData(await apiGet('/v1/security/copilot/analysis?windowMinutes=120'));
          setErr('')}catch(e:any){setErr(e.message)}finally{setBusy(false)}};
@@ -39,6 +40,7 @@ setScenario]=React.useState('high-value AI agent payment transfer'),
  const recommend=async()=>{try{setDraft(await apiPost('/v1/security/copilot/policy-recommendation',
          {scenario}))}catch(e:any){setErr(e.message)}};
  return <div>
+  {contextLabel&&<div className="workflow-context"><b>Working context: {contextLabel}</b><p>Analysis covers the current tenant and the last 120 minutes. It is not filtered to this agent or request. Recommendations are drafts only.</p></div>}
   <div className="page-header">
 <div>
 <h2>AI Security Copilot</h2>

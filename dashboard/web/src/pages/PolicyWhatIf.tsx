@@ -19,13 +19,17 @@ const sample=`policy "ai_agent_high_value_transfer_guard" {
 const Pill=({v}:{v:string})=>
 <span className={`status ${v.toLowerCase()}`}>{v}
 </span>;
-export default function PolicyWhatIf(){
- const [text,setText]=React.useState(sample),[data,setData]=React.useState<any>(null),
+export default function PolicyWhatIf({policyText,onPolicyTextChange}:{policyText?:string;onPolicyTextChange?:(text:string)=>void}={}){
+ const [localText,setLocalText]=React.useState(sample),[data,setData]=React.useState<any>(null),
  [busy,setBusy]=React.useState(false),[err,setErr]=React.useState('');
+ const text=policyText??localText;
+ const setText=(value:string)=>{if(onPolicyTextChange)onPolicyTextChange(value);else setLocalText(value)};
+ React.useEffect(()=>{setData(null);setErr('')},[text]);
+ const latestText=React.useRef(text);latestText.current=text;
  const run=async()=>{setBusy(true);
      setErr('');
-     try{setData(await apiPost('/v1/security/what-if/simulate',
-         {policyText:text}))}catch(e:any){setErr(e.message)}finally{setBusy(false)}
+     try{const result=await apiPost('/v1/security/what-if/simulate',
+         {policyText:text});if(latestText.current===text)setData(result)}catch(e:any){setErr(e.message)}finally{setBusy(false)}
  };
  return <div>
   <div className="page-header">

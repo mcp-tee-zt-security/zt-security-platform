@@ -18,18 +18,22 @@ const sample=`policy "ai_agent_high_value_transfer_guard" {
 const Pill=({v}:{v:string})=>
 <span className={`status ${v.toLowerCase()}`}>{v}
 </span>;
-export default function ShadowReplay(){
- const [text,setText]=React.useState(sample),[days,setDays]=React.useState(1),
+export default function ShadowReplay({policyText,onPolicyTextChange}:{policyText?:string;onPolicyTextChange?:(text:string)=>void}={}){
+ const [localText,setLocalText]=React.useState(sample),[days,setDays]=React.useState(1),
  [max,setMax]=React.useState(1000),[data,setData]=React.useState<any>(null),
  [busy,setBusy]=React.useState(false),[err,setErr]=React.useState('');
+ const text=policyText??localText;
+ const setText=(value:string)=>{if(onPolicyTextChange)onPolicyTextChange(value);else setLocalText(value)};
+ React.useEffect(()=>{setData(null);setErr('')},[text]);
+ const latestText=React.useRef(text);latestText.current=text;
  const run=async()=>{setBusy(true);
      setErr('');
      setData(null);
      try{const to=new Date(),
          from=new Date(to.getTime()-days*86400000);
-         setData(await apiPost('/v1/security/shadow-replay/run',
+         const result=await apiPost('/v1/security/shadow-replay/run',
          {policyText:text,from:from.toISOString(),to:to.toISOString(),maxEvents:max}
-         ))}catch(e:any){setErr(e.message)}finally{setBusy(false)}};
+         );if(latestText.current===text)setData(result)}catch(e:any){if(latestText.current===text)setErr(e.message)}finally{setBusy(false)}};
  return <div>
 <div className="page-header">
 <div>

@@ -19,8 +19,9 @@ import {
 import { DashboardRole, can } from './rbac/permissions';
 import PolicyStudio from './pages/PolicyStudio';
 import SecurityCopilot from './pages/SecurityCopilot';
-import PolicyWhatIf from './pages/PolicyWhatIf';
-import ShadowReplay from './pages/ShadowReplay';
+import PolicyTests from './pages/PolicyTests';
+import ApprovalExecution from './pages/ApprovalExecution';
+import AgentDetails from './pages/AgentDetails';
 import AgentRisk from './pages/AgentRisk';
 import RiskForecast from './pages/RiskForecast';
 import ControlLoop from './pages/ControlLoop';
@@ -41,10 +42,9 @@ const nav=[
  Settings],['Policy Studio',FileLock2],['Lifecycle',GitBranch],['Runtime Intelligence',
  Brain],['Continuous Agent Risk',Activity],['Agent Risk Forecast',TrendingUp],
  ['Preventive Control Loop',ShieldCheck],['Control Loop Verification',ShieldCheck],
- ['Policy Auto-Tuning',Zap],['AI Security Copilot',Sparkles],['Policy What-if',
- GitCompareArrows],['Shadow Replay',History],['MCP Gateway',ShieldCheck],
+ ['Policy Auto-Tuning',Zap],['Policy Tests',Play],['Execution Records',History],['MCP Gateway',ShieldCheck],
  ['Data Plane',Database],['Governance',ScanSearch],
- ['Simulator',Play],['Runtime Gateway',Zap],['Agents',Bot],['Agent Behavior',
+ ['Runtime Gateway',Zap],['Agents',Bot],['Agent Behavior',
  Activity],['Approvals',CheckCircle2],['Audit Logs',ScrollText],
  ['SIEM',Radio],['Compliance Evidence',FileSearch],['Security Graph',Network],
  ['Attack Paths',Route],['Blast Radius',Crosshair],['Response Center',Siren],
@@ -52,6 +52,26 @@ const nav=[
  Gauge],
  ['Kubernetes Policies',Database],['Setup Guide',BookOpen]
 ] as const;
+
+// Legacy test page IDs resolve to tabs in the consolidated workspace.
+const navigationGroups = [
+ {id:'overview',label:'Overview',icon:LayoutDashboard,pages:['Overview','Command Center']},
+ {id:'connections',label:'Agents & Connections',icon:Bot,pages:['Agents','MCP Gateway','Runtime Gateway','Data Plane','Kubernetes Policies']},
+ {id:'policies',label:'Policies',icon:FileLock2,pages:['Policy Studio','Lifecycle','Policy Tests','Policy Auto-Tuning']},
+ {id:'approvals',label:'Approvals & Execution',icon:CheckCircle2,pages:['Approvals','Execution Records']},
+ {id:'analysis',label:'Audit & Analysis',icon:ScanSearch,pages:['Audit Logs','Runtime Intelligence','Continuous Agent Risk','Agent Risk Forecast','Agent Behavior','Preventive Control Loop','Control Loop Verification','Security Graph','Attack Paths','Blast Radius','Response Center','Incident Response','Compliance Evidence','SIEM','Governance','Decision Engine']},
+ {id:'settings',label:'Settings',icon:Settings,pages:['Enterprise','Product Operations','Setup Guide']},
+];
+const pageLabels:Record<string,string> = {
+ 'Overview':'Summary','Command Center':'Security Summary',
+ 'Lifecycle':'Changes & Rollout','Policy What-if':'Change Impact',
+ 'Shadow Replay':'Historical Replay','Simulator':'Request Simulation',
+ 'Policy Auto-Tuning':'Policy Improvement Proposals',
+ 'Continuous Agent Risk':'Current Agent Risk','Agent Risk Forecast':'Risk Forecast',
+ 'Preventive Control Loop':'Preventive Controls','Control Loop Verification':'Control Effectiveness',
+ 'Governance':'Governance Review','Kubernetes Policies':'Kubernetes Draft Sync',
+ 'Product Operations':'Operational Settings','Setup Guide':'Setup & Connections',
+};
 
 type PageProps={refresh:()=>void};
 
@@ -120,7 +140,19 @@ function App(){
    return()=>window.removeEventListener('keydown',escape);
  },[menuOpen,mobile]);
  const [tab,setTab]=React.useState('Overview');
+ const activePage=['Simulator','Policy What-if','Shadow Replay'].includes(tab)?'Policy Tests':tab;
+ const [contextSubject,setContextSubject]=React.useState('');
+ const [copilotOpen,setCopilotOpen]=React.useState(false);
+ const copilotToggle=React.useRef<HTMLButtonElement>(null);
+ const navigate=(page:string,subject='')=>{if(page==='AI Security Copilot'){setCopilotOpen(true);return}setContextSubject(subject);setTab(page)};
+ const [openGroups,setOpenGroups]=React.useState<string[]>(['overview']);
+ React.useEffect(()=>{
+   const group=navigationGroups.find(item=>item.pages.includes(activePage));
+   if(group)setOpenGroups(current=>current.includes(group.id)?current:[...current,group.id]);
+ },[activePage]);
  const [role,setRole]=React.useState<DashboardRole>('CISO');
+ React.useEffect(()=>{if(!can(role,'AI Security Copilot'))setCopilotOpen(false)},[role]);
+ React.useEffect(()=>{if(!copilotOpen)return;const close=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.stopImmediatePropagation();setCopilotOpen(false);copilotToggle.current?.focus()}};window.addEventListener('keydown',close,true);return()=>window.removeEventListener('keydown',close,true)},[copilotOpen]);
  const [boot,setBoot]=React.useState(true);
  const [health,setHealth]=React.useState<any>(null);
  const [toast,setToast]=React.useState('');
@@ -155,9 +187,10 @@ function App(){
 </button>
 </div>
    <div className="env">
-<select value={role} onChange={e=>{const r=e.target.value as DashboardRole;
+<label className="navigation-profile-label" htmlFor="navigation-profile">Navigation view</label>
+<select id="navigation-profile" title="Changes visible menus only; API access is controlled by your signed-in account." value={role} onChange={e=>{const r=e.target.value as DashboardRole;
            setRole(r);
-           if(!can(r,tab))setTab('Overview')}}>
+           if(!can(r,activePage))navigate('Overview')}}>
 <option>CISO</option>
 <option>SOC_ANALYST</option>
 <option>DEVOPS</option>
@@ -169,22 +202,35 @@ function App(){
 </span>
 
 </div>
-   <nav>{nav.filter(([name])=>can(role,name)).map(([name,I])=>
-<button key={
-           name} className={tab===name?'active':''} onClick={()=>{setTab(name);if(mobile)closeMenu()}}>
-<I size={
-           17}/>
-<span>{name}
-</span>{['Command Center','Attack Paths'].includes(name)&&<em>NEW</em>}
-</button>)}
-</nav>
+   <nav aria-label="Workspace sections">{navigationGroups.map(group=>{
+     const items=group.pages.flatMap(page=>nav.filter(([name])=>name===page&&can(role,name)));
+     if(!items.length)return null;
+     const expanded=openGroups.includes(group.id);
+     const selected=group.pages.includes(activePage);
+     const GroupIcon=group.icon;
+     return <section className="navigation-group" key={group.id}>
+       <button className={`navigation-group-toggle${selected?' selected':''}`}
+         aria-expanded={expanded} aria-controls={`navigation-${group.id}`}
+         onClick={()=>setOpenGroups(current=>expanded?current.filter(id=>id!==group.id):[...current,group.id])}>
+         <GroupIcon size={17}/><span>{group.label}</span>
+         <ChevronRight size={14} className={expanded?'group-chevron expanded':'group-chevron'}/>
+       </button>
+       <div id={`navigation-${group.id}`} className="navigation-group-pages" hidden={!expanded}>
+         {items.map(([name,Icon])=><button key={name} className={activePage===name?'navigation-page active':'navigation-page'}
+           aria-current={activePage===name?'page':undefined} title={name}
+           onClick={()=>{navigate(name);if(mobile)closeMenu()}}>
+           <Icon size={15}/><span>{pageLabels[name]||name}</span>
+         </button>)}
+       </div>
+     </section>;
+   })}</nav>
    <div className="side-footer">
 <div>
 <small>TENANT</small>
 <b>{TENANT.slice(0,
        8)}…</b>
 </div>
-<button onClick={()=>{setTab('Setup Guide');if(mobile)closeMenu()}}>
+<button onClick={()=>{navigate('Setup Guide');if(mobile)closeMenu()}}>
 <Settings size={
        15}/> Setup</button>
 </div>
@@ -224,11 +270,12 @@ function App(){
 <div>
 <small className="eyebrow">ZERO TRUST CONTROL PLANE · ENTERPRISE DATA PLANE</small>
 <h1>{
-       tab}
+       pageLabels[activePage]||activePage}
 </h1>
 </div>
 </div>
 <div className="header-actions">
+{can(role,'AI Security Copilot')&&<button ref={copilotToggle} aria-expanded={copilotOpen} aria-controls="security-copilot-panel" onClick={()=>setCopilotOpen(open=>!open)}><Sparkles size={16}/> Copilot</button>}
 <span className="last">Updated {
        time(lastRefresh)}
 </span>
@@ -239,25 +286,28 @@ function App(){
 </div>
 </header>
    <div className="content">
-    {tab==='Overview'&&<Overview go={setTab} refresh={refresh}/>} {tab==='AI Security Copilot'&&<SecurityCopilot/>}
-    {tab==='Policy What-if'&&<PolicyWhatIf/>} {tab==='Shadow Replay'&&<ShadowReplay/>}
+    {tab==='Overview'&&<Overview go={navigate} refresh={refresh}/>}
+    {activePage==='Policy Tests'&&<PolicyTests initialMode={tab==='Shadow Replay'?'replay':tab==='Simulator'?'live':'impact'} renderLive={<Simulator/>}/>}
     {tab==='Data Plane'&&<DataPlane/>} {tab==='Runtime Intelligence'&&<RuntimeIntelligence/>}
     {tab==='Continuous Agent Risk'&&<AgentRisk/>} {tab==='Agent Risk Forecast'&&<RiskForecast/>}
     {tab==='Preventive Control Loop'&&<ControlLoop/>} {tab==='Control Loop Verification'&&<ControlLoopFeedback/>}
     {tab==='Policy Auto-Tuning'&&<PolicyAutoTuning/>} {tab==='MCP Gateway'&&<McpGateway/>}
     {tab==='Enterprise'&&<Enterprise/>} {tab==='Product Operations'&&<ProductOperations/>}
     {tab==='Policy Studio'&&<PolicyStudio/>} {tab==='Lifecycle'&&<Lifecycle/>}
-    {tab==='Governance'&&<Governance/>} {tab==='Simulator'&&<Simulator/>}
-    {tab==='Runtime Gateway'&&<RuntimeGateway/>} {tab==='Agents'&&<Agents/>}
-    {tab==='Agent Behavior'&&<AgentBehavior/>} {tab==='Approvals'&&<Approvals/>} {tab==='Audit Logs'&&<AuditLogs/>}
+    {tab==='Governance'&&<Governance/>}
+    {tab==='Runtime Gateway'&&<RuntimeGateway/>} {tab==='Agents'&&<AgentDetails subject={contextSubject} role={role} onNavigate={navigate}/>}
+    {tab==='Agent Behavior'&&<AgentBehavior subject={contextSubject}/>}
+    {(tab==='Approvals'||tab==='Execution Records')&&<ApprovalExecution subject={contextSubject} initialView={tab==='Execution Records'?'executions':'pending'} onAgent={can(role,'Agents')?subject=>navigate('Agents',subject):undefined}/>}
+    {tab==='Audit Logs'&&<AuditLogs subject={contextSubject}/>}
     {tab==='SIEM'&&<SIEM/>} {tab==='Compliance Evidence'&&<ComplianceEvidence/>}
     {tab==='Security Graph'&&<SecurityGraph/>} {tab==='Attack Paths'&&<AttackPaths/>}
-    {tab==='Blast Radius'&&<BlastRadius go={setTab}/>} {tab==='Response Center'&&<ResponseCenter/>}
+    {tab==='Blast Radius'&&<BlastRadius go={navigate}/>} {tab==='Response Center'&&<ResponseCenter/>}
     {tab==='Incident Response'&&<IncidentResponse/>}
     {tab==='Command Center'&&<CommandCenter/>} {tab==='Decision Engine'&&<DecisionEngine/>}
     {tab==='Setup Guide'&&<SetupGuide/>} {tab==='Kubernetes Policies'&&<KubernetesPolicies/>}
 </div>
   </main>
+  {copilotOpen&&<aside className="copilot-panel" id="security-copilot-panel" aria-label="AI Security Copilot"><div className="copilot-panel-heading"><h2>AI Security Copilot</h2><button autoFocus aria-label="Close Copilot" onClick={()=>{setCopilotOpen(false);copilotToggle.current?.focus()}}>Close</button></div><SecurityCopilot contextLabel={`${pageLabels[activePage]||activePage}${contextSubject?' · Agent: '+contextSubject:''}`} initialScenario={`Review security risks for ${contextSubject?'agent '+contextSubject:pageLabels[activePage]||activePage} and suggest policy changes for human review.`}/></aside>}
   {toast&&<div className="toast">
 <CheckCircle2 size={17}/>{toast}
 </div>}
@@ -1444,31 +1494,10 @@ boundary around the runtime.</p>
 </>
 }
 
-function Agents(){const [id,setId]=React.useState('payment-agent'),[graph,
-    setGraph]=React.useState<any>(null),[err,setErr]=React.useState('');
-    const load=async()=>{
-        try{setGraph(await apiGet('/v1/agents/'+encodeURIComponent(id)+'/permission-graph'));
-            setErr('')}catch(e:any){setErr(e.message)}};
-            return <div className="grid-2">
-<Panel title="Agent identity">
-<Field label="Agent external ID">
-<input value={
-        id} onChange={e=>setId(e.target.value)}/>
-</Field>
-<button onClick={load}
-    >
-<Network size={15}/> Load permission graph</button>{err&&<ErrorBanner text={
-            err}/>} {graph&&<pre className="json">{JSON.stringify(graph,null,2)}
-</pre>}
-</Panel>
-<Panel title="Agent security model">
-<SecurityChain/>
-</Panel>
-</div>}
-
-function AgentBehavior(){const [profiles,setProfiles]=React.useState<any[]>([]),
-    [agent,setAgent]=React.useState('payment-agent'),[anoms,setAnoms]=React.useState<any[]>([]),
+function AgentBehavior({subject=''}:{subject?:string}){const [profiles,setProfiles]=React.useState<any[]>([]),
+    [agent,setAgent]=React.useState(subject||'payment-agent'),[anoms,setAnoms]=React.useState<any[]>([]),
     [dec,setDec]=React.useState<any[]>([]);
+    React.useEffect(()=>{if(subject)setAgent(subject)},[subject]);
     const load=async()=>{try{setProfiles(await
 apiGet('/v1/agents/behavior/profiles'));
             setAnoms(await apiGet('/v1/agents/behavior/'+encodeURIComponent(agent)+'/anomalies'));
@@ -1502,32 +1531,18 @@ apiGet('/v1/agents/behavior/profiles'));
 </div>
 </>}
 
-function Approvals(){const [rows,setRows]=React.useState<any[]>([]);
-    const
-load=()=>apiGet('/v1/approvals').then(setRows).catch(()=>setRows([]));
-    React.useEffect(()=>{load()},[]);
-    const decide=async(id:string,status:string)=>{
-        await apiPost('/v1/approvals/'+id+'/decision?status='+status,{});
-        load()}
-    ;
-    return <Panel title="Human approval queue">
-<ApprovalTable rows={rows}
-    decide={decide}/>
-</Panel>}
-function AuditLogs(){const [rows,setRows]=React.useState<any[]>([]),[verify,
-    setVerify]=React.useState<any>(null);
-    React.useEffect(()=>{apiGet('/v1/audit').then(setRows).catch(()=>setRows([]))}
-    ,[]);
-    return <>
-<Panel title="Immutable audit trail" action={<button onClick={
-            ()=>apiGet('/v1/audit/verify').then(setVerify)}>
-<CheckCircle2 size={15}
-        /> Verify chain</button>}>
-<AuditTable rows={rows}/>{verify&&<pre className="json">{
-            JSON.stringify(verify,null,2)}
-</pre>}
-</Panel>
-</>}
+function AuditLogs({subject=''}:{subject?:string}){
+ const [rows,setRows]=React.useState<any[]>([]),[verify,setVerify]=React.useState<any>(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
+ React.useEffect(()=>{let current=true;setRows([]);setError('');setLoading(true);setVerify(null);
+ (async()=>{try{const audit=await apiGet('/v1/audit');let filtered=audit;
+ if(subject){const identities=await apiGet('/v1/identities');const identity=identities.find((row:any)=>row.externalId===subject&&row.identityType==='AI_AGENT');filtered=identity?audit.filter((row:any)=>row.identityId===identity.id):[]}
+ if(current)setRows(filtered)}catch(e:any){if(current)setError(e.message)}finally{if(current)setLoading(false)}})();return()=>{current=false};},[subject]);
+ return <Panel title="Immutable audit trail" action={<button onClick={()=>apiGet('/v1/audit/verify').then(setVerify).catch((e:any)=>setError(e.message))}><CheckCircle2 size={15}/> Verify tenant chain</button>}>
+ {subject&&<p className="workflow-context">Agent: <strong>{subject}</strong>. Filtered from the 100 newest tenant audit records; this is not the complete agent history.</p>}
+ {error&&<ErrorBanner text={error}/>} {loading?<p role="status">Loading audit records…</p>:<AuditTable rows={rows}/>}
+ {verify&&<pre className="json">{JSON.stringify(verify,null,2)}</pre>}
+ </Panel>;
+}
 function SIEM(){const [rows,setRows]=React.useState<any[]>([]),[name,setName]=React.useState('Demo SIEM'),
     [endpoint,setEndpoint]=React.useState('http://host.docker.internal:9999/zt-audit'),
     [msg,setMsg]=React.useState('');
@@ -2810,42 +2825,6 @@ function AnomalyTable({rows}:any){return <table>
             x.score}/>
 </td>
 <td>{x.reason}
-</td>
-</tr>)}
-</tbody>
-</table>}
-function ApprovalTable({rows,decide}:any){return <table>
-<thead>
-<tr>
-<th>Request</th>
-<th>Approver</th>
-<th>Status</th>
-<th>Reason</th>
-<th>Time</th>
-<th/>
-</tr>
-</thead>
-<tbody>{
-        rows?.map((x:any)=>
-<tr key={x.id}>
-<td className="mono">{String(x.requestId).slice(0,
-            12)}…</td>
-<td>{x.approverId}
-</td>
-<td>
-<Status value={x.status}/>
-</td>
-<td>{
-            x.reason||'—'}
-</td>
-<td>{time(x.createdAt)}
-</td>
-<td>{x.status==='PENDING'&&<>
-<button onClick={
-                ()=>decide(x.id,'APPROVED')}>Approve</button>
-<button onClick={()=>decide(x.id,
-                'REJECTED')}>Reject</button>
-</>}
 </td>
 </tr>)}
 </tbody>

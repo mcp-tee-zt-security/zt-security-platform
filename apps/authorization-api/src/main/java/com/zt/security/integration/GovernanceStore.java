@@ -97,6 +97,46 @@ public class GovernanceStore {
         if(count!=1)throw new ResponseStatusException(HttpStatus.NOT_FOUND,kind+" not found");
     }
 
+    public List<Map<String,Object>> workflowContracts(UUID tenant, UUID workspace, String subject, UUID requestId) {
+        scope(tenant,workspace);
+        String scoped = "g.tenant_id=:tenant AND (g.workspace_id IS NULL OR g.workspace_id=:workspace)";
+        String sql = "SELECT g.payload::text FROM governance_records g WHERE " + scoped + " AND g.kind='CONTRACT'"
+            + (subject == null ? "" : " AND g.payload->>'subject'=:subject")
+            + (requestId == null ? "" : " AND EXISTS (SELECT 1 FROM governance_records d WHERE d.tenant_id=:tenant"
+                + " AND (d.workspace_id IS NULL OR d.workspace_id=:workspace) AND d.kind='DECISION'"
+                + " AND d.id::text=g.payload->>'decisionId' AND d.payload->>'requestId'=:requestId)")
+            + " ORDER BY g.created_at DESC,g.id DESC LIMIT 100";
+        return jdbc.query(sql,params(tenant,workspace).addValue("subject",subject)
+            .addValue("requestId",requestId==null?null:requestId.toString()),(rs,n)->parse(rs.getString(1)));
+    }
+
+    public Map<String,Object> workflowDecision(UUID tenant, UUID workspace, UUID requestId) {
+        scope(tenant,workspace);
+        var rows=jdbc.query("SELECT payload::text FROM governance_records WHERE "+SCOPE
+            +" AND kind='DECISION' AND payload->>'requestId'=:request ORDER BY created_at DESC,id DESC LIMIT 1",
+            params(tenant,workspace).addValue("request",requestId.toString()),(rs,n)->parse(rs.getString(1)));
+        if(rows.isEmpty())throw new ResponseStatusException(HttpStatus.NOT_FOUND,"No stored decision for this request");
+        return rows.get(0);
+    }
+
+    public List<UUID> workflowApprovalIds(UUID tenant, UUID workspace, String subject) {
+        scope(tenant,workspace);
+        String sql="SELECT a.id FROM approvals a WHERE a.tenant_id=:tenant AND EXISTS"
+            +" (SELECT 1 FROM governance_records d WHERE d.tenant_id=:tenant"
+            +" AND (d.workspace_id IS NULL OR d.workspace_id=:workspace) AND d.kind='DECISION'"
+            +" AND d.payload->>'requestId'=a.request_id::text"
+            +(subject==null?"":" AND d.payload->'request'->'principal'->>'id'=:subject")+")"
+            +" ORDER BY a.created_at DESC,a.id DESC LIMIT 100";
+        return jdbc.query(sql,params(tenant,workspace).addValue("subject",subject),(rs,n)->rs.getObject(1,UUID.class));
+    }
+
+    public List<Map<String,Object>> workflowVerifications(UUID tenant, UUID workspace, String executionId) {
+        scope(tenant,workspace);
+        return jdbc.query("SELECT payload::text FROM governance_records WHERE "+SCOPE
+            +" AND kind='VERIFICATION' AND payload->>'executionId'=:execution ORDER BY created_at DESC,id DESC LIMIT 20",
+            params(tenant,workspace).addValue("execution",executionId),(rs,n)->parse(rs.getString(1)));
+    }
+
     public List<Map<String,Object>> list(UUID tenant, UUID workspace, String kind, int limit) {
         scope(tenant,workspace);
         return jdbc.query("SELECT payload::text FROM governance_records WHERE "+SCOPE+" AND kind=:kind ORDER BY created_at DESC,id DESC LIMIT :limit",
