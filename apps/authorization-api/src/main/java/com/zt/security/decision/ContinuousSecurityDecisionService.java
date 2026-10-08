@@ -53,7 +53,7 @@ import java.util.*;
    double composite=Math.min(100,base.score()*riskConfig.getDecisionBaseRiskWeight()+behaviorScore*riskConfig.getDecisionBehaviorWeight()+asset*riskConfig.getDecisionAssetWeight()+attack*riskConfig.getDecisionAttackWeight()+policyRisk*riskConfig.getDecisionPolicyWeight());
    String decision=policy.decision();
    String reason=policy.reason();
-   if("DENY".equals(decision)) reason="Policy DENY; continuous security score "+round(composite);
+   if("DENY".equals(decision)) reason=policy.reason()+"; continuous security score "+round(composite);
    else if(composite>=criticalThreshold){
        decision="DENY";
        reason="Continuous security decision: composite risk "+

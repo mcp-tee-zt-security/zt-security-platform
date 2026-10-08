@@ -23,7 +23,8 @@ public class PolicyEvaluator {
 
             if (!matchClauses(d.rules(), r)) continue;
             if (d.condition() != null && !eval(d.condition().expression(), r)) continue;
-            matched.add(new MatchedPolicy(p.getId(), p.getName(), p.getVersion(), p.getEffect()));
+            matched.add(new MatchedPolicy(p.getId(), p.getName(), p.getVersion(),
+                p.getEffect() == null ? "" : p.getEffect().trim().toLowerCase(Locale.ROOT)));
         }
 
         // Policies are supplied in priority order. Conflict resolution is deliberately restrictive.
@@ -71,6 +72,7 @@ public class PolicyEvaluator {
         if (key.startsWith("context.")) return lookup(r.context(), key.substring("context.".length()));
         if (key.startsWith("resource.")) return lookup(r.resource().attributes(), key.substring("resource.".length()));
         if (key.startsWith("principal.")) {
+            if ("id".equals(key.substring("principal.".length()))) return r.principal().id();
             if ("type".equals(key.substring("principal.".length()))) return r.principal().type();
             return lookup(r.principal().attributes(), key.substring("principal.".length()));
         }

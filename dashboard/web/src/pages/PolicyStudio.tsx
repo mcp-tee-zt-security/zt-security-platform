@@ -216,6 +216,19 @@ export default function PolicyStudio(_:Props){
 </div>
           </div>
           {activeTab==='editor'&&<>
+            <label>Load saved policy
+<select value="" onChange={event=>{
+  const row=rows.find(policy=>policy.id===event.target.value);
+  if(!row)return;
+  setName(row.name);setText(row.policyText);setStatus(row.status);
+  setValidation(null);setSimulation(null);
+  setMessage(`Loaded ${row.name} v${row.version} (${row.status}). Saving creates a new version.`);
+}}>
+<option value="" disabled>Select a saved policy to view its conditions</option>
+{[...rows].sort((a,b)=>a.name.localeCompare(b.name)||b.version-a.version).map(row=>
+<option key={row.id} value={row.id}>{row.name} · v{row.version} · {row.status}</option>)}
+</select>
+</label>
             <div className="policy-meta-grid">
 <label>Policy name<input value={
                 name} onChange={e=>setName(e.target.value)} />
