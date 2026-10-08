@@ -1,0 +1,36 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: zerotrustpolicies.security.zt-platform.io
+spec:
+  group: security.zt-platform.io
+  scope: Namespaced
+  names:
+    plural: zerotrustpolicies
+    singular: zerotrustpolicy
+    kind: ZeroTrustPolicy
+    shortNames: [ztp]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [workload, identityRequired, attestationRequired]
+              properties:
+                workload: {type: string}
+                identityRequired: {type: boolean}
+                attestationRequired: {type: boolean}
+                capabilities: {type: array, items: {type: string}}
+                decision: {type: string}
+                approvalRequired: {type: boolean}
+            status:
+              type: object
+              properties:
+                phase: {type: string}
+                observedHash: {type: string}
+      subresources: {status: {}}

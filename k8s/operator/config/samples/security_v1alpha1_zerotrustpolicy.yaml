@@ -1,0 +1,11 @@
+apiVersion: security.zt-platform.io/v1alpha1
+kind: ZeroTrustPolicy
+metadata:
+  name: production-api
+spec:
+  workload: payment-api
+  identityRequired: true
+  attestationRequired: true
+  capabilities: [read-secret, outbound-network]
+  decision: governed
+  approvalRequired: true

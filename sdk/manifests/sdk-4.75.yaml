@@ -1,0 +1,11 @@
+apiVersion: platform.zt.security/v1
+kind: DeveloperPlatform
+metadata:
+  name: zt-security-sdk
+spec:
+  version: 4.75.0
+  contract: contracts/sdk-api.yaml
+  domainModel: contracts/domain-model.json
+  events: contracts/events-asyncapi.yaml
+  governanceChain: [identity, attestation, capability, policy, evidence, approval, execution-contract, execution, verification, audit]
+  languages: [python, typescript, java, go]

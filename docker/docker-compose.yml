@@ -1,0 +1,144 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: zt
+      POSTGRES_USER: zt
+      POSTGRES_PASSWORD: zt
+    ports: ["5432:5432"]
+    volumes: ["zt_pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U zt -d zt"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    command: start-dev --http-port=8080 --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports: ["8089:8080"]
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+  dashboard:
+    build:
+      context: ../dashboard/web
+    ports: ["3000:80"]
+    environment:
+      VITE_API_URL: http://localhost:8080
+      VITE_TENANT_ID: 11111111-1111-1111-1111-111111111111
+    depends_on:
+      authorization-api:
+        condition: service_healthy
+  authorization-api:
+    build:
+      context: ..
+      dockerfile: apps/authorization-api/Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/zt
+      DB_USERNAME: zt
+      DB_PASSWORD: zt
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ZT_API_KEY: dev-master-key
+      ZT_OIDC_ENABLED: "false"
+      ZT_POLICY_SIGNING_PRIVATE_KEY_B64: ${ZT_POLICY_SIGNING_PRIVATE_KEY_B64:-}
+      ZT_POLICY_SIGNING_KEY_ID: ${ZT_POLICY_SIGNING_KEY_ID:-dev-ed25519}
+    ports: ["8080:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/v1/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  policy-data-plane:
+    image: nginx:1.27-alpine
+    volumes:
+      - ../infra/data-plane/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports: ["8091:8091"]
+    depends_on:
+      policy-data-plane-1:
+        condition: service_healthy
+      policy-data-plane-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8091/ready >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+  policy-data-plane-1:
+    build:
+      context: ../apps/policy-data-plane
+    environment:
+      ZT_CONTROL_PLANE_URL: http://authorization-api:8080
+      ZT_TENANT_ID: 11111111-1111-1111-1111-111111111111
+      ZT_API_KEY: dev-master-key
+      ZT_POLICY_REFRESH_SECONDS: 5
+      ZT_BUNDLE_MAX_AGE_SECONDS: 60
+      ZT_FAIL_MODE: ${ZT_FAIL_MODE:-FAIL_CLOSED}
+      ZT_POLICY_PUBLIC_KEY_B64: ${ZT_POLICY_PUBLIC_KEY_B64:-}
+      RUST_LOG: info
+    expose: ["8091"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8091/ready >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    depends_on:
+      authorization-api:
+        condition: service_healthy
+  policy-data-plane-2:
+    build:
+      context: ../apps/policy-data-plane
+    environment:
+      ZT_CONTROL_PLANE_URL: http://authorization-api:8080
+      ZT_TENANT_ID: 11111111-1111-1111-1111-111111111111
+      ZT_API_KEY: dev-master-key
+      ZT_POLICY_REFRESH_SECONDS: 5
+      ZT_BUNDLE_MAX_AGE_SECONDS: 60
+      ZT_FAIL_MODE: ${ZT_FAIL_MODE:-FAIL_CLOSED}
+      ZT_POLICY_PUBLIC_KEY_B64: ${ZT_POLICY_PUBLIC_KEY_B64:-}
+      RUST_LOG: info
+    expose: ["8091"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8091/ready >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    depends_on:
+      authorization-api:
+        condition: service_healthy
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.138.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-config.yaml:/etc/otelcol/config.yaml:ro
+    ports: ["4317:4317","4318:4318","8889:8889"]
+# 3.3 local service-mesh boundary
+  envoy-data-plane:
+    image: envoyproxy/envoy:v1.33-latest
+    container_name: zt-envoy-data-plane
+    ports:
+      - "15000:15000"
+      - "9901:9901"
+    volumes:
+      - ../infra/envoy/3.3/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    depends_on:
+      - policy-data-plane
+
+volumes:
+  zt_pg: {}
+

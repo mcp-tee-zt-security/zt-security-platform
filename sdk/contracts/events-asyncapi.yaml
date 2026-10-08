@@ -1,0 +1,49 @@
+asyncapi: 3.0.0
+info:
+  title: ZT Security Platform Event Fabric
+  version: 4.75.0
+  description: Canonical security, governance, agent and execution events.
+channels:
+  security.events:
+    address: security.events
+    messages: {SecurityEvent: { $ref: '#/components/messages/SecurityEvent' }}
+  governance.decisions:
+    address: governance.decisions
+    messages: {PolicyDecisionEvent: { $ref: '#/components/messages/PolicyDecisionEvent' }}
+  execution.lifecycle:
+    address: execution.lifecycle
+    messages: {ExecutionEvent: { $ref: '#/components/messages/ExecutionEvent' }}
+  agent.missions:
+    address: agent.missions
+    messages: {MissionEvent: { $ref: '#/components/messages/MissionEvent' }}
+  observability.telemetry:
+    address: observability.telemetry
+    messages: {TelemetryEvent: { $ref: '#/components/messages/TelemetryEvent' }}
+components:
+  messages:
+    SecurityEvent:
+      payload: { $ref: '#/components/schemas/EventEnvelope' }
+    PolicyDecisionEvent:
+      payload: { $ref: '#/components/schemas/EventEnvelope' }
+    ExecutionEvent:
+      payload: { $ref: '#/components/schemas/EventEnvelope' }
+    MissionEvent:
+      payload: { $ref: '#/components/schemas/EventEnvelope' }
+    TelemetryEvent:
+      payload: { $ref: '#/components/schemas/EventEnvelope' }
+  schemas:
+    EventEnvelope:
+      type: object
+      required: [eventId, eventType, occurredAt, tenantId, subject]
+      properties:
+        eventId: {type: string}
+        eventType: {type: string}
+        occurredAt: {type: string, format: date-time}
+        tenantId: {type: string}
+        workspaceId: {type: string}
+        subject: {type: string}
+        correlationId: {type: string}
+        causationId: {type: string}
+        traceId: {type: string}
+        payload: {type: object}
+        evidenceRefs: {type: array, items: {type: string}}

@@ -1,0 +1,36 @@
+policy "high_value_transfer_protection" {
+  priority 10
+  effect step_up
+  description "Protect high-value AI agent transfers"
+  mode "enforce"
+  tags ["banking", "payment", "ai-agent"]
+
+  principal.type == "AI_AGENT"
+  action in ["payment.transfer", "payment.refund"]
+  resource.type == "bank_account"
+
+  condition {
+    context.amount > 10000000
+    and (
+      risk.score >= 70
+      or agent.behavior == "ANOMALOUS"
+    )
+  }
+}
+
+---
+
+policy "agent_data_exfiltration" {
+  priority 5
+  effect deny
+  description "Block suspicious AI agent data export"
+  tags ["ai-agent", "data-loss"]
+
+  principal.type == "AI_AGENT"
+  action == "data.export"
+
+  condition {
+    resource.classification in ["CONFIDENTIAL", "RESTRICTED"]
+    and destination.type == "external"
+  }
+}

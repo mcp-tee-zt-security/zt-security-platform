@@ -1,0 +1,23 @@
+# 3.22 runtime contract. secretRef is an environment variable NAME, never a raw secret.
+privateOnly: true
+providers:
+  vllm:
+    type: VLLM
+    endpoint: http://vllm.security.svc.cluster.local:8000
+    model: security-copilot
+    secretRef: ZT_PRIVATE_LLM_API_KEY
+  ollama:
+    type: OLLAMA
+    endpoint: http://ollama.security.svc.cluster.local:11434
+    model: llama3.3
+    secretRef: ZT_PRIVATE_LLM_API_KEY
+  openaiCompatible:
+    type: OPENAI_COMPATIBLE
+    endpoint: https://llm-gateway.internal.example/v1
+    model: security-copilot
+    secretRef: ZT_PRIVATE_LLM_API_KEY
+  bedrockVpcGateway:
+    type: BEDROCK_VPC
+    endpoint: https://bedrock-gateway.internal.example
+    model: security-copilot
+    secretRef: ZT_PRIVATE_LLM_API_KEY

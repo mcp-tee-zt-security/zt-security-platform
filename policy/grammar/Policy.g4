@@ -1,0 +1,25 @@
+grammar Policy;
+
+policy: 'policy' STRING '{' priorityClause? effectClause metadataClause* matchClause* conditionBlock? '}';
+priorityClause: 'priority' NUMBER;
+effectClause: 'effect' EFFECT;
+metadataClause: 'description' STRING | 'mode' STRING | 'tags' listValue;
+matchClause: TARGET OPERATOR scalarOrListValue;
+conditionBlock: 'condition' '{' booleanExpression? '}';
+booleanExpression: orExpression;
+orExpression: andExpression ('or' andExpression)*;
+andExpression: unaryExpression ('and' unaryExpression)*;
+unaryExpression: 'not' unaryExpression | '(' booleanExpression ')' | comparison;
+comparison: IDENTIFIER OPERATOR scalarOrListValue;
+scalarOrListValue: value | listValue;
+listValue: '[' (value (',' value)*)? ']';
+value: STRING | NUMBER | BOOLEAN;
+TARGET: 'principal.type' | 'action' | 'resource.type';
+EFFECT: 'allow' | 'deny' | 'step_up';
+OPERATOR: '==' | '!=' | '>=' | '<=' | '>' | '<' | 'in' | 'contains';
+IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_.]*;
+STRING: '"' (~["\\] | '\\' .)* '"';
+NUMBER: '-'? [0-9]+ ('.' [0-9]+)?;
+BOOLEAN: 'true' | 'false';
+WS: [ \t\r\n]+ -> skip;
+COMMENT: '//' ~[\r\n]* -> skip;

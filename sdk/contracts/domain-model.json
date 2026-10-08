@@ -1,0 +1,24 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://zt.security/schemas/4.75/domain-model.json",
+  "title":"ZT Security Platform Canonical Domain Model",
+  "version":"4.75.0",
+  "type":"object",
+  "properties":{
+    "IdentityRef":{"$ref":"#/$defs/IdentityRef"},"Attestation":{"$ref":"#/$defs/Attestation"},"Capability":{"$ref":"#/$defs/Capability"},"PolicyDecision":{"$ref":"#/$defs/PolicyDecision"},"Evidence":{"$ref":"#/$defs/Evidence"},"Approval":{"$ref":"#/$defs/Approval"},"ExecutionContract":{"$ref":"#/$defs/ExecutionContract"},"Verification":{"$ref":"#/$defs/Verification"},"Agent":{"$ref":"#/$defs/Agent"},"Mission":{"$ref":"#/$defs/Mission"},"Simulation":{"$ref":"#/$defs/Simulation"},"FederationTrust":{"$ref":"#/$defs/FederationTrust"}
+  },
+  "$defs":{
+    "IdentityRef":{"type":"object","required":["subject","tenantId"],"properties":{"subject":{"type":"string"},"tenantId":{"type":"string"},"workspaceId":{"type":"string"},"attributes":{"type":"object"}}},
+    "Attestation":{"type":"object","required":["subject","status"],"properties":{"subject":{"type":"string"},"status":{"enum":["VALID","INVALID","UNKNOWN"]},"issuer":{"type":"string"},"claims":{"type":"object"},"expiresAt":{"type":"string","format":"date-time"}}},
+    "Capability":{"type":"object","required":["name","allowed"],"properties":{"name":{"type":"string"},"allowed":{"type":"boolean"},"scope":{"type":"array","items":{"type":"string"}},"constraints":{"type":"object"}}},
+    "PolicyDecision":{"type":"object","required":["decision"],"properties":{"decision":{"enum":["ALLOW","DENY","REQUIRE_APPROVAL"]},"policyId":{"type":"string"},"reason":{"type":"string"},"riskScore":{"type":"number"},"obligations":{"type":"array","items":{"type":"string"}}}},
+    "Evidence":{"type":"object","required":["type","subject"],"properties":{"id":{"type":"string"},"type":{"type":"string"},"subject":{"type":"string"},"hash":{"type":"string"},"source":{"type":"string"},"metadata":{"type":"object"}}},
+    "Approval":{"type":"object","required":["action","status"],"properties":{"id":{"type":"string"},"action":{"type":"string"},"status":{"enum":["PENDING","APPROVED","REJECTED","EXPIRED"]},"approver":{"type":"string"},"reason":{"type":"string"}}},
+    "ExecutionContract":{"type":"object","required":["action","resource"],"properties":{"id":{"type":"string"},"action":{"type":"string"},"resource":{"type":"string"},"policyDecision":{"$ref":"#/$defs/PolicyDecision"},"approval":{"$ref":"#/$defs/Approval"},"evidenceIds":{"type":"array","items":{"type":"string"}},"expiresAt":{"type":"string","format":"date-time"}}},
+    "Verification":{"type":"object","required":["status"],"properties":{"status":{"enum":["VERIFIED","FAILED","PARTIAL"]},"checks":{"type":"array","items":{"type":"string"}},"evidenceIds":{"type":"array","items":{"type":"string"}}}},
+    "Agent":{"type":"object","required":["id","name","capabilities"],"properties":{"id":{"type":"string"},"name":{"type":"string"},"capabilities":{"type":"array","items":{"type":"string"}},"skills":{"type":"array","items":{"type":"string"}},"attestationRef":{"type":"string"}}},
+    "Mission":{"type":"object","required":["objective","agentId"],"properties":{"id":{"type":"string"},"objective":{"type":"string"},"agentId":{"type":"string"},"constraints":{"type":"object"},"approvalMode":{"enum":["AUTO","HUMAN_REQUIRED","POLICY_DRIVEN"]}}},
+    "Simulation":{"type":"object","required":["scenario"],"properties":{"id":{"type":"string"},"scenario":{"type":"string"},"attackPaths":{"type":"array","items":{"type":"string"}},"counterfactuals":{"type":"array","items":{"type":"string"}}}},
+    "FederationTrust":{"type":"object","required":["sourceOrganization","targetOrganization","status"],"properties":{"sourceOrganization":{"type":"string"},"targetOrganization":{"type":"string"},"status":{"enum":["PENDING","ACTIVE","REVOKED"]},"scopes":{"type":"array","items":{"type":"string"}}}}
+  }
+}

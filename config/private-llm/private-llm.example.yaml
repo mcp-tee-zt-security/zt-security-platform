@@ -1,0 +1,16 @@
+copilot:
+  mode: PRIVATE_ONLY
+  provider: openai-compatible
+  endpoint: https://internal-llm.example/v1
+  model: enterprise-security-model
+  tls:
+    verify: true
+  mtls:
+    enabled: false
+  timeout-ms: 15000
+  max-output-tokens: 1200
+  audit:
+    enabled: true
+  redaction:
+    secrets: true
+    pii: true

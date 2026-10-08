@@ -1,0 +1,47 @@
+openapi: 3.1.0
+info:
+  title: ZeroTrust Security Platform SDK Contract
+  version: 4.75.0
+servers:
+  - url: /api
+security:
+  - ApiKeyAuth: []
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Principal: {type: object, required: [id,type], properties: {id: {type: string}, type: {type: string}, attributes: {type: object, additionalProperties: true}}}
+    Resource: {type: object, required: [type,id], properties: {type: {type: string}, id: {type: string}, attributes: {type: object, additionalProperties: true}}}
+    Action: {type: object, required: [name], properties: {name: {type: string}}}
+    Decision: {type: object, properties: {decision: {type: string}, risk: {type: number}, reason: {type: string}, evidenceId: {type: string}}}
+paths:
+  /v1/actions/evaluate: {post: {operationId: evaluate, responses: {'200': {description: Policy decision}}}}
+  /v1/runtime/sessions: {post: {operationId: startRuntimeSession, responses: {'200': {description: Session}}}}
+  /v1/runtime/sessions/{id}: {get: {operationId: getRuntimeSession, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Session}}}}
+  /v1/runtime/sessions/{id}/check: {post: {operationId: runtimeCheck, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Decision}}}}
+  /v1/runtime/sessions/{id}/end: {post: {operationId: endRuntimeSession, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Session}}}}
+  /v1/governance/policies/lint: {post: {operationId: policyLint, responses: {'200': {description: Lint result}}}}
+  /v1/governance/policies/{id}/blast-radius: {get: {operationId: policyBlastRadius, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Blast radius}}}}
+  /v1/governance/policies/{id}/as-code: {get: {operationId: exportPolicy, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Policy}}}}
+  /v1/identity/resolve: {post: {operationId: resolveIdentity, responses: {'200': {description: Identity}}}}
+  /v1/attestation/verify: {post: {operationId: verifyAttestation, responses: {'200': {description: Attestation}}}}
+  /v1/capabilities/check: {post: {operationId: checkCapability, responses: {'200': {description: Capability}}}}
+  /v1/evidence: {post: {operationId: createEvidence, responses: {'200': {description: Evidence}}}}
+  /v1/evidence/{id}/verify: {post: {operationId: verifyEvidence, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Evidence verification}}}}
+  /v1/approvals: {post: {operationId: requestApproval, responses: {'200': {description: Approval}}}}
+  /v1/approvals/{id}/approve: {post: {operationId: approve, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Approval}}}}
+  /v1/execution/contracts: {post: {operationId: createExecutionContract, responses: {'200': {description: Execution contract}}}}
+  /v1/execution/contracts/{id}/execute: {post: {operationId: executeContract, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Execution}}}}
+  /v1/execution/{id}/verify: {post: {operationId: verifyExecution, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Verification}}}}
+  /v1/federation/organizations: {post: {operationId: registerOrganization, responses: {'200': {description: Organization}}}}
+  /v1/federation/trust: {post: {operationId: establishTrust, responses: {'200': {description: Trust}}}}
+  /v1/agents: {post: {operationId: registerAgent, responses: {'200': {description: Agent}}}}
+  /v1/agents/{id}/missions: {post: {operationId: createMission, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Mission}}}}
+  /v1/simulations: {post: {operationId: createSimulation, responses: {'200': {description: Simulation}}}}
+  /v1/simulations/{id}/run: {post: {operationId: runSimulation, parameters: [{name: id,in:path,required:true,schema:{type:string}}], responses: {'200': {description: Simulation result}}}}
+  /v1/kubernetes/policies: {post: {operationId: applyKubernetesPolicy, responses: {'200': {description: Kubernetes policy}}}}
+  /v1/observability/metrics: {get: {operationId: getObservabilityMetrics, responses: {'200': {description: Platform security metrics}}}}
+  /v1/observability/events: {get: {operationId: replaySecurityEvents, parameters: [{name: traceId,in:query,required:false,schema:{type:string}}, {name: limit,in:query,required:false,schema:{type:integer,minimum:1,maximum:500}}], responses: {'200': {description: Security event replay}}}}

@@ -1,0 +1,14 @@
+provider: VLLM
+endpoint: https://private-llm.internal.example
+model: security-copilot
+secretRef: PRIVATE_LLM_API_KEY
+tls:
+  mtls: true
+  keyStoreRef: PRIVATE_LLM_CLIENT_KEYSTORE
+  keyStorePasswordRef: PRIVATE_LLM_CLIENT_KEYSTORE_PASSWORD
+  trustStoreRef: PRIVATE_LLM_TRUSTSTORE
+  trustStorePasswordRef: PRIVATE_LLM_TRUSTSTORE_PASSWORD
+  keyStoreType: PKCS12
+  trustStoreType: PKCS12
+  connectTimeoutSeconds: 5
+  timeoutSeconds: 120

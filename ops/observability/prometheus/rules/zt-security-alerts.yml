@@ -1,0 +1,42 @@
+groups:
+  - name: zt-security-sre
+    rules:
+      - alert: ZtHighErrorRate
+        expr: |
+          sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ZT Security API 5xx error rate is above 5%"
+      - alert: ZtHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (le)
+          ) > 1.0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ZT Security API p95 latency is above 1 second"
+      - alert: ZtErrorBudgetBurn
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{status=~"5.."}[30m]))
+            /
+            clamp_min(sum(rate(http_server_requests_seconds_count[30m])), 0.001)
+          ) > 0.01
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Fast error-budget burn detected"
+      - alert: ZtPodUnavailable
+        expr: kube_deployment_status_replicas_available{deployment="zt-security-platform"} < 2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ZT Security platform has fewer than two available replicas"

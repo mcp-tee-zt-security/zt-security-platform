@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zt-security-sdk"
+version = "2.0.0"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.32,<3"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true

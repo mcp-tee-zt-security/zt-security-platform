@@ -1,0 +1,92 @@
+static_resources:
+  listeners:
+  - name: zt_ingress_mtls
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 15000
+    listener_filters:
+    - name: envoy.filters.listener.tls_inspector
+    filter_chains:
+    - filter_chain_match:
+        transport_protocol: tls
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+          require_client_certificate: true
+          common_tls_context:
+            tls_certificates:
+            - certificate_chain:
+                filename: /etc/zt-mtls/tls.crt
+              private_key:
+                filename: /etc/zt-mtls/tls.key
+            validation_context:
+              trusted_ca:
+                filename: /etc/zt-mtls/ca.crt
+      filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: zt_dp
+          forward_client_cert_details: SANITIZE_SET
+          set_current_client_cert_details:
+            uri: true
+          request_id_extension:
+            typed_config:
+              '@type': type.googleapis.com/envoy.extensions.request_id.uuid.v3.UuidRequestIdConfig
+              pack_trace_reason: true
+          tracing:
+            provider:
+              name: envoy.tracers.opentelemetry
+              typed_config:
+                '@type': type.googleapis.com/envoy.config.trace.v3.TraceServiceConfig
+                grpc_service:
+                  envoy_grpc:
+                    cluster_name: otel
+          route_config:
+            name: local_dp
+            virtual_hosts:
+            - name: policy_dp
+              domains:
+              - '*'
+              routes:
+              - match:
+                  prefix: /
+                route:
+                  cluster: rust_dp
+                  timeout: 5s
+          http_filters:
+          - name: envoy.filters.http.router
+  clusters:
+  - name: rust_dp
+    connect_timeout: 250ms
+    type: STATIC
+    load_assignment:
+      cluster_name: rust_dp
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 127.0.0.1
+                port_value: 8091
+  - name: otel
+    type: STRICT_DNS
+    connect_timeout: 1s
+    http2_protocol_options: {}
+    load_assignment:
+      cluster_name: otel
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: otel-collector.zt-security.svc.cluster.local
+                port_value: 4317
+admin:
+  access_log_path: /dev/stdout
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 9901

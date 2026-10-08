@@ -1,0 +1,44 @@
+{
+  "title": "ZT Security Platform - Autonomous SecOps",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Active Autonomous Runs",
+      "targets": [
+        {
+          "expr": "count(autonomous_security_runs{status=\"RUNNING\"})"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Approval-Gated Runs",
+      "targets": [
+        {
+          "expr": "count(autonomous_security_runs{approval_required=\"true\"})"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Effectiveness Feedback",
+      "targets": [
+        {
+          "expr": "avg(autonomous_security_feedback_effectiveness_score)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Incident Risk Score",
+      "targets": [
+        {
+          "expr": "avg(autonomous_security_runs_risk_score)"
+        }
+      ]
+    }
+  ]
+}

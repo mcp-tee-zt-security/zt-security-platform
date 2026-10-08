@@ -1,0 +1,10 @@
+{
+  "name": "zt-platform",
+  "private": true,
+  "scripts": {
+    "dashboard:dev": "npm --prefix dashboard/web run dev",
+    "dashboard:build": "npm --prefix dashboard/web run build",
+    "sdk:ts:build": "npm --prefix sdk/typescript run build",
+    "cdk:build": "npm --prefix infra/cdk run build"
+  }
+}

@@ -1,0 +1,209 @@
+spring:
+  application:
+    name: zt-authorization-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/zt}
+    username: ${DB_USERNAME:zt}
+    password: ${DB_PASSWORD:zt}
+    hikari:
+      connection-init-sql: SET search_path TO ${DB_SCHEMA:zt_security_475}
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        default_schema: ${DB_SCHEMA:zt_security_475}
+  flyway:
+    enabled: true
+    schemas: ${DB_SCHEMA:zt_security_475}
+    default-schema: ${DB_SCHEMA:zt_security_475}
+    create-schemas: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  cache:
+    type: redis
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${ZT_OIDC_ISSUER_URI:http://localhost:8089/realms/zt}
+zt:
+  security:
+    oidc:
+      enabled: ${ZT_OIDC_ENABLED:false}
+      issuer-uri: ${ZT_OIDC_ISSUER_URI:http://localhost:8089/realms/zt}
+    api-key: ${ZT_API_KEY:dev-master-key}
+    scim:
+      tokens: ${ZT_SCIM_TOKENS:}
+    siem:
+      enabled: ${ZT_SIEM_ENABLED:true}
+    idempotency:
+      ttl-hours: ${ZT_IDEMPOTENCY_TTL_HOURS:24}
+    rate-limit:
+      requests-per-minute: ${ZT_RATE_LIMIT:120}
+      window-seconds: 60
+    runtime:
+      session-ttl-seconds: ${ZT_RUNTIME_SESSION_TTL_SECONDS:3600}
+    risk-scoring:
+      max-score: ${ZT_RISK_MAX_SCORE:100.0}
+      attack-path-weight: ${ZT_RISK_ATTACK_PATH_WEIGHT:0.30}
+      identity-weight: ${ZT_RISK_IDENTITY_WEIGHT:0.20}
+      vulnerability-weight: ${ZT_RISK_VULNERABILITY_WEIGHT:0.25}
+      threat-weight: ${ZT_RISK_THREAT_WEIGHT:0.25}
+      attack-node-weight: ${ZT_RISK_ATTACK_NODE_WEIGHT:0.35}
+      blast-attack-weight: ${ZT_BLAST_ATTACK_WEIGHT:0.55}
+      blast-impact-weight: ${ZT_BLAST_IMPACT_WEIGHT:0.45}
+      blast-path-risk-weight: ${ZT_BLAST_PATH_RISK_WEIGHT:0.60}
+      blast-criticality-weight: ${ZT_BLAST_CRITICALITY_WEIGHT:0.40}
+      identity-impossible-travel-score: ${ZT_RISK_IDENTITY_IMPOSSIBLE_TRAVEL_SCORE:40.0}
+      identity-privilege-change-score: ${ZT_RISK_IDENTITY_PRIVILEGE_CHANGE_SCORE:30.0}
+      identity-suspicious-session-score: ${ZT_RISK_IDENTITY_SUSPICIOUS_SESSION_SCORE:30.0}
+      predictive-exposure-weight: ${ZT_RISK_PREDICTIVE_EXPOSURE_WEIGHT:0.35}
+      predictive-threat-weight: ${ZT_RISK_PREDICTIVE_THREAT_WEIGHT:0.40}
+      predictive-identity-weight: ${ZT_RISK_PREDICTIVE_IDENTITY_WEIGHT:0.25}
+      runtime-threat-score-threshold: ${ZT_RUNTIME_THREAT_SCORE_THRESHOLD:0.80}
+      llm-temperature: ${ZT_PRIVATE_LLM_TEMPERATURE:0.10}
+      replay-default-score: ${ZT_REPLAY_DEFAULT_SCORE:0.20}
+      policy-confidence-threshold: ${ZT_POLICY_CONFIDENCE_THRESHOLD:0.70}
+      copilot-confidence: ${ZT_COPILOT_CONFIDENCE:0.92}
+      critical-threshold: ${ZT_RISK_CRITICAL_THRESHOLD:85.0}
+      high-threshold: ${ZT_RISK_HIGH_THRESHOLD:65.0}
+      elevated-threshold: ${ZT_RISK_ELEVATED_THRESHOLD:40.0}
+      analyst-confidence-threshold: ${ZT_RISK_ANALYST_CONFIDENCE_THRESHOLD:0.70}
+      insider-access-anomaly-weight: ${ZT_RISK_INSIDER_ACCESS_ANOMALY_WEIGHT:0.35}
+      insider-data-exfiltration-weight: ${ZT_RISK_INSIDER_DATA_EXFILTRATION_WEIGHT:0.40}
+      insider-privilege-abuse-weight: ${ZT_RISK_INSIDER_PRIVILEGE_ABUSE_WEIGHT:0.25}
+      data-sensitivity-weight: ${ZT_RISK_DATA_SENSITIVITY_WEIGHT:0.40}
+      data-exposure-weight: ${ZT_RISK_DATA_EXPOSURE_WEIGHT:0.35}
+      data-access-anomaly-weight: ${ZT_RISK_DATA_ACCESS_ANOMALY_WEIGHT:0.25}
+      api-exposure-weight: ${ZT_RISK_API_EXPOSURE_WEIGHT:0.35}
+      api-abuse-weight: ${ZT_RISK_API_ABUSE_WEIGHT:0.40}
+      api-identity-weight: ${ZT_RISK_API_IDENTITY_WEIGHT:0.25}
+      saas-privilege-weight: ${ZT_RISK_SAAS_PRIVILEGE_WEIGHT:0.40}
+      saas-config-weight: ${ZT_RISK_SAAS_CONFIG_WEIGHT:0.35}
+      saas-shadow-weight: ${ZT_RISK_SAAS_SHADOW_WEIGHT:0.25}
+      threat-source-trust-weight: ${ZT_RISK_THREAT_SOURCE_TRUST_WEIGHT:0.40}
+      threat-corroboration-weight: ${ZT_RISK_THREAT_CORROBORATION_WEIGHT:0.35}
+      threat-freshness-weight: ${ZT_RISK_THREAT_FRESHNESS_WEIGHT:0.25}
+      threat-confidence-risk-weight: ${ZT_RISK_THREAT_CONFIDENCE_RISK_WEIGHT:20.0}
+      intelligence-evidence-weight: ${ZT_RISK_INTELLIGENCE_EVIDENCE_WEIGHT:0.40}
+      intelligence-corroboration-weight: ${ZT_RISK_INTELLIGENCE_CORROBORATION_WEIGHT:0.30}
+      intelligence-model-weight: ${ZT_RISK_INTELLIGENCE_MODEL_WEIGHT:0.30}
+      kubernetes-image-weight: ${ZT_RISK_KUBERNETES_IMAGE_WEIGHT:0.30}
+      kubernetes-behavior-weight: ${ZT_RISK_KUBERNETES_BEHAVIOR_WEIGHT:0.40}
+      kubernetes-network-weight: ${ZT_RISK_KUBERNETES_NETWORK_WEIGHT:0.30}
+      network-anomaly-weight: ${ZT_RISK_NETWORK_ANOMALY_WEIGHT:0.40}
+      network-exposure-weight: ${ZT_RISK_NETWORK_EXPOSURE_WEIGHT:0.30}
+      network-privilege-weight: ${ZT_RISK_NETWORK_PRIVILEGE_WEIGHT:0.30}
+      ai-threat-anomaly-weight: ${ZT_RISK_AI_THREAT_ANOMALY_WEIGHT:0.40}
+      ai-threat-identity-weight: ${ZT_RISK_AI_THREAT_IDENTITY_WEIGHT:0.30}
+      ai-threat-exposure-weight: ${ZT_RISK_AI_THREAT_EXPOSURE_WEIGHT:0.30}
+      ai-threat-critical-threshold: ${ZT_RISK_AI_THREAT_CRITICAL_THRESHOLD:80.0}
+      ai-threat-high-threshold: ${ZT_RISK_AI_THREAT_HIGH_THRESHOLD:60.0}
+      cross-cloud-aws-weight: ${ZT_RISK_CROSS_CLOUD_AWS_WEIGHT:0.34}
+      cross-cloud-azure-weight: ${ZT_RISK_CROSS_CLOUD_AZURE_WEIGHT:0.33}
+      cross-cloud-gcp-weight: ${ZT_RISK_CROSS_CLOUD_GCP_WEIGHT:0.33}
+      cloud-identity-weight: ${ZT_RISK_CLOUD_IDENTITY_WEIGHT:0.30}
+      cloud-config-weight: ${ZT_RISK_CLOUD_CONFIG_WEIGHT:0.30}
+      cloud-runtime-weight: ${ZT_RISK_CLOUD_RUNTIME_WEIGHT:0.40}
+      ransomware-encryption-burst-weight: ${ZT_RISK_RANSOMWARE_ENCRYPTION_BURST_WEIGHT:0.45}
+      ransomware-process-anomaly-weight: ${ZT_RISK_RANSOMWARE_PROCESS_ANOMALY_WEIGHT:0.30}
+      ransomware-lateral-movement-weight: ${ZT_RISK_RANSOMWARE_LATERAL_MOVEMENT_WEIGHT:0.25}
+      ransomware-isolation-threshold: ${ZT_RISK_RANSOMWARE_ISOLATION_THRESHOLD:80.0}
+      supply-vulnerability-weight: ${ZT_RISK_SUPPLY_VULNERABILITY_WEIGHT:0.50}
+      supply-provenance-weight: ${ZT_RISK_SUPPLY_PROVENANCE_WEIGHT:0.20}
+      supply-exposure-weight: ${ZT_RISK_SUPPLY_EXPOSURE_WEIGHT:0.30}
+      reasoning-threat-weight: ${ZT_RISK_REASONING_THREAT_WEIGHT:0.40}
+      reasoning-exposure-weight: ${ZT_RISK_REASONING_EXPOSURE_WEIGHT:0.35}
+      reasoning-confidence-weight: ${ZT_RISK_REASONING_CONFIDENCE_WEIGHT:25.0}
+      trust-attestation-threshold: ${ZT_RISK_TRUST_ATTESTATION_THRESHOLD:70.0}
+      federation-health-threshold: ${ZT_RISK_FEDERATION_HEALTH_THRESHOLD:70.0}
+      detection-coverage-threshold: ${ZT_RISK_DETECTION_COVERAGE_THRESHOLD:80.0}
+      detection-precision-threshold: ${ZT_RISK_DETECTION_PRECISION_THRESHOLD:80.0}
+      response-safety-threshold: ${ZT_RISK_RESPONSE_SAFETY_THRESHOLD:85.0}
+      response-rollback-threshold: ${ZT_RISK_RESPONSE_ROLLBACK_THRESHOLD:85.0}
+      certification-score-threshold: ${ZT_RISK_CERTIFICATION_SCORE_THRESHOLD:95.0}
+      identity-fabric-minimum-score: ${ZT_RISK_IDENTITY_FABRIC_MINIMUM_SCORE:0.0}
+      identity-fabric-average-divisor: ${ZT_RISK_IDENTITY_FABRIC_AVERAGE_DIVISOR:4.0}
+      predictive-critical-probability: ${ZT_RISK_PREDICTIVE_CRITICAL_PROBABILITY:0.80}
+      predictive-high-probability: ${ZT_RISK_PREDICTIVE_HIGH_PROBABILITY:0.60}
+      deception-confidence-threshold: ${ZT_RISK_DECEPTION_CONFIDENCE_THRESHOLD:0.80}
+      digital-twin-safe-risk-threshold: ${ZT_RISK_DIGITAL_TWIN_SAFE_RISK_THRESHOLD:70.0}
+      digital-twin-safe-impact-threshold: ${ZT_RISK_DIGITAL_TWIN_SAFE_IMPACT_THRESHOLD:50.0}
+      mcp-tool-poisoning-max-score: ${ZT_RISK_MCP_TOOL_POISONING_MAX_SCORE:1.0}
+      mcp-tool-poisoning-suspicious-weight: ${ZT_RISK_MCP_TOOL_POISONING_SUSPICIOUS_WEIGHT:0.20}
+      mcp-tool-poisoning-critical-base: ${ZT_RISK_MCP_TOOL_POISONING_CRITICAL_BASE:0.65}
+      mcp-tool-poisoning-high-base: ${ZT_RISK_MCP_TOOL_POISONING_HIGH_BASE:0.35}
+      mcp-tool-poisoning-normal-base: ${ZT_RISK_MCP_TOOL_POISONING_NORMAL_BASE:0.05}
+      continuous-decision-base-risk-weight: ${ZT_RISK_CONTINUOUS_DECISION_BASE_RISK_WEIGHT:0.25}
+      continuous-decision-behavior-weight: ${ZT_RISK_CONTINUOUS_DECISION_BEHAVIOR_WEIGHT:0.30}
+      continuous-decision-asset-weight: ${ZT_RISK_CONTINUOUS_DECISION_ASSET_WEIGHT:0.20}
+      continuous-decision-attack-weight: ${ZT_RISK_CONTINUOUS_DECISION_ATTACK_WEIGHT:0.15}
+      continuous-decision-policy-weight: ${ZT_RISK_CONTINUOUS_DECISION_POLICY_WEIGHT:0.10}
+      continuous-decision-deny-risk: ${ZT_RISK_CONTINUOUS_DECISION_DENY_RISK:100.0}
+      continuous-decision-step-up-risk: ${ZT_RISK_CONTINUOUS_DECISION_STEP_UP_RISK:70.0}
+      continuous-decision-allow-risk: ${ZT_RISK_CONTINUOUS_DECISION_ALLOW_RISK:10.0}
+      continuous-decision-high-threshold: ${ZT_RISK_CONTINUOUS_DECISION_HIGH_THRESHOLD:70.0}
+      continuous-decision-medium-threshold: ${ZT_RISK_CONTINUOUS_DECISION_MEDIUM_THRESHOLD:75.0}
+      control-neutral-weight: ${ZT_RISK_CONTROL_NEUTRAL_WEIGHT:0.50}
+      control-confidence-cap: ${ZT_RISK_CONTROL_CONFIDENCE_CAP:0.95}
+      control-confidence-base: ${ZT_RISK_CONTROL_CONFIDENCE_BASE:0.35}
+      control-confidence-sample-weight: ${ZT_RISK_CONTROL_CONFIDENCE_SAMPLE_WEIGHT:0.35}
+      control-confidence-evidence-weight: ${ZT_RISK_CONTROL_CONFIDENCE_EVIDENCE_WEIGHT:0.30}
+      control-sample-divisor: ${ZT_RISK_CONTROL_SAMPLE_DIVISOR:10.0}
+      control-confidence-sample-divisor: ${ZT_RISK_CONTROL_CONFIDENCE_SAMPLE_DIVISOR:20.0}
+      control-confidence-risk-divisor: ${ZT_RISK_CONTROL_CONFIDENCE_RISK_DIVISOR:20.0}
+      continuous-base-risk: ${ZT_RISK_CONTINUOUS_BASE_RISK:20.0}
+      continuous-decision-pressure-max: ${ZT_RISK_CONTINUOUS_DECISION_PRESSURE_MAX:25.0}
+      continuous-denied-weight: ${ZT_RISK_CONTINUOUS_DENIED_WEIGHT:2.0}
+      continuous-step-up-weight: ${ZT_RISK_CONTINUOUS_STEP_UP_WEIGHT:0.80}
+      continuous-risk-pressure-max: ${ZT_RISK_CONTINUOUS_RISK_PRESSURE_MAX:30.0}
+      continuous-risk-weight: ${ZT_RISK_CONTINUOUS_RISK_WEIGHT:0.30}
+      continuous-anomaly-pressure-max: ${ZT_RISK_CONTINUOUS_ANOMALY_PRESSURE_MAX:25.0}
+      continuous-anomaly-weight: ${ZT_RISK_CONTINUOUS_ANOMALY_WEIGHT:2.50}
+      continuous-score-max: ${ZT_RISK_CONTINUOUS_SCORE_MAX:100.0}
+      continuous-direction-threshold: ${ZT_RISK_CONTINUOUS_DIRECTION_THRESHOLD:8.0}
+      forecast-base-risk: ${ZT_RISK_FORECAST_BASE_RISK:20.0}
+      forecast-denied-pressure-max: ${ZT_RISK_FORECAST_DENIED_PRESSURE_MAX:25.0}
+      forecast-denied-weight: ${ZT_RISK_FORECAST_DENIED_WEIGHT:2.0}
+      forecast-step-pressure-max: ${ZT_RISK_FORECAST_STEP_PRESSURE_MAX:12.0}
+      forecast-step-weight: ${ZT_RISK_FORECAST_STEP_WEIGHT:0.80}
+      forecast-high-pressure-max: ${ZT_RISK_FORECAST_HIGH_PRESSURE_MAX:25.0}
+      forecast-high-weight: ${ZT_RISK_FORECAST_HIGH_WEIGHT:2.50}
+      forecast-average-pressure-max: ${ZT_RISK_FORECAST_AVERAGE_PRESSURE_MAX:30.0}
+      forecast-average-weight: ${ZT_RISK_FORECAST_AVERAGE_WEIGHT:0.30}
+      forecast-probability-center: ${ZT_RISK_FORECAST_PROBABILITY_CENTER:55.0}
+      forecast-probability-scale: ${ZT_RISK_FORECAST_PROBABILITY_SCALE:12.0}
+      forecast-probability-drift-scale: ${ZT_RISK_FORECAST_PROBABILITY_DRIFT_SCALE:10.0}
+      forecast-probability-sample-divisor: ${ZT_RISK_FORECAST_PROBABILITY_SAMPLE_DIVISOR:100.0}
+      forecast-probability-sample-weight: ${ZT_RISK_FORECAST_PROBABILITY_SAMPLE_WEIGHT:0.30}
+      forecast-confidence-cap: ${ZT_RISK_FORECAST_CONFIDENCE_CAP:0.98}
+      forecast-confidence-base: ${ZT_RISK_FORECAST_CONFIDENCE_BASE:0.45}
+      forecast-confidence-sample-cap: ${ZT_RISK_FORECAST_CONFIDENCE_SAMPLE_CAP:0.35}
+      forecast-confidence-sample-divisor: ${ZT_RISK_FORECAST_CONFIDENCE_SAMPLE_DIVISOR:100.0}
+      forecast-confidence-drift-cap: ${ZT_RISK_FORECAST_CONFIDENCE_DRIFT_CAP:0.18}
+      forecast-confidence-drift-divisor: ${ZT_RISK_FORECAST_CONFIDENCE_DRIFT_DIVISOR:100.0}
+      forecast-preventive-probability: ${ZT_RISK_FORECAST_PREVENTIVE_PROBABILITY:0.85}
+      forecast-step-up-probability: ${ZT_RISK_FORECAST_STEP_UP_PROBABILITY:0.60}
+      forecast-monitor-probability: ${ZT_RISK_FORECAST_MONITOR_PROBABILITY:0.40}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  tracing:
+    sampling:
+      probability: ${OTEL_TRACES_SAMPLER_ARG:1.0}
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTEL_METRICS_EXPORT_ENABLED:false}
+        url: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}/v1/metrics
+  observations:
+    annotations:
+      enabled: true
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
