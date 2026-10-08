@@ -13,7 +13,7 @@ public class SecurityAsset {
     int criticality=50;
     @Column(name="data_classification") String dataClassification="INTERNAL";
     String owner;
-    @Column(columnDefinition="jsonb") String metadata="{}";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String metadata="{}";
     @Column(name="updated_at") Instant updatedAt=
     Instant.now();
     public UUID getId(){

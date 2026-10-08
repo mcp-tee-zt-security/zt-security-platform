@@ -14,7 +14,7 @@ public class Policy {
     int priority=100;
     String effect;
     @Column(name="policy_text",columnDefinition="text") String policyText;
-    @Column(name="policy_json",columnDefinition="jsonb") String policyJson;
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="policy_json",columnDefinition="jsonb") String policyJson;
     @Column(name="created_by") String createdBy;
     @Column(name="created_at") Instant createdAt=Instant.now();
     @Column(name="updated_at") Instant updatedAt=Instant.now();

@@ -17,7 +17,7 @@ public class PolicyTuningProposal {
   @Column(nullable=false) private String status="PENDING";
   @Column(name="reason", nullable=false, columnDefinition="text") private String reason;
   @Column(name="simulation_status", nullable=false) private String simulationStatus="NOT_RUN";
-  @Column(name="simulation_result", columnDefinition="jsonb") private String simulationResult;
+  @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="simulation_result", columnDefinition="jsonb") private String simulationResult;
   @Column(name="approved_policy_id") private UUID approvedPolicyId;
   @Column(name="requested_by") private String requestedBy;
   @Column(name="approved_by") private String approvedBy;

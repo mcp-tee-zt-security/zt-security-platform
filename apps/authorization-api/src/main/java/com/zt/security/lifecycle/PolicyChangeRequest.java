@@ -17,8 +17,8 @@ import java.util.*;
  String status="PENDING";
  @Column(name="required_approvals") int requiredApprovals=1;
  int approvals=0;
- @Column(name="simulation_json",columnDefinition="jsonb") String simulationJson="{}";
- @Column(name="blast_radius_json",columnDefinition="jsonb") String blastRadiusJson="{}";
+ @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="simulation_json",columnDefinition="jsonb") String simulationJson="{}";
+ @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="blast_radius_json",columnDefinition="jsonb") String blastRadiusJson="{}";
  @Column(name="canary_percent") int canaryPercent;
  @Column(name="commit_sha") String commitSha;
  @Column(name="created_at") Instant createdAt=Instant.now();
@@ -26,7 +26,7 @@ import java.util.*;
  @Column(name="published_at") Instant publishedAt;
  @Column(name="approved_by") String approvedBy;
  @Column(name="approval_comment") String approvalComment;
- @Column(name="diff_json",
+ @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="diff_json",
  columnDefinition="jsonb") String diffJson="{}";
  public UUID getId(){
      return id;

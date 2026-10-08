@@ -12,7 +12,7 @@ public class SiemSink {
     String endpoint;
     @Column(name="secret_ref") String secretRef;
     boolean enabled=true;
-    @Column(name="event_types",columnDefinition="jsonb") String eventTypes="[]";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="event_types",columnDefinition="jsonb") String eventTypes="[]";
     @Column(name="created_at") Instant createdAt=Instant.now();
     public UUID getId(){
         return id;

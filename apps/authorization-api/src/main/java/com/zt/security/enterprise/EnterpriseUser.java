@@ -16,7 +16,7 @@ public class EnterpriseUser {
     String email;
     boolean active=true;
     String source="LOCAL";
-    @Column(columnDefinition="jsonb") String attributes="{}";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String attributes="{}";
     @Column(name="created_at") Instant createdAt=Instant.now();
     @Column(name="updated_at") Instant updatedAt=
     Instant.now();

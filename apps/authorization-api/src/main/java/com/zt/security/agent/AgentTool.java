@@ -9,7 +9,7 @@ import java.util.*;
     String name;
     String description;
     @Column(name="risk_level") String riskLevel="MEDIUM";
-    @Column(columnDefinition="jsonb") String metadata="{}";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String metadata="{}";
     boolean enabled=true;
     public UUID getId(){
         return id;

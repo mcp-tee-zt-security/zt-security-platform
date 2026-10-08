@@ -14,8 +14,8 @@ public class AdaptiveDecision {
  @Column(name="sequence_score") double sequenceScore;
  @Column(name="peer_score") double peerScore;
  String decision;
- @Column(columnDefinition="jsonb") String signals="[]";
- @Column(columnDefinition="jsonb") String evidence="{}";
+ @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String signals="[]";
+ @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String evidence="{}";
  @Column(name="created_at") Instant createdAt=Instant.now();
  public UUID getId(){
      return id;

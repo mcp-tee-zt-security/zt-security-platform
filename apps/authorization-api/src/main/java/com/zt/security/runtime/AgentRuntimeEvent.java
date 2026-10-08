@@ -21,7 +21,7 @@ nullable=false) private String resourceId;
 @Column(name="risk_score") private Double riskScore;
 @Column(name="latency_ms") private Long latencyMs;
 @Column(name="created_at",nullable=false) private Instant createdAt=Instant.now();
-@Column(columnDefinition="jsonb",nullable=false) private String context="{}";
+@org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb",nullable=false) private String context="{}";
 public UUID getId(){
     return id;
 }

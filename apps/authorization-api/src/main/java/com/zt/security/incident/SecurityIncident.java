@@ -11,7 +11,7 @@ import java.util.*;
     @Column(name="principal_id") String principalId;
     @Column(name="source_decision_id") UUID sourceDecisionId;
     String summary;
-    @Column(columnDefinition="jsonb") String evidence="[]";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String evidence="[]";
     @Column(name="created_at") Instant createdAt=Instant.now();
     @Column(name="updated_at") Instant updatedAt=Instant.now();
  public UUID getId(){

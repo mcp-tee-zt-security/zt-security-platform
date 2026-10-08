@@ -9,7 +9,7 @@ import java.util.*;
     @Column(name="event_type") String eventType;
     @Column(name="aggregate_type") String aggregateType;
     @Column(name="aggregate_id") String aggregateId;
-    @Column(columnDefinition="jsonb") String payload;
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String payload;
     String status="PENDING";
     int attempts=0;
     @Column(name="available_at") Instant availableAt=Instant.now();

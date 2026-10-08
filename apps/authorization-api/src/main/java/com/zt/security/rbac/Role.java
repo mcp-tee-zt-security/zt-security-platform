@@ -8,7 +8,7 @@ import java.util.*;
     @Column(name="tenant_id") UUID tenantId;
     String name;
     String description;
-    @Column(columnDefinition="jsonb") String permissions="[]";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String permissions="[]";
     public UUID getId(){
         return id;
         }

@@ -20,7 +20,7 @@ String resourceType;
     @Column(name="composite_score") double compositeScore;
     String decision;
     String reason;
-    @Column(columnDefinition="jsonb") String signals="{}";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String signals="{}";
     @Column(name="created_at") Instant createdAt=
     Instant.now();
     public UUID getId(){

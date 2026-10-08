@@ -4,7 +4,7 @@ import {
   Activity, CheckCircle2, ScrollText, Radio, Network, Route, Siren, Gauge, Brain, GitCompareArrows,
   BookOpen, RefreshCw, Settings, ChevronRight, AlertTriangle, XCircle, Check,
   CircleHelp, Copy, ExternalLink, Terminal, Zap, Database, Lock, Users,
-  Clock, Crosshair, FolderOpen, FileSearch, Send, Sparkles, History, TrendingUp
+  Clock, Crosshair, FolderOpen, FileSearch, Send, Sparkles, History, TrendingUp, Menu, PanelLeftClose
 } from 'lucide-react';
 import './style.css';
 
@@ -75,7 +75,50 @@ class DashboardErrorBoundary extends React.Component<{children: React.ReactNode}
  }
 }
 
+const clampSidebarWidth=(width:number)=>Math.min(420,Math.max(200,width));
+function readSidebarPreference(key:string){
+ try{return localStorage.getItem(key)}catch{return null}
+}
+
 function App(){
+ const [sidebarWidth,setSidebarWidth]=React.useState(()=>{
+   const saved=Number(readSidebarPreference('zt-sidebar-width'));
+   return Number.isFinite(saved)&&saved>0?clampSidebarWidth(saved):250;
+ });
+ const [sidebarOpen,setSidebarOpen]=React.useState(()=>readSidebarPreference('zt-sidebar-open')!=='false');
+ const [mobile,setMobile]=React.useState(()=>window.matchMedia('(max-width:700px)').matches);
+ const [mobileOpen,setMobileOpen]=React.useState(false);
+ const [resizing,setResizing]=React.useState(false);
+ const sidebarToggle=React.useRef<HTMLButtonElement>(null);
+ const drag=React.useRef<{pointerId:number;startX:number;startWidth:number}|null>(null);
+ const menuOpen=mobile?mobileOpen:sidebarOpen;
+ const closeMenu=()=>{
+   if(mobile)setMobileOpen(false);else setSidebarOpen(false);
+   sidebarToggle.current?.focus();
+ };
+ React.useEffect(()=>{
+   const query=window.matchMedia('(max-width:700px)');
+   const change=()=>{setMobile(query.matches);setMobileOpen(false);setResizing(false);drag.current=null};
+   query.addEventListener('change',change);
+   return()=>query.removeEventListener('change',change);
+ },[]);
+ React.useEffect(()=>{
+   try{localStorage.setItem('zt-sidebar-width',String(sidebarWidth))}catch{}
+ },[sidebarWidth]);
+ React.useEffect(()=>{
+   try{localStorage.setItem('zt-sidebar-open',String(sidebarOpen))}catch{}
+ },[sidebarOpen]);
+ React.useEffect(()=>{
+   if(!menuOpen)return;
+   const escape=(event:KeyboardEvent)=>{
+     if(event.key==='Escape'){
+       if(mobile)setMobileOpen(false);else setSidebarOpen(false);
+       sidebarToggle.current?.focus();
+     }
+   };
+   window.addEventListener('keydown',escape);
+   return()=>window.removeEventListener('keydown',escape);
+ },[menuOpen,mobile]);
  const [tab,setTab]=React.useState('Overview');
  const [role,setRole]=React.useState<DashboardRole>('CISO');
  const [boot,setBoot]=React.useState(true);
@@ -95,8 +138,10 @@ function App(){
 <p>Loading Security Command Center…</p>
 </div>;
  return <DashboardErrorBoundary>
-<div className="app">
-  <aside>
+<div className={`app${menuOpen?' sidebar-open':' sidebar-hidden'}${resizing?' sidebar-resizing':''}`}
+ style={{'--sidebar-width':`${sidebarWidth}px`} as React.CSSProperties}>
+  {mobile&&menuOpen&&<button className="sidebar-backdrop" aria-label="Close navigation" onClick={closeMenu}/>}
+  <aside id="dashboard-sidebar" className="dashboard-sidebar" aria-label="Main navigation" hidden={!menuOpen}>
    <div className="brand">
 <div className="brand-mark">
 <ShieldCheck/>
@@ -105,6 +150,9 @@ function App(){
 <b>ZT Security</b>
 <small>AI Agent Security</small>
 </div>
+<button className="sidebar-close icon-btn" aria-label="Hide navigation" title="Hide navigation" onClick={closeMenu}>
+<PanelLeftClose size={18}/>
+</button>
 </div>
    <div className="env">
 <select value={role} onChange={e=>{const r=e.target.value as DashboardRole;
@@ -123,7 +171,7 @@ function App(){
 </div>
    <nav>{nav.filter(([name])=>can(role,name)).map(([name,I])=>
 <button key={
-           name} className={tab===name?'active':''} onClick={()=>setTab(name)}>
+           name} className={tab===name?'active':''} onClick={()=>{setTab(name);if(mobile)closeMenu()}}>
 <I size={
            17}/>
 <span>{name}
@@ -136,18 +184,49 @@ function App(){
 <b>{TENANT.slice(0,
        8)}…</b>
 </div>
-<button onClick={()=>setTab('Setup Guide')}>
+<button onClick={()=>{setTab('Setup Guide');if(mobile)closeMenu()}}>
 <Settings size={
        15}/> Setup</button>
 </div>
+  <div className="sidebar-resize-handle" role="separator" tabIndex={0}
+   aria-label="Navigation width" aria-orientation="vertical" aria-valuemin={200} aria-valuemax={420} aria-valuenow={sidebarWidth}
+   title="Drag to resize; double-click to reset"
+   onDoubleClick={()=>setSidebarWidth(250)}
+   onKeyDown={event=>{
+     if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
+       event.preventDefault();setSidebarWidth(width=>clampSidebarWidth(width+(event.key==='ArrowRight'?10:-10)));
+     }else if(event.key==='Home'||event.key==='End'){
+       event.preventDefault();setSidebarWidth(event.key==='Home'?200:420);
+     }
+   }}
+   onPointerDown={event=>{
+     if(event.button!==0||mobile)return;
+     event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);
+     drag.current={pointerId:event.pointerId,startX:event.clientX,startWidth:sidebarWidth};setResizing(true);
+   }}
+   onPointerMove={event=>{
+     const current=drag.current;
+     if(current&&current.pointerId===event.pointerId)setSidebarWidth(clampSidebarWidth(current.startWidth+event.clientX-current.startX));
+   }}
+   onPointerUp={event=>{
+     drag.current=null;setResizing(false);
+     if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
+   }}
+   onPointerCancel={()=>{drag.current=null;setResizing(false)}}
+   onLostPointerCapture={()=>{drag.current=null;setResizing(false)}}/>
   </aside>
   <main>
    <header>
+<div className="dashboard-heading">
+<button ref={sidebarToggle} className="icon-btn sidebar-toggle" aria-label={menuOpen?'Hide navigation':'Show navigation'}
+ title={menuOpen?'Hide navigation':'Show navigation'} aria-expanded={menuOpen} aria-controls="dashboard-sidebar"
+ onClick={()=>{if(mobile)setMobileOpen(open=>!open);else setSidebarOpen(open=>!open)}}><Menu size={20}/></button>
 <div>
 <small className="eyebrow">ZERO TRUST CONTROL PLANE · ENTERPRISE DATA PLANE</small>
 <h1>{
        tab}
 </h1>
+</div>
 </div>
 <div className="header-actions">
 <span className="last">Updated {
@@ -1159,7 +1238,7 @@ function Simulator(){const [action,setAction]=React.useState('payment.transfer')
  const run=async()=>{setBusy(true);
      setErr('');
      try{const x=await apiPost('/v1/actions/evaluate',
-         {principal:{id:'payment-agent',type:'AI_AGENT',attributes:{model:'demo-agent'}
+         {principal:{id:action.startsWith('refund')?'refund-agent':'payment-agent',type:'AI_AGENT',attributes:{model:'demo-agent'}
              },action:{name:action},resource:{type:action.startsWith('refund')?'customer_record':'bank_account',
 id:resource,attributes:{}},context:{amount,currency:'KRW',
 task_id:action.startsWith('refund')?'refund-demo-task':'payment-demo-task',
@@ -1179,7 +1258,7 @@ tool_id:action.startsWith('refund')?'33333333-3333-3333-3333-333333333302':'3333
 </div>
 </div>
 <Field label="Agent">
-<input value="payment-agent" disabled/>
+<input value={action.startsWith('refund')?'refund-agent':'payment-agent'} disabled/>
 </Field>
 <Field label="Action">
 <select value={

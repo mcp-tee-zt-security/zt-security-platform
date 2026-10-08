@@ -14,7 +14,7 @@ import java.util.UUID;
  @Column(name="approved_by") String approvedBy;
  String status="PENDING";
  @Column(name="requires_approval") boolean requiresApproval=true;
- @Column(name="execution_result",columnDefinition="jsonb") String executionResult="{}";
+ @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="execution_result",columnDefinition="jsonb") String executionResult="{}";
  @Column(name="created_at") Instant createdAt=Instant.now();
  @Column(name="approved_at") Instant approvedAt;
  @Column(name="executed_at") Instant executedAt;

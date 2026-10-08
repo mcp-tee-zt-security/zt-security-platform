@@ -18,7 +18,7 @@ public class BlastRadiusAssessment {
     @Column(name="restricted_assets") int restrictedAssets;
     @Column(name="recommended_actions") int recommendedActions;
     @Column(name="generated_at") Instant generatedAt=Instant.now();
-    @Column(columnDefinition="jsonb") String result="{}";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String result="{}";
     public UUID getId(){
         return id;
     }

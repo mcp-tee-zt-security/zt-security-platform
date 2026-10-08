@@ -15,7 +15,7 @@ import java.util.*;
     @Column(name="policy_id") UUID policyId;
     String reason;
     @Column(name="risk_score") Double riskScore;
-    @Column(columnDefinition="jsonb") String metadata="{}";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String metadata="{}";
     @Column(name="previous_hash") String previousHash;
     @Column(name="event_hash") String eventHash;
     @Column(name="created_at") Instant createdAt=Instant.now();

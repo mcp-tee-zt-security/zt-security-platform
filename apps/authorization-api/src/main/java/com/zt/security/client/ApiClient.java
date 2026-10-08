@@ -13,7 +13,7 @@ public class ApiClient {
     String name;
     @Column(name="secret_hash") String secretHash;
     String status="ACTIVE";
-    @Column(columnDefinition="jsonb") String scopes="[]";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String scopes="[]";
     Instant lastUsedAt;
     Instant expiresAt;
     Instant createdAt=Instant.now();

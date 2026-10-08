@@ -13,8 +13,8 @@ public class SsoConnection {
     @Column(name="client_id") String clientId;
     @Column(name="client_secret_ref") String clientSecretRef;
     boolean enabled;
-    @Column(name="allowed_domains",columnDefinition="jsonb") String allowedDomains="[]";
-    @Column(name="claims_mapping",columnDefinition="jsonb") String claimsMapping="{\"subject\":\"sub\",\"email\":\"email\""
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="allowed_domains",columnDefinition="jsonb") String allowedDomains="[]";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="claims_mapping",columnDefinition="jsonb") String claimsMapping="{\"subject\":\"sub\",\"email\":\"email\""
 +
 ",\"groups\":\"groups\"}";
     @Column(name="created_at") Instant createdAt=Instant.now();

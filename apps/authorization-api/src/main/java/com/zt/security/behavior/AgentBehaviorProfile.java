@@ -13,9 +13,9 @@ import java.util.*;
 double maxRiskScore=
     70;
     @Column(name="max_amount") Double maxAmount;
-    @Column(name="allowed_actions",
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="allowed_actions",
     columnDefinition="jsonb") String allowedActions="[]";
-    @Column(name="allowed_resource_types",
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="allowed_resource_types",
     columnDefinition="jsonb") String allowedResourceTypes="[]";
     @Column(name="deny_burst_threshold") int
 denyBurstThreshold=

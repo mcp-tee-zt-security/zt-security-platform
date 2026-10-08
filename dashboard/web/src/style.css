@@ -57,10 +57,10 @@ button:disabled
     display:flex;
     min-height:100vh
 }
-aside
+.app > .dashboard-sidebar
 {
-    width:250px;
-    flex:0 0 250px;
+    width:var(--sidebar-width,250px);
+    flex:0 0 var(--sidebar-width,250px);
     background:#0a1422;
     border-right:1px solid #1b2a3d;
     display:flex;
@@ -68,7 +68,83 @@ aside
     padding:18px 13px;
     position:sticky;
     top:0;
-    height:100vh
+    height:100vh;
+    z-index:6
+}
+.app > .dashboard-sidebar[hidden]
+{
+    display:none
+}
+.dashboard-sidebar .brand
+{
+    padding-left:0;
+    padding-right:0;
+    gap:7px
+}
+.dashboard-sidebar .brand-mark,.dashboard-sidebar nav svg
+{
+    flex-shrink:0
+}
+.sidebar-close
+{
+    margin-left:auto;
+    padding:5px;
+    flex-shrink:0
+}
+.dashboard-sidebar .env
+{
+    flex-wrap:wrap
+}
+.dashboard-sidebar nav
+{
+    min-height:0;
+    flex:1;
+    overflow-x:hidden
+}
+.dashboard-sidebar nav button span
+{
+    min-width:0;
+    overflow-wrap:anywhere
+}
+.sidebar-resize-handle
+{
+    position:absolute;
+    top:0;
+    bottom:0;
+    right:-4px;
+    width:8px;
+    cursor:col-resize;
+    touch-action:none
+}
+.sidebar-resize-handle:hover,.sidebar-resize-handle:focus-visible
+{
+    background:rgba(62,120,229,.55);
+    outline:2px solid #7eb0ff;
+    outline-offset:-2px
+}
+.sidebar-resizing,.sidebar-resizing *
+{
+    cursor:col-resize!important;
+    user-select:none
+}
+.dashboard-heading
+{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    min-width:0
+}
+.dashboard-heading > div
+{
+    min-width:0
+}
+.sidebar-toggle
+{
+    flex-shrink:0
+}
+.sidebar-backdrop
+{
+    display:none
 }
 .brand
 {
@@ -1350,11 +1426,6 @@ td button
 }
 @media(max-width:1100px)
 {
-    aside
-    {
-        width:215px;
-        flex-basis:215px
-    }
     .content
     {
         padding:22px
@@ -1378,11 +1449,42 @@ td button
 }
 @media(max-width:700px)
 {
-    aside
+    .app > .dashboard-sidebar
     {
         position:fixed;
-        z-index:10;
-        left:-215px
+        z-index:20;
+        left:0;
+        width:min(var(--sidebar-width,250px),calc(100vw - 48px));
+        height:100dvh;
+        box-shadow:12px 0 40px rgba(0,0,0,.4)
+    }
+    .sidebar-resize-handle
+    {
+        display:none
+    }
+    .sidebar-backdrop
+    {
+        display:block;
+        position:fixed;
+        inset:0;
+        z-index:19;
+        border:0;
+        border-radius:0;
+        padding:0;
+        background:rgba(0,0,0,.6)
+    }
+    .sidebar-backdrop:hover
+    {
+        background:rgba(0,0,0,.6)
+    }
+    .dashboard-heading .eyebrow,.header-actions .last
+    {
+        display:none
+    }
+    .dashboard-heading h1
+    {
+        font-size:18px;
+        overflow-wrap:anywhere
     }
     main
     {
@@ -1542,10 +1644,6 @@ td button
     .cards
     {
         grid-template-columns:1fr
-    }
-    .app aside
-    {
-        width:220px
     }
     .grid-2
     {

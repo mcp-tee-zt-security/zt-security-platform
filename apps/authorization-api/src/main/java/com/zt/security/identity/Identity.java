@@ -10,7 +10,7 @@ import java.util.*;
     @Column(name="external_id") String externalId;
     @Column(name="identity_type") String identityType;
     String name;
-    @Column(columnDefinition="jsonb") String attributes="{}";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String attributes="{}";
     String status="ACTIVE";
     public String getStatus() { return status; }
     public void setStatus(String value) { status = value; }

@@ -10,7 +10,7 @@ public class IdempotencyKey {
     @Column(name="tenant_id") UUID tenantId;
     @Column(name="idempotency_key") String key;
     @Column(name="request_hash") String requestHash;
-    @Column(name="response_json",columnDefinition="jsonb") String responseJson;
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="response_json",columnDefinition="jsonb") String responseJson;
     String status="IN_PROGRESS";
     @Column(name="created_at") Instant createdAt=Instant.now();
     @Column(name="expires_at") Instant expiresAt=Instant.now().plusSeconds(86400);

@@ -11,7 +11,7 @@ public class CaseEvidence {
  @Column(name="case_id") UUID caseId;
  @Column(name="evidence_type") String evidenceType;
  @Column(name="source_ref") String sourceRef;
- @Column(columnDefinition="jsonb") String payload="{}";
+ @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String payload="{}";
  @Column(name="content_hash") String contentHash;
  @Column(name="created_by") String createdBy;
  @Column(name="created_at") Instant createdAt=Instant.now();

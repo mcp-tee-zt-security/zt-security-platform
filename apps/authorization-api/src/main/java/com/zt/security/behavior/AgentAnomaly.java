@@ -11,7 +11,7 @@ import java.util.*;
     String severity;
     double score;
     String reason;
-    @Column(name="evidence",
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="evidence",
     columnDefinition="jsonb") String evidence="{}";
     String status="OPEN";
     @Column(name="created_at") Instant createdAt=

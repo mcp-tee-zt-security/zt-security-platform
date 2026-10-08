@@ -11,7 +11,7 @@ public class ComplianceAssessment {
  @Column(name="period_end") Instant periodEnd;
  String status;
  double score;
- @Column(columnDefinition="jsonb") String controls="[]";
+ @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String controls="[]";
  @Column(name="evidence_count") int evidenceCount;
  @Column(name="report_hash") String reportHash;
  @Column(name="generated_by") String generatedBy;

@@ -2,6 +2,7 @@ package com.zt.security.common;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import com.zt.security.scim.ScimTokenFilter;
+import jakarta.servlet.DispatcherType;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.*;
@@ -27,7 +28,19 @@ public class SecurityConfig {
   ScimTokenFilter scimToken, RateLimitFilter rateLimit, TenantSecurityFilter tenantFilter) throws Exception {
     http.csrf(c->c.disable())
       .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+      .exceptionHandling(e->e
+        .authenticationEntryPoint((request,response,exception)->{
+          response.setStatus(401);
+          response.setContentType("application/json");
+          response.getWriter().write("{\"error\":\"UNAUTHORIZED\",\"message\":\"Valid X-API-Key or bearer token required\"}");
+        })
+        .accessDeniedHandler((request,response,exception)->{
+          response.setStatus(403);
+          response.setContentType("application/json");
+          response.getWriter().write("{\"error\":\"FORBIDDEN\",\"message\":\"Insufficient permissions\"}");
+        }))
       .authorizeHttpRequests(a->a
+        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
         .requestMatchers("/actuator/**","/swagger-ui/**","/swagger-ui.html",
         "/v3/api-docs/**","/v1/health","/v1/enterprise/sso/login/callback").permitAll()
         .anyRequest().authenticated())

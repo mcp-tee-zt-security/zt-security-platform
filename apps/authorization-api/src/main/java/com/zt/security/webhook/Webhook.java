@@ -7,7 +7,7 @@ import java.util.*;
     @Column(name="tenant_id") UUID tenantId;
     @Column(name="workspace_id") UUID workspaceId;
     String name,url,secret,status="ACTIVE";
-    @Column(name="event_types",columnDefinition="jsonb") String eventTypes="[]";
+    @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(name="event_types",columnDefinition="jsonb") String eventTypes="[]";
     Instant createdAt=Instant.now(),updatedAt=Instant.now();
     public UUID getId(){
         return id;

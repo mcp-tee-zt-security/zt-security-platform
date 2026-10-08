@@ -16,7 +16,7 @@ nullable=false) private Instant startedAt=Instant.now();
 @Column(name="last_seen_at",
 nullable=false) private Instant lastSeenAt=Instant.now();
 @Column(name="ended_at") private Instant endedAt;
-@Column(columnDefinition="jsonb",nullable=false) private String metadata="{}";
+@org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb",nullable=false) private String metadata="{}";
 public UUID getId(){
     return id;
 }
