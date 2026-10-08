@@ -134,7 +134,7 @@ function App(){
  React.useEffect(()=>{if(toast){const t=setTimeout(()=>setToast(''),3500);return()=>clearTimeout(t)}},[toast]);
  if(boot)return <div className="boot">
 <ShieldCheck size={42}/>
-<h1>ZT Security 3.14</h1>
+<h1>ZT Security</h1>
 <p>Loading Security Command Center…</p>
 </div>;
  return <DashboardErrorBoundary>

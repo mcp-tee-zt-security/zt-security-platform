@@ -3,7 +3,7 @@ param(
   [string]$Duration = "30s"
 )
 $ErrorActionPreference = 'Stop'
-Write-Host "ZT Security 3.1 Data Plane benchmark matrix" -ForegroundColor Cyan
+Write-Host "ZT Security Data Plane benchmark matrix" -ForegroundColor Cyan
 Write-Host "Target: P99 < 2ms at each sustained rate. Actual results are environment-dependent." -ForegroundColor Yellow
 foreach ($r in $Rps) {
   Write-Host "`n=== ${r} RPS ===" -ForegroundColor Green

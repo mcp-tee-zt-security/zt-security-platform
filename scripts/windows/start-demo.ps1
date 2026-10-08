@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path (Split-Path -Parent $PSScriptRoot) "..")
-Write-Host "[ZT Security 1.3] Starting Docker stack..." -ForegroundColor Cyan
+Write-Host "[ZT Security] Starting Docker stack..." -ForegroundColor Cyan
 docker compose -f docker/docker-compose.yml up --build -d
 Write-Host "Waiting for API..." -ForegroundColor Yellow
 for ($i=0; $i -lt 30; $i++) {
