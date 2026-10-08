@@ -2374,7 +2374,7 @@ clean demo from scratch.</p>
   }
   copy={copy}
 />
-<p className="muted">Set <code>VITE_API_URL=http://localhost:8080</code> for the dashboard. The dev API
+<p className="muted">The dashboard uses <code>/api</code> through its same-origin proxy. The dev API
 key is <code>dev-master-key</code>.</p>
 </Step>{copied&&<div className="copy-ok">
 <Copy size={14}/> Copied</div>}

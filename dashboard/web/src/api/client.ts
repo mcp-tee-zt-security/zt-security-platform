@@ -1,4 +1,4 @@
-export const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+export const API = import.meta.env.VITE_API_URL || '/api';
 export const TENANT = import.meta.env.VITE_TENANT_ID || '11111111-1111-1111-1111-111111111111';
 export const API_KEY = import.meta.env.VITE_API_KEY || 'dev-master-key';
 export const WORKSPACE = import.meta.env.VITE_WORKSPACE_ID || '88888888-8888-8888-8888-888888888801';

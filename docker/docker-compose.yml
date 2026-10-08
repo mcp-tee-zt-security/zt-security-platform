@@ -33,9 +33,6 @@ services:
     build:
       context: ../dashboard/web
     ports: ["3000:80"]
-    environment:
-      VITE_API_URL: http://localhost:8080
-      VITE_TENANT_ID: 11111111-1111-1111-1111-111111111111
     depends_on:
       authorization-api:
         condition: service_healthy
