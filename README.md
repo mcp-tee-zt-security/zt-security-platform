@@ -31,6 +31,8 @@ Dashboard and SDK requests share the existing policy engine, authentication, app
 
 The Rust policy data plane is split into configuration, bundle distribution/verification, evaluation, evidence and HTTP modules. See [its README](apps/policy-data-plane/README.md) for configuration, coordinated bundle-v2 deployment and the fast path's evaluation scope.
 
+The MCP Gateway can execute registered upstream tools after caller authentication, argument constraints and policy/approval checks. See [MCP Gateway execution](docs/api/MCP_GATEWAY_EXECUTION.md) for upstream registration, replay protection, deployment and supported transport limits.
+
 The `backend/` directory contains only a migration notice. See `docs/api/4.75_BACKEND_API.md` for request compatibility and unsupported external integrations.
 # 3. Step-by-step: run the application
 

@@ -1,0 +1,8 @@
+# Optional upstream configuration. Replace the endpoint and supply its dedicated credential.
+# docker compose -f docker/docker-compose.yml -f docker/docker-compose.mcp.example.yml up -d --build authorization-api dashboard
+services:
+  authorization-api:
+    environment:
+      ZT_SECURITY_MCP_SERVERS_PAYMENTS_ENDPOINT: https://mcp.example.com/mcp
+      ZT_SECURITY_MCP_SERVERS_PAYMENTS_BEARERTOKENENV: PAYMENTS_MCP_TOKEN
+      PAYMENTS_MCP_TOKEN: ${PAYMENTS_MCP_TOKEN:-}

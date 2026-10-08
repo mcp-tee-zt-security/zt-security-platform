@@ -35,6 +35,16 @@ zt:
       enabled: ${ZT_OIDC_ENABLED:false}
       issuer-uri: ${ZT_OIDC_ISSUER_URI:http://localhost:8089/realms/zt}
     api-key: ${ZT_API_KEY:dev-master-key}
+    mcp:
+      audience: ${ZT_MCP_AUDIENCE:zt-mcp-gateway}
+      timeout-seconds: ${ZT_MCP_TIMEOUT_SECONDS:15}
+      max-request-bytes: ${ZT_MCP_MAX_REQUEST_BYTES:65536}
+      max-response-bytes: ${ZT_MCP_MAX_RESPONSE_BYTES:2097152}
+      approval-ttl-seconds: ${ZT_MCP_APPROVAL_TTL_SECONDS:900}
+      max-concurrent-calls: ${ZT_MCP_MAX_CONCURRENT_CALLS:32}
+      allow-http: ${ZT_MCP_ALLOW_HTTP:false}
+      allowed-origins: ${ZT_MCP_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+      servers: {}
     scim:
       tokens: ${ZT_SCIM_TOKENS:}
     siem:

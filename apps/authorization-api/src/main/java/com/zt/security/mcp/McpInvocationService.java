@@ -1,0 +1,234 @@
+package com.zt.security.mcp;
+
+import com.fasterxml.jackson.databind.*;
+import com.zt.security.action.*;
+import com.zt.security.approval.*;
+import com.zt.security.event.SecurityEventService;
+import com.zerotrust.security.config.RiskScoringProperties;
+import org.springframework.jdbc.core.namedparam.*;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.time.Instant;
+import java.sql.Timestamp;
+import java.util.*;
+
+/** Commits the execution claim before any network call; locks approval resumes across replicas. */
+@Service
+@Transactional
+public class McpInvocationService {
+    public record Plan(UUID callId, McpToolRegistry.Binding binding, JsonNode arguments, String status,
+        String decision, String reason, UUID approvalId, UUID requestId) {
+        boolean executable() { return "EXECUTING".equals(status); }
+        Map<String, Object> security() {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("callId", callId); value.put("toolId", binding.toolId()); value.put("decision", decision);
+            value.put("status", status); value.put("reason", reason); value.put("requestId", requestId);
+            value.put("approvalId", approvalId); value.put("allowed", "ALLOW".equals(decision));
+            return value;
+        }
+    }
+    private final McpToolRegistry registry;
+    private final NamedParameterJdbcTemplate jdbc;
+    private final ObjectMapper mapper;
+    private final ActionEvaluationService actions;
+    private final ApprovalRepository approvals;
+    private final SecurityEventService events;
+    private final McpGatewayProperties properties;
+    private final RiskScoringProperties riskConfig;
+    private static final String SCOPE = "tenant_id=:tenant AND workspace_id IS NOT DISTINCT FROM CAST(:workspace AS uuid)";
+
+    McpInvocationService(McpToolRegistry registry, NamedParameterJdbcTemplate jdbc, ObjectMapper mapper,
+            ActionEvaluationService actions, ApprovalRepository approvals, SecurityEventService events,
+            McpGatewayProperties properties, RiskScoringProperties riskConfig) {
+        this.registry = registry; this.jdbc = jdbc; this.mapper = mapper; this.actions = actions;
+        this.approvals = approvals; this.events = events; this.properties = properties; this.riskConfig = riskConfig;
+    }
+    public Plan prepare(UUID tenant, UUID workspace, McpActor actor, UUID tool, JsonNode arguments, boolean execute, String requestKey) {
+        registry.scope(tenant, workspace);
+        var binding = registry.get(tenant, workspace, tool, actor);
+        McpArgumentValidator.validate(binding.config().inputSchema(), arguments);
+        String argumentHash = McpJson.hash(arguments);
+        if (requestKey != null) {
+            // Serialize concurrent deliveries of the same caller/RPC id before evaluation and dispatch.
+            String lockHash = McpJson.digest(tenant + ":" + workspace + ":" + actor.key() + ":" + requestKey);
+            jdbc.queryForObject("SELECT pg_advisory_xact_lock(:lock)",
+                new MapSqlParameterSource("lock", Long.parseUnsignedLong(lockHash.substring(0, 16), 16)), Object.class);
+            var existing = jdbc.queryForList("SELECT id,tool_id,arguments_hash,status,approval_id,decision_request_id FROM mcp_invocations WHERE " +
+                SCOPE + " AND actor_key=:actor AND request_key=:key",
+                McpToolRegistry.params(tenant, workspace).addValue("actor", actor.key()).addValue("key", requestKey));
+            if (!existing.isEmpty()) {
+                var old = existing.get(0);
+                if (!tool.equals(old.get("tool_id")) || !argumentHash.equals(old.get("arguments_hash"))) {
+                    throw new IllegalStateException("JSON-RPC id was already used for a different MCP operation");
+                }
+                String recorded = (String) old.get("status");
+                String status = "PENDING_APPROVAL".equals(recorded) ? recorded : "REPLAY_BLOCKED";
+                String effective = "PENDING_APPROVAL".equals(recorded) ? "STEP_UP" : "DENIED".equals(recorded) ? "DENY" : "ALLOW";
+                return new Plan((UUID) old.get("id"), binding, arguments.deepCopy(), status, effective,
+                    "Existing MCP call is " + recorded + "; it will not be dispatched again",
+                    (UUID) old.get("approval_id"), (UUID) old.get("decision_request_id"));
+            }
+        }
+        var decision = evaluate(tenant, workspace, actor, binding, arguments);
+        UUID id = UUID.randomUUID();
+        Instant expires = Instant.now().plusSeconds(properties.getApprovalTtlSeconds());
+        boolean needsApproval = !"DENY".equals(decision.decision()) &&
+            ("STEP_UP".equals(decision.decision()) || "ALLOW".equals(decision.decision()) && binding.config().requireApproval());
+        boolean allow = "ALLOW".equals(decision.decision()) && !needsApproval;
+        String status = needsApproval ? "PENDING_APPROVAL" : allow ? execute ? "EXECUTING" : "NOT_EXECUTED" : "DENIED";
+        UUID approval = needsApproval ? approval(tenant, actor, id, decision.requestId(), argumentHash,
+            binding.hash(), decision.reason(), expires) : null;
+        var p = McpToolRegistry.params(tenant, workspace).addValue("id", id).addValue("actor", actor.key())
+            .addValue("key", requestKey)
+            .addValue("subject", actor.subject()).addValue("tool", tool).addValue("binding", binding.hash())
+            .addValue("arguments", arguments.toString()).addValue("hash", argumentHash).addValue("request", decision.requestId())
+            .addValue("policy", policyHash(decision)).addValue("approval", approval).addValue("status", status)
+            .addValue("expires", Timestamp.from(expires));
+        jdbc.update("""
+            INSERT INTO mcp_invocations(id,tenant_id,workspace_id,actor_key,actor_subject,request_key,tool_id,binding_hash,
+                arguments,arguments_hash,decision_request_id,policy_hash,approval_id,status,expires_at)
+            VALUES (:id,:tenant,:workspace,:actor,:subject,:key,:tool,:binding,cast(:arguments as jsonb),
+                :hash,:request,:policy,:approval,:status,:expires)
+            """, p);
+        String effective = needsApproval ? "STEP_UP" : allow ? "ALLOW" : "DENY";
+        event(tenant, workspace, id, "MCP_CALL_PREPARED", Map.of(
+            "actor", actor.subject(), "toolId", tool, "argumentsHash", argumentHash, "bindingHash", binding.hash(),
+            "decision", effective, "requestId", decision.requestId(), "status", status));
+        return new Plan(id, binding, arguments.deepCopy(), status, effective,
+            needsApproval && binding.config().requireApproval() ? "Registered tool requires human approval" : decision.reason(),
+            approval, decision.requestId());
+    }
+    public Plan resume(UUID tenant, UUID workspace, McpActor actor, UUID id) {
+        registry.scope(tenant, workspace);
+        Map<String, Object> row = row(tenant, workspace, actor, id, true);
+        if (!"PENDING_APPROVAL".equals(row.get("status"))) throw new IllegalStateException("MCP call cannot be resumed or replayed");
+        Instant expires = ((Timestamp) row.get("expires_at")).toInstant();
+        if (!expires.isAfter(Instant.now())) throw new IllegalStateException("MCP call expired; create a new call");
+        UUID tool = (UUID) row.get("tool_id");
+        var binding = registry.get(tenant, workspace, tool, actor);
+        if (!binding.hash().equals(row.get("binding_hash"))) throw new IllegalStateException("Tool binding changed; create a new call");
+        JsonNode arguments = parse((String) row.get("arguments_json"));
+        if (!McpJson.hash(arguments).equals(row.get("arguments_hash"))) throw new AccessDeniedException("Stored MCP arguments changed");
+        McpArgumentValidator.validate(binding.config().inputSchema(), arguments);
+        UUID approvalId = (UUID) row.get("approval_id");
+        Approval approved = approvals.findByIdAndTenantId(approvalId, tenant)
+            .orElseThrow(() -> new AccessDeniedException("Bound approval unavailable"));
+        UUID requestId = (UUID) row.get("decision_request_id");
+        if (!requestId.equals(approved.getRequestId()) || approved.getExpiresAt() == null ||
+            !approved.getExpiresAt().isAfter(Instant.now())) throw new AccessDeniedException("Bound approval expired or invalid");
+        JsonNode payload = parse(approved.getPayload());
+        if (!id.toString().equals(payload.path("mcpCallId").asText())
+            || !actor.subject().equals(payload.path("requestedBy").asText())
+            || !row.get("arguments_hash").equals(payload.path("argumentsHash").asText())
+            || !binding.hash().equals(payload.path("bindingHash").asText())) throw new AccessDeniedException("Approval does not authorize this MCP operation");
+        if (!"APPROVED".equals(approved.getStatus())) {
+            String status = "REJECTED".equals(approved.getStatus()) ? "DENIED" : "PENDING_APPROVAL";
+            if ("DENIED".equals(status)) {
+                update(tenant, workspace, id, status, "APPROVAL_REJECTED");
+                event(tenant, workspace, id, "MCP_CALL_DENIED", Map.of("reason", "APPROVAL_REJECTED"));
+            }
+            return new Plan(id, binding, arguments, status, "DENIED".equals(status) ? "DENY" : "STEP_UP",
+                "Human approval is " + approved.getStatus(), approvalId, requestId);
+        }
+        if (approved.getDecidedBy() == null || actor.subject().equals(approved.getDecidedBy())) {
+            throw new AccessDeniedException("An independent approver must approve this MCP call");
+        }
+        var current = evaluate(tenant, workspace, actor, binding, arguments);
+        if (!Set.of("ALLOW", "STEP_UP").contains(current.decision())) {
+            update(tenant, workspace, id, "DENIED", "CURRENT_POLICY_DENY");
+            event(tenant, workspace, id, "MCP_CALL_DENIED", Map.of("reason", "CURRENT_POLICY_DENY", "requestId", current.requestId()));
+            return new Plan(id, binding, arguments, "DENIED", "DENY", current.reason(), approvalId, current.requestId());
+        }
+        if (!policyHash(current).equals(row.get("policy_hash"))) {
+            UUID replacement = approval(tenant, actor, id, current.requestId(), (String) row.get("arguments_hash"),
+                binding.hash(), "Policy matches changed; independent approval required again", expires);
+            jdbc.update("UPDATE mcp_invocations SET approval_id=:approval,decision_request_id=:request,policy_hash=:policy,updated_at=now() WHERE " + SCOPE + " AND id=:id",
+                McpToolRegistry.params(tenant, workspace).addValue("id", id).addValue("approval", replacement)
+                    .addValue("request", current.requestId()).addValue("policy", policyHash(current)));
+            event(tenant, workspace, id, "MCP_CALL_REAPPROVAL_REQUIRED", Map.of("requestId", current.requestId(), "approvalId", replacement));
+            return new Plan(id, binding, arguments, "PENDING_APPROVAL", "STEP_UP", "Policy matches changed; approve again",
+                replacement, current.requestId());
+        }
+        // Row lock prevents two processes from consuming the same call approval.
+        update(tenant, workspace, id, "EXECUTING", null);
+        event(tenant, workspace, id, "MCP_CALL_EXECUTION_CLAIMED",
+            Map.of("actor", actor.subject(), "approvalId", approvalId, "requestId", current.requestId()));
+        return new Plan(id, binding, arguments, "EXECUTING", "ALLOW", "Approved operation passed current policy evaluation", approvalId, current.requestId());
+    }
+    public UUID finish(UUID tenant, UUID workspace, UUID id, String status, JsonNode filteredResult, String errorCode) {
+        registry.scope(tenant, workspace);
+        if (!Set.of("SUCCEEDED", "TOOL_ERROR", "NOT_EXECUTED", "UNKNOWN").contains(status)) throw new IllegalArgumentException("Invalid execution outcome");
+        String resultHash = filteredResult == null ? null : McpJson.hash(filteredResult);
+        int count = jdbc.update("UPDATE mcp_invocations SET status=:status,result_hash=:hash,error_code=:error,updated_at=now() WHERE " + SCOPE + " AND id=:id AND status='EXECUTING'",
+            McpToolRegistry.params(tenant, workspace).addValue("id", id).addValue("status", status)
+                .addValue("hash", resultHash).addValue("error", errorCode));
+        if (count != 1) throw new IllegalStateException("MCP execution outcome cannot be recorded");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("status", status); payload.put("resultHash", resultHash); payload.put("errorCode", errorCode);
+        return event(tenant, workspace, id, "MCP_CALL_COMPLETED", payload);
+    }
+    public Map<String, Object> inspect(UUID tenant, UUID workspace, McpActor actor, UUID id) {
+        registry.scope(tenant, workspace);
+        Map<String, Object> row = row(tenant, workspace, actor, id, false);
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (String field : List.of("id", "tool_id", "status", "approval_id", "decision_request_id",
+                "arguments_hash", "binding_hash", "result_hash", "error_code", "expires_at", "created_at", "updated_at")) {
+            result.put(field, row.get(field));
+        }
+        return result; // Raw stored arguments and credentials never enter the inspection response.
+    }
+    private Map<String, Object> row(UUID tenant, UUID workspace, McpActor actor, UUID id, boolean lock) {
+        var rows = jdbc.queryForList("SELECT *, arguments::text AS arguments_json FROM mcp_invocations WHERE " + SCOPE + " AND id=:id AND actor_key=:actor" + (lock ? " FOR UPDATE" : ""),
+            McpToolRegistry.params(tenant, workspace).addValue("id", id).addValue("actor", actor.key()));
+        if (rows.isEmpty()) throw new AccessDeniedException("MCP call unavailable for this caller/scope");
+        return rows.get(0);
+    }
+    private void update(UUID tenant, UUID workspace, UUID id, String status, String error) {
+        jdbc.update("UPDATE mcp_invocations SET status=:status,error_code=:error,updated_at=now() WHERE " + SCOPE + " AND id=:id",
+            McpToolRegistry.params(tenant, workspace).addValue("id", id).addValue("status", status).addValue("error", error));
+    }
+    private UUID approval(UUID tenant, McpActor actor, UUID callId, UUID request, String argumentsHash,
+            String bindingHash, String reason, Instant expires) {
+        Approval value = new Approval();
+        value.setId(UUID.randomUUID()); value.setTenantId(tenant); value.setRequestId(request);
+        value.setReason(reason); value.setApprovalType("MCP_EXECUTION"); value.setExpiresAt(expires);
+        value.setPayload(mapper.valueToTree(Map.of("mcpCallId", callId, "requestedBy", actor.subject(),
+            "argumentsHash", argumentsHash, "bindingHash", bindingHash)).toString());
+        return approvals.save(value).getId();
+    }
+    private EvaluateModels.EvaluateResponse evaluate(UUID tenant, UUID workspace, McpActor actor, McpToolRegistry.Binding binding, JsonNode arguments) {
+        Map<String, Object> args = mapper.convertValue(arguments, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+        Map<String, Object> context = new LinkedHashMap<>(args);
+        // Supply nested metadata as well as legacy flat aliases. Caller-supplied "mcp" cannot override it.
+        context.put("mcp", Map.of("arguments", args, "method", "tools/call", "tool", binding.name(),
+            "tool_risk_level", binding.riskLevel(), "actor", actor.subject()));
+        context.put("mcp.arguments", args); context.put("mcp.method", "tools/call");
+        context.put("mcp.tool", binding.name()); context.put("mcp.tool_risk_level", binding.riskLevel());
+        context.put("tool_id", binding.toolId().toString()); context.put("mcp.actor", actor.subject());
+        String description = binding.description().toLowerCase(Locale.ROOT);
+        long suspicious = List.of("ignore previous", "system prompt", "send secret", "exfiltrate", "disable security", "bypass policy")
+            .stream().filter(description::contains).count();
+        double base = "CRITICAL".equalsIgnoreCase(binding.riskLevel()) ? riskConfig.getMcpToolPoisoningCriticalBase()
+            : "HIGH".equalsIgnoreCase(binding.riskLevel()) ? riskConfig.getMcpToolPoisoningHighBase() : riskConfig.getMcpToolPoisoningNormalBase();
+        context.put("tool_poisoning_score", Math.min(riskConfig.getMcpToolPoisoningMaxScore(),
+            base + suspicious * riskConfig.getMcpToolPoisoningSuspiciousWeight()));
+        var request = new EvaluateModels.EvaluateRequest(
+            new EvaluateModels.Principal(actor.subject(), "AI_AGENT", Map.of("source", "MCP_GATEWAY")),
+            new EvaluateModels.Action("mcp.tool.call"),
+            new EvaluateModels.Resource("mcp_tool", binding.toolId().toString(), Map.of("name", binding.name(), "risk", binding.riskLevel())),
+            context);
+        return actions.evaluate(tenant, workspace, request, false);
+    }
+    private String policyHash(EvaluateModels.EvaluateResponse response) {
+        var matched = response.matchedPolicies().stream().sorted(Comparator.comparing(m -> m.id().toString())).toList();
+        return McpJson.hash(mapper.valueToTree(matched));
+    }
+    private JsonNode parse(String json) {
+        try { return mapper.readTree(json); }
+        catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException("Invalid stored MCP JSON"); }
+    }
+    private UUID event(UUID tenant, UUID workspace, UUID id, String type, Map<String, Object> payload) {
+        return events.enqueue(tenant, workspace, type, "MCP_CALL", id.toString(), mapper.valueToTree(payload).toString());
+    }
+}

@@ -3,6 +3,7 @@ import com.zt.security.common.TenantSession;
 import com.zt.security.common.WorkspaceSession;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.*;
 @RestController @RequestMapping("/v1/policies") public class PolicyController {
     final PolicyRepository repo;
@@ -30,7 +31,7 @@ import java.util.*;
      workspace.set(w);
      return repo.findAll().stream().filter(x->t.equals(x.getTenantId())).toList();
  }
- @PostMapping @Transactional Policy create(@RequestHeader("X-Tenant-Id") UUID t,
+ @PostMapping @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','POLICY_MANAGER')") @Transactional Policy create(@RequestHeader("X-Tenant-Id") UUID t,
  @RequestHeader(value="X-Workspace-Id",required=false) UUID w,@RequestBody Upsert x){
      session.set(t);
      workspace.set(w);
@@ -48,13 +49,13 @@ import java.util.*;
      return service.save(t,
      p);
      }
- @PostMapping("/{id}/publish") @Transactional Policy publish(@RequestHeader("X-Tenant-Id") UUID t,
+ @PostMapping("/{id}/publish") @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','POLICY_MANAGER')") @Transactional Policy publish(@RequestHeader("X-Tenant-Id") UUID t,
  @RequestHeader(value="X-Workspace-Id",required=false) UUID w,@PathVariable UUID id){
      session.set(t);
      workspace.set(w);
      return service.publish(t,id);
      }
- @PostMapping("/rollback") @Transactional Map<String,Object> rollback(@RequestHeader("X-Tenant-Id") UUID t,
+ @PostMapping("/rollback") @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','POLICY_MANAGER')") @Transactional Map<String,Object> rollback(@RequestHeader("X-Tenant-Id") UUID t,
  @RequestHeader(value="X-Workspace-Id",required=false) UUID w,@RequestParam String name,
  @RequestParam int version){
      session.set(t);

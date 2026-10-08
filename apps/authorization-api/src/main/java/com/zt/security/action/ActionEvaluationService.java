@@ -54,6 +54,18 @@ import java.util.*;
     }
  @Transactional public EvaluateModels.EvaluateResponse evaluate(UUID tenant,
  EvaluateModels.EvaluateRequest req){
+     return evaluate(tenant,req,true);
+ }
+ @Transactional public EvaluateModels.EvaluateResponse evaluate(UUID tenant,
+ EvaluateModels.EvaluateRequest req,boolean createApproval){
+     return evaluateScoped(tenant,req,createApproval,null,false);
+ }
+ @Transactional public EvaluateModels.EvaluateResponse evaluate(UUID tenant,UUID workspace,
+ EvaluateModels.EvaluateRequest req,boolean createApproval){
+     return evaluateScoped(tenant,req,createApproval,workspace,true);
+ }
+ private EvaluateModels.EvaluateResponse evaluateScoped(UUID tenant,EvaluateModels.EvaluateRequest req,
+ boolean createApproval,UUID workspace,boolean scoped){
      tenantSession.set(tenant);
      long st=System.nanoTime();
      UUID rid=UUID.randomUUID();
@@ -74,7 +86,12 @@ import java.util.*;
      else if("STEP_UP".equals(bd.decision()) || "STEP_UP".equals(td.decision())) d=
      new PolicyEvaluator.Result("STEP_UP",
      td.signals().isEmpty()?bd.reason():td.signals().get(0).reason(),List.of());
-     else d=evaluator.evaluate(policies.forEvaluation(tenant,rid),policyReq);
+     else {
+         var applicable=policies.forEvaluation(tenant,rid);
+         if(scoped)applicable=applicable.stream().filter(p->p.getWorkspaceId()==null||
+             p.getWorkspaceId().equals(workspace)).toList();
+         d=evaluator.evaluate(applicable,policyReq);
+     }
      var cd=continuous.decide(tenant,rid,req,d,rr,bd);
      d=new PolicyEvaluator.Result(cd.decision(),
      cd.reason(),d.matched());
@@ -86,7 +103,7 @@ import java.util.*;
      siem.publish(al);
      emitRuntimeEvents(tenant,
      req,rid,d,finalRisk,td);
-     if("STEP_UP".equals(d.decision())){
+     if(createApproval && "STEP_UP".equals(d.decision())){
          Approval ap=new Approval();
          ap.setId(UUID.randomUUID());
          ap.setTenantId(tenant);

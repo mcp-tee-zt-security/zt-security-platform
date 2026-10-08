@@ -1,132 +1,137 @@
 package com.zt.security.mcp;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zt.security.action.ActionEvaluationService;
-import com.zerotrust.security.config.RiskScoringProperties;
-import com.zt.security.action.EvaluateModels;
-import com.zt.security.agent.AgentTool;
-import com.zt.security.agent.AgentToolRepository;
-import com.zt.security.event.SecurityEventService;
-import com.zt.security.runtime.RuntimeThreatDetectionService;
+import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.*;
 
+/** Coordinates durable authorization and real upstream execution, outside database transactions. */
 @Service
 public class McpGatewayService {
-    private final ActionEvaluationService actions;
-    private final AgentToolRepository tools;
-    private final RuntimeThreatDetectionService threats;
-    private final SecurityEventService events;
+    private final McpToolRegistry registry;
+    private final McpInvocationService invocations;
+    private final McpUpstreamClient upstream;
     private final ObjectMapper mapper;
-    private final RiskScoringProperties riskConfig;
+    private final McpGatewayProperties properties;
+    static final Set<String> PROTOCOLS = Set.of("2025-11-25", "2025-06-18");
 
-    McpGatewayService(ActionEvaluationService actions, AgentToolRepository tools,
-                      RuntimeThreatDetectionService threats, SecurityEventService events,
-                      ObjectMapper mapper, RiskScoringProperties riskConfig) {
-        this.actions = actions;
-        this.tools = tools;
-        this.threats = threats;
-        this.events = events;
-        this.mapper = mapper;
-        this.riskConfig = riskConfig;
+    McpGatewayService(McpToolRegistry registry, McpInvocationService invocations,
+            McpUpstreamClient upstream, ObjectMapper mapper, McpGatewayProperties properties) {
+        this.registry = registry; this.invocations = invocations; this.upstream = upstream; this.mapper = mapper;
+        this.properties = properties;
     }
-
-    public Map<String,Object> capabilities(UUID tenant, UUID workspace) {
-        return Map.of("protocol", "MCP", "gatewayVersion", "2.8.0",
-                "security", List.of("identity-bound-tools", "policy-enforcement", "threat-detection", "audit-events"),
-                "tenant", tenant, "workspace", workspace == null ? "" : workspace.toString());
+    public Map<String, Object> capabilities(UUID tenant, UUID workspace) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("protocol", "MCP"); result.put("gatewayVersion", "3.0.0");
+        result.put("security", List.of("authenticated-caller", "argument-constraints", "policy-enforcement",
+            "bound-human-approval", "response-filtering", "execution-audit"));
+        result.put("executionTransport", "STREAMABLE_HTTP");
+        result.put("tenant", tenant); result.put("workspace", workspace);
+        return result;
     }
-
-    public List<Map<String,Object>> listTools(UUID tenant) {
-        return tools.findByTenantId(tenant).stream().filter(AgentTool::isEnabled).map(t -> Map.<String,Object>of(
-                "name", t.getName(), "description", Optional.ofNullable(t.getDescription()).orElse(""),
-                "riskLevel", Optional.ofNullable(t.getRiskLevel()).orElse("MEDIUM"),
-                "toolId", t.getId().toString())).toList();
+    public List<Map<String, Object>> listTools(UUID tenant, UUID workspace, McpActor actor) {
+        return registry.list(tenant, workspace, actor);
     }
-
-    @Transactional
-    public Map<String,Object> authorize(UUID tenant, UUID workspace, McpAuthorizeRequest r) {
-        AgentTool tool = tools.findById(r.toolId()).orElseThrow(() -> new SecurityException("MCP tool not found"));
-        if (!tenant.equals(tool.getTenantId())) throw new SecurityException("MCP tool tenant mismatch");
-        Map<String,Object> context = new LinkedHashMap<>();
-        if (r.context() != null) context.putAll(r.context());
-        context.put("mcp.tool", tool.getName());
-        context.put("mcp.tool_risk_level", tool.getRiskLevel());
-        context.put("tool_id", tool.getId().toString());
-        context.put("mcp.method", "tools/call");
-        context.put("tool_poisoning_score", toolPoisoningScore(tool));
-        EvaluateModels.EvaluateRequest req = new EvaluateModels.EvaluateRequest(
-                new EvaluateModels.Principal(r.agent(), "AI_AGENT", Map.of("source", "MCP_GATEWAY")),
-                new EvaluateModels.Action("mcp.tool.call"),
-                new EvaluateModels.Resource("mcp_tool", tool.getId().toString(),
-                Map.of("name", tool.getName(), "risk", tool.getRiskLevel())),
-                context);
-        var threat = threats.detect(req);
-        String decision = threat.blocked() ? "DENY" : threat.decision().equals("STEP_UP") ?
-        "STEP_UP" : actions.evaluate(tenant,
-        req).decision();
-        UUID eventId = events.enqueue(tenant, workspace, "MCP_TOOL_DECISION",
-        "MCP_TOOL", tool.getId().toString(), json(Map.of(
-                "agent", r.agent(), "tool", tool.getName(), "decision", decision, "threatScore", threat.score(),
-                "signals", threat.signals())));
-        return Map.of("decision", decision, "tool", tool.getName(), "toolId", tool.getId(),
-                "threatScore", threat.score(), "signals", threat.signals(), "auditEventId", eventId,
-                "allowed", "ALLOW".equals(decision));
+    public Map<String, Object> authorize(UUID tenant, UUID workspace, McpActor actor, UUID toolId, JsonNode arguments) {
+        return invocations.prepare(tenant, workspace, actor, toolId, arguments, false, null).security();
     }
-
-    public Map<String,Object> jsonRpc(UUID tenant, UUID workspace, Map<String,Object> rpc) {
-        String method = String.valueOf(rpc.getOrDefault("method", ""));
-        Object id = rpc.get("id");
+    public JsonNode resume(UUID tenant, UUID workspace, McpActor actor, UUID callId) {
+        return execute(tenant, workspace, invocations.resume(tenant, workspace, actor, callId));
+    }
+    public JsonNode jsonRpc(UUID tenant, UUID workspace, McpActor actor, JsonNode rpc) {
+        JsonNode id = rpc != null && rpc.isObject() ? rpc.get("id") : null;
         try {
-            Map<String,Object> result;
-            if ("initialize".equals(method)) result = Map.of("protocolVersion",
-            "2025-06-18", "capabilities", Map.of("tools", Map.of()), "serverInfo",
-            Map.of("name", "zt-mcp-security-gateway", "version", "2.8.0"));
-            else if ("tools/list".equals(method)) result = Map.of("tools", listTools(tenant));
-            else if ("tools/call".equals(method)) {
-                Map<String,Object> p = (Map<String,Object>) rpc.getOrDefault("params", Map.of());
-                String name = String.valueOf(p.get("name"));
-                AgentTool tool = tools.findByTenantId(tenant).stream().filter(AgentTool::isEnabled).filter(x -> name.equals(x.getName())).findFirst().orElseThrow(() ->
-                new SecurityException("unknown MCP tool"));
-                Map<String,Object> args = p.get("arguments") instanceof Map<?,?> m ? (Map<String,Object>) m : Map.of();
-                String agent = String.valueOf(args.getOrDefault("agent", "mcp-client"));
-                var auth = authorize(tenant, workspace, new McpAuthorizeRequest(agent, tool.getId(), args));
-                if (!Boolean.TRUE.equals(auth.get("allowed"))) result = Map.of("isError",
-                true, "content", List.of(Map.of("type", "text", "text", "MCP security decision: " +
-                auth.get("decision"))),
-                "security", auth);
-                else result = Map.of("isError", false, "content", List.of(Map.of("type",
-                "text", "text", "MCP tool authorized: " + name)), "security", auth);
+            if (rpc == null || !rpc.isObject() || !"2.0".equals(rpc.path("jsonrpc").asText())
+                || id == null || !(id.isTextual() || id.isIntegralNumber())
+                || id.isTextual() && id.textValue().length() > 512) {
+                return error(null, -32600, "Invalid JSON-RPC request");
             }
-            else throw new IllegalArgumentException("unsupported MCP method: " + method);
-            return Map.of("jsonrpc", "2.0", "id", id == null ? UUID.randomUUID() : id, "result", result);
-        }
-        catch (Exception e) {
-            return Map.of("jsonrpc", "2.0", "id", id == null ? UUID.randomUUID() : id,
-            "error", Map.of("code", -32001, "message", e.getMessage()));
+            String method = McpJson.text(rpc, "method");
+            JsonNode params = rpc.has("params") ? rpc.get("params") : mapper.createObjectNode();
+            if (!params.isObject()) return error(id, -32602, "params must be an object");
+            JsonNode result;
+            switch (method) {
+                case "initialize" -> {
+                    String requested = McpJson.text(params, "protocolVersion");
+                    result = mapper.valueToTree(Map.of("protocolVersion", PROTOCOLS.contains(requested) ? requested : "2025-11-25",
+                        "capabilities", Map.of("tools", Map.of()),
+                        "serverInfo", Map.of("name", "zt-mcp-security-gateway", "version", "3.0.0")));
+                }
+                case "ping" -> result = mapper.createObjectNode();
+                case "tools/list" -> {
+                    var tools = registry.list(tenant, workspace, actor).stream()
+                        .map(tool -> Map.of("name", tool.get("name"), "description", tool.get("description"),
+                            "inputSchema", tool.get("inputSchema"))).toList();
+                    result = mapper.valueToTree(Map.of("tools", tools));
+                }
+                case "tools/call" -> {
+                    var binding = registry.named(tenant, workspace, McpJson.text(params, "name"), actor);
+                    JsonNode arguments = params.has("arguments") ? params.get("arguments") : mapper.createObjectNode();
+                    result = execute(tenant, workspace, invocations.prepare(tenant, workspace, actor, binding.toolId(), arguments, true,
+                        McpJson.digest(id.toString())));
+                }
+                default -> { return error(id, -32601, "Unsupported MCP method"); }
+            }
+            ObjectNode response = mapper.createObjectNode().put("jsonrpc", "2.0");
+            response.set("id", id); response.set("result", result);
+            return response;
+        } catch (AccessDeniedException ex) {
+            return error(id, -32001, ex.getMessage());
+        } catch (IllegalArgumentException ex) {
+            return error(id, -32602, ex.getMessage());
+        } catch (IllegalStateException ex) {
+            return error(id, -32002, ex.getMessage());
         }
     }
-
-    private double toolPoisoningScore(AgentTool t) {
-        String d = Optional.ofNullable(t.getDescription()).orElse("").toLowerCase(Locale.ROOT);
-        long suspicious = List.of("ignore previous", "system prompt", "send secret",
-        "exfiltrate", "disable security", "bypass policy").stream().filter(d::contains).count();
-        double base = "CRITICAL".equalsIgnoreCase(t.getRiskLevel()) ? riskConfig.getMcpToolPoisoningCriticalBase() :
-        "HIGH".equalsIgnoreCase(t.getRiskLevel()) ? riskConfig.getMcpToolPoisoningHighBase()
-                : riskConfig.getMcpToolPoisoningNormalBase();
-        return Math.min(riskConfig.getMcpToolPoisoningMaxScore(),
-                base + suspicious * riskConfig.getMcpToolPoisoningSuspiciousWeight());
-    }
-    private String json(Object x) {
+    private JsonNode execute(UUID tenant, UUID workspace, McpInvocationService.Plan plan) {
+        if (!plan.executable()) return blocked(plan, plan.status(), plan.reason(), null);
+        JsonNode filtered;
+        String status, code = null;
         try {
-            return mapper.writeValueAsString(x);
+            JsonNode response = upstream.call(plan.binding().config(), plan.arguments());
+            try {
+                filtered = McpResultFilter.filter(response, plan.binding().config(), mapper, properties.getMaxResponseBytes());
+                if (filtered.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > properties.getMaxResponseBytes())
+                    throw new IllegalArgumentException("Filtered MCP response exceeds size limit");
+                McpJson.hash(filtered); // Reject unsupported numeric/depth metadata before recording completion.
+                status = filtered.path("isError").asBoolean() ? "TOOL_ERROR" : "SUCCEEDED";
+            } catch (IllegalArgumentException ex) {
+                throw new McpUpstreamClient.Failure("RESULT_FILTER_REJECTED", true);
+            }
+        } catch (McpUpstreamClient.Failure failure) {
+            status = failure.executionPossible() ? "UNKNOWN" : "NOT_EXECUTED";
+            code = failure.code();
+            filtered = mapper.createObjectNode().put("isError", true);
+            ((ObjectNode) filtered).putArray("content").addObject().put("type", "text")
+                .put("text", status.equals("UNKNOWN") ? "Upstream execution outcome is unknown; do not retry automatically"
+                    : "Upstream MCP tool was not executed");
         }
-    catch (Exception e) {
-        return "{}";
+        UUID event;
+        try {
+            event = invocations.finish(tenant, workspace, plan.callId(), status, filtered, code);
+        } catch (RuntimeException failure) {
+            // A response cannot be represented as audited if the completion record failed to commit.
+            throw new IllegalStateException("Execution outcome could not be recorded; inspect MCP call " + plan.callId() + " before any new execution");
+        }
+        Map<String, Object> security = new LinkedHashMap<>(plan.security());
+        security.put("status", status); security.put("errorCode", code); security.put("auditEventId", event);
+        security.put("executionPossible", Set.of("SUCCEEDED", "TOOL_ERROR", "UNKNOWN").contains(status));
+        ((ObjectNode) filtered).set("_meta", mapper.valueToTree(Map.of("zt.security", security)));
+        return filtered;
     }
+    private JsonNode blocked(McpInvocationService.Plan plan, String status, String reason, UUID event) {
+        ObjectNode result = mapper.createObjectNode().put("isError", true);
+        result.putArray("content").addObject().put("type", "text").put("text", "MCP call " + status + ": " + reason);
+        Map<String, Object> security = new LinkedHashMap<>(plan.security());
+        security.put("executed", false); security.put("auditEventId", event);
+        result.set("_meta", mapper.valueToTree(Map.of("zt.security", security)));
+        return result;
     }
-    public record McpAuthorizeRequest(String agent, UUID toolId, Map<String,Object> context) {
+    private JsonNode error(JsonNode id, int code, String message) {
+        ObjectNode result = mapper.createObjectNode().put("jsonrpc", "2.0");
+        result.set("id", id == null ? mapper.getNodeFactory().nullNode() : id);
+        result.putObject("error").put("code", code).put("message", message == null ? "MCP request rejected" : message);
+        return result;
     }
 }

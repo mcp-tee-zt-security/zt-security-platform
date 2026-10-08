@@ -9,11 +9,14 @@ import java.util.*;
     final ApprovalRepository repo;
     final TenantSession tenantSession;
     final com.zt.security.integration.GovernanceStore records;
+    final com.fasterxml.jackson.databind.ObjectMapper mapper;
     ApprovalController(ApprovalRepository r,
-    TenantSession ts,com.zt.security.integration.GovernanceStore records){
+    TenantSession ts,com.zt.security.integration.GovernanceStore records,
+    com.fasterxml.jackson.databind.ObjectMapper mapper){
         repo=r;
         tenantSession=ts;
         this.records=records;
+        this.mapper=mapper;
     }
  record Create(UUID requestId,String approverId,String reason,String payload,Integer ttlMinutes,String approvalType,
  Map<String,Object> decision,Map<String,Object> policyDecision,String action,String resource){
@@ -72,6 +75,17 @@ new IllegalStateException("approval is not pending");
          return repo.save(a);
          }
          String subject=actor==null?"unknown":actor.getName();
+     if("MCP_EXECUTION".equals(a.getApprovalType())){
+         try {
+             var payload=mapper.readTree(a.getPayload());
+             if(payload==null||!payload.path("requestedBy").isTextual()||!payload.path("mcpCallId").isTextual())
+                 throw new IllegalStateException("invalid MCP approval binding");
+             if(subject.equals(payload.path("requestedBy").asText()))
+                 throw new IllegalStateException("MCP calls require an independent approver");
+         }catch(com.fasterxml.jackson.core.JsonProcessingException ex){
+             throw new IllegalStateException("invalid MCP approval binding");
+         }
+     }
      if(a.getApproverId()!=null&&!a.getApproverId().isBlank()&&!a.getApproverId().equals(subject)&&
      !actor.getAuthorities().stream().anyMatch(x->x.getAuthority().equals("ROLE_PLATFORM")||
 x.getAuthority().equals("ROLE_ADMIN")))throw new IllegalStateException("approval assigned to a different approver");
