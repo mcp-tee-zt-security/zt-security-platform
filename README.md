@@ -29,6 +29,8 @@ The existing application and infrastructure remain. apps/authorization-api is th
 
 Dashboard and SDK requests share the existing policy engine, authentication, approvals and audit pipeline. SDK lifecycle records are persisted in PostgreSQL and emitted through the existing event outbox. There is no second backend process to start.
 
+The Rust policy data plane is split into configuration, bundle distribution/verification, evaluation, evidence and HTTP modules. See [its README](apps/policy-data-plane/README.md) for configuration, coordinated bundle-v2 deployment and the fast path's evaluation scope.
+
 The `backend/` directory contains only a migration notice. See `docs/api/4.75_BACKEND_API.md` for request compatibility and unsupported external integrations.
 # 3. Step-by-step: run the application
 
