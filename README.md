@@ -1,349 +1,273 @@
-# Zero Trust Security Platform 4.75.0 — Revision 2
+# Zero Trust Security Platform
 
-> **Maintenance mode:** 4.75.0 R2 is the current baseline. From this point, the project is in **cleanup, stabilization, readability, test, and documentation mode**. New platform capabilities should not be added unless explicitly requested.
+Policy-based authorization and governed tool execution for AI agents and MCP applications.
 
-## 1. What this repository is
+The platform evaluates who can perform an action, on which resource, and under what conditions. It can require independent approval before forwarding a registered MCP tool call, recheck current policy before execution, and retain linked decision and execution records.
 
-This repository contains the Zero Trust / Cyber Defense platform with the 4.75 SDK governance lifecycle integrated into apps/authorization-api.
+**Current baseline:** 4.75.0 Revision 2. This repository contains an evolving implementation and a local development stack. Production readiness and security certification are not established. TEE remote attestation and the SaaS/customer-hosted deployment split are planned capabilities.
 
-The 4.x governance model is:
+## Contents
 
-```text
-Identity
-  → Attestation
-  → Capability
-  → Policy Decision
-  → Evidence
-  → Approval
-  → Execution Contract
-  → Execution
-  → Verification
-  → Audit / Observability
-```
+- [Capabilities](#capabilities)
+- [Current architecture](#current-architecture)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [MCP tool execution](#mcp-tool-execution)
+- [Python SDK](#python-sdk)
+- [Implementation boundaries](#implementation-boundaries)
+- [Target architecture and roadmap](#target-architecture-and-roadmap)
+- [Repository structure](#repository-structure)
+- [Development](#development)
+- [Documentation](#documentation)
 
-The existing application and infrastructure remain. apps/authorization-api is the single executable backend for the dashboard and SDK. The independent in-memory reference backend has been retired.
+## Capabilities
 
-## 2. One executable backend
+| Area | Current implementation |
+| --- | --- |
+| Authorization | Policy DSL evaluation with agent boundaries, behavior and risk checks |
+| Identity and scope | API key/service-client or configured OIDC authentication, with tenant and workspace controls |
+| Human approval | Approval queues, request-bound MCP approvals and policy reevaluation before resumed execution |
+| MCP execution | Calls to administrator-configured upstream tools, argument constraints and result filtering |
+| Execution records | Persistent decisions, approvals, contracts, MCP invocation states and lifecycle events |
+| Policy distribution | Versioned bundles with optional Ed25519 signing and verification |
+| Rust evaluation | A conservative fast path for supported policies, freshness checks and caller-managed full-evaluation fallback |
+| Developer integration | Python, TypeScript, Java and Go SDK source, shared contracts and examples |
+| Administration | Dashboard for policy, approval, agent and governance workflows |
 
-`docker/docker-compose.yml` starts `apps/authorization-api` on port 8080, the dashboard on port 3000, PostgreSQL, Redis, and the existing data-plane/infrastructure services.
+## Current architecture
 
-Dashboard and SDK requests share the existing policy engine, authentication, approvals and audit pipeline. SDK lifecycle records are persisted in PostgreSQL and emitted through the existing event outbox. There is no second backend process to start.
+The dashboard and SDKs use one Spring Boot backend: `apps/authorization-api`. The Rust policy data plane is a separate service for supported policy evaluation.
 
-The Rust policy data plane is split into configuration, bundle distribution/verification, evaluation, evidence and HTTP modules. See [its README](apps/policy-data-plane/README.md) for configuration, coordinated bundle-v2 deployment and the fast path's evaluation scope.
+![Current architecture: Java handles full authorization and MCP execution; Rust provides policy-only evaluation with no real attestation verifier.](docs/images/architecture-current.png)
 
-The MCP Gateway can execute registered upstream tools after caller authentication, argument constraints and policy/approval checks. See [MCP Gateway execution](docs/api/MCP_GATEWAY_EXECUTION.md) for upstream registration, replay protection, deployment and supported transport limits.
+[Open the current architecture diagram at full resolution](docs/images/architecture-current.png).
 
-The `backend/` directory contains only a migration notice. See `docs/api/4.75_BACKEND_API.md` for request compatibility and unsupported external integrations.
-# 3. Step-by-step: run the application
+MCP execution currently uses the Java evaluation pipeline. It does not pass through the Rust fast path. A Rust `ALLOW` is a policy-only result, not proof that the full governance pipeline has authorized an external action.
 
-## Prerequisites
+The dashboard's nginx forwards `/api/` requests to the Java API. PostgreSQL stores application and governance records; Redis supports backend caching. The local Compose stack also includes Keycloak, an OpenTelemetry collector, two Rust replicas behind nginx, and an Envoy service-mesh configuration.
 
-Recommended local tools:
+## Quick start
 
-- Docker + Docker Compose
-- JDK 17 for the integrated authorization API
-- Maven 3.9+
-- Python 3.10+
-- Node.js 20+
-- npm
-- Go 1.23+
-- Git
+### Requirements
 
-You do **not** need every tool to run the Docker demo, but they are needed for the full repository quality checks.
+Use Docker with Docker Compose and Git for the container-based setup. Host installations of language toolchains are needed only for their respective development workflows.
 
-## Step 1 — enter the project
-
-```bash
-cd zt40
-```
-
-## Step 2 — inspect configuration
-
-Copy the example environment file if local overrides are required:
-
-`.env.example` includes the base settings, policy signing, data-plane resilience and attestation-state examples. Docker Compose passes only the variables listed in its service environment sections; attestation variables currently need to be supplied directly to the Rust process. No cryptographic attestation verifier is installed.
+### Start the local stack
 
 ```bash
-cp .env.example .env
+git clone https://github.com/mcp-tee-zt-security/zt-security-platform.git
+cd zt-security-platform
+docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-Historical build and startup correction notes are archived in [docs/history/BUILD_FIX_4.75.0.md](docs/history/BUILD_FIX_4.75.0.md).
+Run subsequent commands from the repository root.
 
-Do not commit real credentials or production secrets.
+| Service | Local URL | Purpose |
+| --- | --- | --- |
+| Dashboard | http://localhost:3000 | Administration and workflow UI |
+| Authorization API | http://localhost:8080 | Full evaluation, governance and MCP API |
+| API reference | http://localhost:8080/swagger-ui.html | Generated API documentation |
+| Rust data plane | http://localhost:8091 | Policy fast path through nginx |
+| Keycloak | http://localhost:8089 | Local identity-provider service |
 
-## Step 3 — start the existing integration stack
+The default Compose stack uses API key `dev-master-key`, tenant `11111111-1111-1111-1111-111111111111`, and workspace `88888888-8888-8888-8888-888888888801`. OIDC is disabled by default. These are development settings, not deployment credentials.
 
-```bash
-docker compose -f docker/docker-compose.yml up --build -d
-```
-
-Or:
-
-```bash
-make start
-```
-
-Check the containers:
+### Inspect and stop
 
 ```bash
 docker compose -f docker/docker-compose.yml ps
-```
-
-## Step 4 — check the control-plane health endpoint
-
-```bash
-curl http://localhost:8080/v1/health
-```
-
-The `authorization-api` service is the application currently exposed on port `8080` by Docker Compose.
-
-## Step 5 — check the policy data plane
-
-```bash
-curl http://localhost:8091/ready
-```
-
-## Step 6 — open the dashboard
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-The dashboard is the existing web application under `dashboard/web/`.
-
-## Step 7 — inspect service logs
-
-```bash
 docker compose -f docker/docker-compose.yml logs -f authorization-api
+curl http://localhost:8080/v1/health
+curl http://localhost:8091/ready
+docker compose -f docker/docker-compose.yml down
 ```
 
-For all services:
+`/ready` returns HTTP 503 with a reason when the Rust service lacks a usable policy bundle or another readiness requirement is unmet. Stopping with `down` preserves named volumes. Adding `-v`, or using `make reset`, deletes the local database and cache volumes.
+
+## Configuration
+
+[`.env.example`](.env.example) consolidates base settings, policy signing, data-plane resilience and attestation state. Copy it to `.env` when you need overrides, then pass the file explicitly:
 
 ```bash
-docker compose -f docker/docker-compose.yml logs -f
+docker compose --env-file .env -f docker/docker-compose.yml up -d --build
 ```
 
-## Step 8 — stop the environment
+Compose passes only variables declared in each service's `environment` section. Several development values, including the API key and database settings, are fixed in the Compose file. Editing `.env` alone does not override those values. Attestation settings currently need to be supplied directly to the Rust process or through an explicit Compose override.
 
-```bash
-make stop
-```
+| Setting | Purpose |
+| --- | --- |
+| `ZT_API_KEY` | Backend credential, distinct from the data plane's incoming key |
+| `ZT_OIDC_ENABLED`, `ZT_OIDC_ISSUER_URI` | Backend OIDC authentication |
+| `ZT_POLICY_SIGNING_PRIVATE_KEY_B64` | Java policy-bundle signing key |
+| `ZT_POLICY_PUBLIC_KEY_B64` | Rust policy-bundle verification key |
+| `ZT_REQUIRE_SIGNED_BUNDLE` | Require signed bundles in Rust |
+| `ZT_FAIL_MODE` | `FAIL_CLOSED` by default; optional degraded handling for availability failures |
+| `ZT_DP_API_KEY` | Authenticate incoming data-plane requests when configured |
+| `ZT_MCP_AUDIENCE` | Required JWT audience for MCP requests |
+| `ZT_MCP_ALLOWED_ORIGINS` | Exact allowlist for browser-origin MCP requests |
 
-To remove the development database volume as well:
+Policy signing is optional in the development stack. Deployment configurations should supply the Java signing key and corresponding Rust verification key and require signed bundles. The [signing-key generator](scripts/linux/generate-policy-signing-key.py) requires Python's `cryptography` package.
 
-```bash
-make reset
-```
+See the [Rust configuration reference](apps/policy-data-plane/README.md) and [MCP setup guide](docs/api/MCP_GATEWAY_EXECUTION.md) for supported settings and defaults.
 
-`make reset` is destructive to local Docker data.
+## MCP tool execution
 
----
+The gateway executes registered tools after authenticating the caller, validating arguments, and applying the full Java policy pipeline.
 
-# 4. SDK governance on the integrated backend
+### Setup
 
-Use the same authorization-api at http://localhost:8080. SDK requests require a valid API key and UUID tenant header; include the workspace header for workspace policies.
+1. Configure an upstream MCP endpoint and its dedicated credential on the server.
+2. Create or select an enabled tool, then register its workspace-scoped binding through `PUT /v1/mcp/tools/{toolId}/binding`.
+3. Define allowed caller subjects and argument constraints, and publish the required authorization policy.
+4. Call `POST /v1/mcp/json-rpc` with an authenticated identity and matching tenant/workspace headers.
 
-The API accepts the dashboard's structured principal/action/resource request and the SDK's subject/action/resource/attributes request. SDK resources use `type/id`; SDK subjects must be registered identities. AI-agent SDK requests require `attributes.task_id` and `attributes.tool_id`.
+Upstream endpoints and bindings are not configured automatically. The [example Compose override](docker/docker-compose.mcp.example.yml) is a setup template. Replace its endpoint and supply the upstream credential before using it.
 
-Decisions use ALLOW, STEP_UP and DENY. STEP_UP uses the existing approval queue. A pending approval stops the high-level SDK workflow; approve through the existing endpoint and explicitly execute the saved contract afterward.
+### Decision and execution behavior
 
-Evidence, contracts, execution attempts, verification and lifecycle events persist in PostgreSQL. No external executor is installed by default: an authorized execution attempt returns UNSUPPORTED, and verification returns false. Attestation/capability verification returns HTTP 501 until a real verifier is configured. Federation trust registration remains pending, and Kubernetes policy registration does not apply anything to a cluster.
+| Result | Behavior |
+| --- | --- |
+| `DENY` | No upstream tool execution |
+| `ALLOW` | Execute after gateway checks, unless the binding requires approval |
+| `STEP_UP` or required approval | Persist the original call and return `PENDING_APPROVAL` |
+| Approved call | Original caller resumes through `POST /v1/mcp/calls/{callId}/resume`; the server rechecks the binding and current policy |
+| Uncertain outcome | Report `UNKNOWN` and do not automatically retry the business action |
 
-For endpoint details and examples see `docs/api/4.75_BACKEND_API.md`.
-# 5. Step-by-step: run tests and quality checks
+Approvals bind the original caller, tool and arguments. Requesters cannot approve their own MCP calls. Each new operation needs a new JSON-RPC ID. Repeating an ID for the same scoped caller returns the existing call without another dispatch. This prevents duplicate gateway dispatch and does not guarantee exactly-once execution by the upstream system.
 
-## Repository quality baseline
+The upstream adapter supports Streamable HTTP tool calls, JSON responses and bounded, completed POST SSE responses. Result handling supports text content and object `structuredContent`. The inbound endpoint is an authenticated stateless JSON-RPC adapter. It is not a complete MCP OAuth discovery server and does not support every MCP transport or capability.
 
-From the repository root:
-
-```bash
-bash scripts/quality/check.sh
-```
-
-The script currently checks Python compilation, Python line length, TypeScript, Go formatting/tests, Java lexical safety, and Java/TypeScript line-length reports.
+See [MCP Gateway execution](docs/api/MCP_GATEWAY_EXECUTION.md) for authentication, binding examples, approval handling, transport limits and recovery behavior.
 
 ## Python SDK
 
+Install from this repository:
+
 ```bash
-python -m compileall -q sdk/python
-python -m unittest discover -s sdk/python/tests
+python -m pip install ./sdk/python
 ```
 
-If Ruff and Black are installed:
+Python 3.10+ is required. The SDK is synchronous and supports typed models, structured errors, scoped authentication, governance workflows and lifecycle-event replay. Its package version is independent of the server baseline.
 
-```bash
-ruff check sdk/python
-black --check sdk/python
+```python
+import os
+from zt_security import ActionContext, ZtSecurityClient
+
+with ZtSecurityClient(
+    "http://localhost:8080",
+    api_key=os.environ["ZT_API_KEY"],
+    tenant_id="11111111-1111-1111-1111-111111111111",
+    workspace_id="88888888-8888-8888-8888-888888888801",
+) as client:
+    request = ActionContext(
+        subject="payment-agent",
+        action="payment.transfer",
+        resource="bank_account/ACC-1001",
+        tenant_id=client.tenant_id,
+        attributes={
+            "amount": 100000,
+            "task_id": "payment-demo-task",
+            "tool_id": "33333333-3333-3333-3333-333333333301",
+        },
+    )
+    decision = client.evaluate_typed(request)
+    print(decision.decision, decision.reason)
 ```
 
-## TypeScript SDK
+Set `ZT_API_KEY` in the Python process environment to a credential accepted by the server. A Compose `.env` file does not automatically configure a separate Python process. The example requires a registered identity, active task/tool delegation, matching scope and applicable policy. Evaluation alone does not execute a payment.
+
+The general SDK governance lifecycle creates linked evidence, approvals and execution contracts. External execution requires an installed `GovernedActionExecutor` connector; none is supplied by default. This is separate from the configured MCP upstream execution path.
+
+See the [Python SDK guide](sdk/python/README.md), [shared contract](sdk/contracts/sdk-api.yaml), [compatibility rules](sdk/contracts/SDK_CONTRACT.md) and [examples](sdk/examples/).
+
+## Implementation boundaries
+
+| Area | Current boundary |
+| --- | --- |
+| TEE remote attestation | No real verifier or automated TEE deployment. `/v1/attestation/verify` returns HTTP 501 |
+| Rust attestation state | A document hash is not verification. Every mode except `DISABLED` currently blocks readiness |
+| Workload identity | Forwarded certificate headers are reported as unverified claims |
+| Audit integrity | Stored hashes, lifecycle records and optional Rust evidence signatures do not constitute TEE-sealed or tamper-proof audit storage |
+| General SDK execution | Requires an external connector; absent connectors return `UNSUPPORTED` |
+| Capability verification | `/v1/capabilities/check` returns HTTP 501 until a verifier is installed |
+| Result filtering | Exact literal redaction and JSON Pointer removal, without semantic DLP guarantees |
+| Federation and Kubernetes | Registration persists intent; it does not establish verified trust or apply policies to a cluster |
+| SaaS deployment | No completed SaaS Control Plane/customer-hosted Data Plane separation |
+
+MCP arguments are stored to support exact approval and resume behavior, and the full evaluation audit path may also retain context. Set retention and access policies before sending sensitive business data. Upstream credentials are separate from caller credentials; the gateway does not forward the caller's API key or bearer token.
+
+## Target architecture and roadmap
+
+The target deployment separates a centrally managed **Control Plane** from a **Data Plane installed in the customer's VPC or on-premises environment**. The Control Plane manages identity integration, policy distribution, approvals and audit visibility. The customer Data Plane evaluates policy and controls tool execution close to business systems, with configurable sharing of approval and audit metadata.
+
+This is the planned architecture. The current Java service combines management, full evaluation and MCP execution.
+
+![Planned target architecture: a managed Control Plane and customer-local Data Plane, with initial Rust TEE attestation and later protected MCP execution. Not yet implemented.](docs/images/architecture-target.png)
+
+[Open the target architecture diagram at full resolution](docs/images/architecture-target.png).
+
+| Workstream | Planned outcome |
+| --- | --- |
+| TEE remote attestation | Initial Nitro support with workload enrollment, one-time challenges, cryptographic verification, enclave-generated keys, automated renewal and Python SDK integration |
+| Context-aware tool authorization | Broader session and tool controls, with a shared policy contract before optional OPA/Cedar integration |
+| Cryptographic audit protection | Signed complete event payloads, key lifecycle controls and externally verifiable retention |
+| Hybrid deployment | Signed policy distribution, customer-local enforcement and explicit handling of connectivity loss |
+
+The first TEE milestone protects the Rust policy engine. Extending protection to MCP execution requires an attested execution component, credentials inside the protected boundary and enforcement against bypass. Attesting Rust alone does not protect the Java gateway.
+
+## Repository structure
+
+| Path | Responsibility |
+| --- | --- |
+| `apps/authorization-api/` | Spring Boot backend, authorization, governance and MCP execution |
+| `apps/policy-data-plane/` | Rust evaluation, bundle validation and evidence |
+| `dashboard/web/` | Administration UI and nginx API proxy |
+| `sdk/` | Language SDKs, common contracts, examples and CLI |
+| `docker/` | Local Compose stack and supporting configuration |
+| `infra/` | Infrastructure code and data-plane proxy configuration |
+| `k8s/` | Deployment manifests and operator resources |
+| `ops/` | Operational configurations and dashboards |
+| `scripts/` | Windows/Linux operations, database and quality tools |
+| `benchmarks/` | Performance test assets |
+| `docs/` | Architecture, API, security, development and operations documentation |
+
+The root `pom.xml` is the parent and aggregator for the Java backend. The root `package.json` and `Makefile` provide development shortcuts. Environment examples are consolidated in `.env.example`. Historical build notes are under `docs/history/`.
+
+## Development
+
+Use JDK 17 and Maven 3.9+ for the backend, Python 3.10+ for the Python SDK, and the toolchains declared by each remaining component. The following commands are provided for developers. Their presence is not evidence that the current checkout has passed them.
 
 ```bash
-cd sdk/typescript
-npm install
-npm test
-```
-
-Then return to the repository root:
-
-```bash
-cd ../..
-```
-
-## Go SDK
-
-```bash
-cd sdk/go
-gofmt -d ztsecurity
-go test ./...
-cd ../..
-```
-
-## Java SDK
-
-```bash
-cd sdk/java/zt-security-sdk
-mvn test
-cd ../../..
-```
-
-## Integrated authorization API
-
-```bash
+# Java backend
 mvn -pl apps/authorization-api -am test
+
+# Python SDK
+python -m pip install -e "./sdk/python[dev]"
+python -m pytest sdk/python/tests
+
+# Dashboard
+npm --prefix dashboard/web install
+npm run dashboard:build
+
+# Rust data plane
+cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 ```
 
-The integration package is part of the root Maven build. There is no separate backend Maven project.
-## Dashboard
+Additional workflows are documented in the [developer guide](docs/development/4.75_DEVELOPER_GUIDE.md). The aggregate quality script is `scripts/quality/check.sh`; it includes Go formatting and can modify Go source files.
 
-```bash
-cd dashboard/web
-npm install
-npm run build
-cd ../..
-```
+Development emphasizes stabilization, readable code and documentation. Add capabilities through an explicit scope decision. Preserve installed Flyway migrations and add schema changes as new migrations. Keep SDK contracts aligned with server behavior and distinguish implemented features from deployment plans.
 
-## Docker smoke test
+## Documentation
 
-After the Docker environment is running:
+- [Documentation index](docs/INDEX.md)
+- [Platform architecture](docs/architecture/4.75_ARCHITECTURE.md)
+- [Security model](docs/security/4.75_SECURITY_MODEL.md)
+- [Backend API and governance](docs/api/4.75_BACKEND_API.md)
+- [MCP Gateway execution](docs/api/MCP_GATEWAY_EXECUTION.md)
+- [Rust data plane](apps/policy-data-plane/README.md)
+- [Python SDK](sdk/python/README.md)
+- [Operations](docs/operations/4.75_OPERATIONS.md)
+- [Observability](docs/operations/4.75_OBSERVABILITY.md)
+- [Historical build and startup notes](docs/history/BUILD_FIX_4.75.0.md)
 
-```bash
-bash scripts/linux/observability-preflight.sh
-```
-
-and use the existing smoke-test script where supported by the local PowerShell environment:
-
-```powershell
-./scripts/windows/smoke-test.ps1
-```
-
----
-
-# 6. Directory guide
-
-| Directory | What it contains | Current status |
-|---|---|---|
-| `backend/` | Migration notice; independent application retired | Retired |
-| `apps/` | Existing authorization/control-plane application and integrations | Active |
-| `sdk/` | Python, TypeScript, Java and Go SDKs, contracts, examples and CLI | Active |
-| `dashboard/` | Web security dashboard | Active |
-| `docs/policy/` | Policy DSL grammar reference and examples; runtime policies are stored in the database | Reference |
-| `k8s/` | Kubernetes deployment manifests and policy draft synchronization operator | Active |
-| `infra/` | Current infrastructure, including CDK and Envoy; unused historical snapshots removed | Active |
-| `docker/` | Local/demo Compose stack and supporting configuration | Active |
-| `observability/` | Current observability assets/contracts | Active |
-| `ops/observability/` | Prometheus/Grafana operational deployment configuration and dashboards | Active |
-| `docs/` | Current architecture, API, security, operations, SDK and platform documentation | Active |
-| `scripts/` | Canonical operational and smoke-test scripts | Active |
-| `scripts/quality/` | Static quality, formatting and audit tooling | Active |
-| `runbooks/` | Operational procedures; keep only procedures still used | Review |
-| `benchmarks/` | Performance test assets | Review |
-| `scripts/windows/chaos/` | Windows chaos/resilience test scripts | Review |
-| `ops/private-llm/` | Private LLM configuration examples | Active |
-
-Historical `validation/` suites and unused versioned Kubernetes/infrastructure snapshots have been removed from the active development tree. Duplicate demo scripts have also been removed; only the canonical `start-demo.ps1`, `stop-demo.ps1` and `reset-demo.ps1` remain.
-
-# 7. Cleanup decisions already applied
-
-The repository is now in cleanup mode. The following changes have already been applied rather than left as recommendations:
-
-1. Removed the historical `validation/` tree.
-2. Removed unused `k8s/3.2`, `k8s/3.3`, `k8s/3.4` and `k8s/3.8` trees.
-3. Removed unused legacy infrastructure snapshots under `infra/attestation/3.5`, `infra/monitoring/3.7`, `infra/monitoring/3.8`, `infra/k8s/3.5` and `infra/dr/3.8`.
-4. Removed duplicate `scripts/scripts-*-demo.ps1` files.
-5. Removed root/dashboard package `version` metadata because the project is not treating those values as release identifiers during active development. Dependency/library versions remain where package managers require them.
-6. Retained `infra/envoy/3.3/envoy.yaml` because `docker/docker-compose.yml` references it directly.
-7. Reorganized Kubernetes deployment manifests under `k8s/deploy/`; operator resources remain under `k8s/operator/`.
-
-No new platform capability is introduced by these changes.
-
-# 8. Maintenance rules
-
-- Do not add new product features during cleanup mode.
-- Prefer deleting duplicate or unreachable artifacts over creating compatibility copies.
-- Before deleting a directory, search the repository for active references.
-- Keep runtime behavior unchanged while formatting or reorganizing code.
-- Keep one canonical script for each operational action.
-- Keep `docs/` synchronized with the actual tree.
-- Do not create release notes or release-validation documents during this development phase.
-- Do not introduce version directories unless they represent an actively deployed configuration.
-
-# 9. Documentation map
-
-- `docs/INDEX.md` — documentation entry point
-- `docs/architecture/4.75_ARCHITECTURE.md` — platform architecture
-- `docs/api/4.75_BACKEND_API.md` — backend API
-- `docs/security/4.75_SECURITY_MODEL.md` — security and governance model
-- `docs/operations/4.75_OPERATIONS.md` — operations
-- `docs/operations/4.75_OBSERVABILITY.md` — observability
-- `docs/development/4.75_DEVELOPER_GUIDE.md` — development workflow
-- `docs/development/4.75_SDK.md` — SDK usage
-- `docs/platform/4.75_KUBERNETES.md` — Kubernetes integration
-- `docs/platform/4.75_FEDERATION.md` — federation
-- `docs/platform/4.75_SIMULATION.md` — simulation
-- `docs/migration/3.X_TO_4.0_MIGRATION.md` — legacy migration context
-
-## Maintenance / Cleanup Policy
-
-This repository is currently in maintenance and cleanup mode. No new platform features are being added.
-
-- Keep the current runtime paths and active deployment configuration.
-- Remove obsolete versioned artifacts when they have no active references.
-- Do not keep duplicate helper scripts.
-- Keep `infra/envoy/3.3` because the current Docker Compose stack references it directly.
-- Historical validation suites and unused legacy Kubernetes/infra snapshots are not part of the active development tree.
-- Project version numbers are not treated as release identifiers during this development phase.
-
-## Directory Status
-
-| Directory | Status | Purpose |
-|---|---|---|
-| `backend/` | Retired | Migration notice; executable code moved to authorization-api |
-| `apps/` | Active | Existing authorization/control-plane application |
-| `sdk/` | Active | Python, TypeScript, Java and Go SDKs |
-| `dashboard/` | Active | Web UI |
-| `docs/policy/` | Reference | Policy DSL grammar reference and examples; runtime policies are stored in the database |
-| `k8s/` | Active | Kubernetes deployment manifests and policy draft synchronization operator |
-| `infra/` | Active | Current infrastructure; unused legacy snapshots removed |
-| `docker/` | Active | Local/demo container stack |
-| `observability/` | Active | Current observability contracts/assets |
-| `ops/observability/` | Active | Prometheus/Grafana operational configuration |
-| `docs/` | Active | Current project documentation |
-| `scripts/` | Active | Canonical operational scripts; duplicates removed |
-| `scripts/quality/` | Active | Formatting/lint/static quality checks |
-| `runbooks/` | Review | Operational procedures; remove obsolete entries as discovered |
-| `benchmarks/` | Review | Performance artifacts; retain only if still used |
-| `scripts/windows/chaos/` | Review | Chaos test scripts; retain only if still used |
-| `ops/private-llm/` | Active | Private LLM configuration examples |
-
-
-
-## Scripts
-
-OS-specific operational scripts are separated to keep execution paths explicit:
-
-- Windows: `scripts/windows/` (`.ps1`)
-- Linux: `scripts/linux/` (`.sh`)
-- The policy signing-key generator has a single Python implementation at `scripts/linux/generate-policy-signing-key.py`; Windows invokes that implementation through PowerShell.
+Repository-wide distribution license terms are not currently specified. No public SDK package publication or production certification is asserted by this README.
