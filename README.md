@@ -1,5 +1,7 @@
 # Zero Trust Security Platform
 
+**English** · [한국어](README.ko.md)
+
 Policy-based authorization and governed tool execution for AI agents and MCP applications.
 
 The platform evaluates who can perform an action, on which resource, and under what conditions. It can require independent approval before forwarding a registered MCP tool call, recheck current policy before execution, and retain linked decision and execution records.
