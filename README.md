@@ -61,9 +61,13 @@ cd zt40
 
 Copy the example environment file if local overrides are required:
 
+`.env.example` includes the base settings, policy signing, data-plane resilience and attestation-state examples. Docker Compose passes only the variables listed in its service environment sections; attestation variables currently need to be supplied directly to the Rust process. No cryptographic attestation verifier is installed.
+
 ```bash
 cp .env.example .env
 ```
+
+Historical build and startup correction notes are archived in [docs/history/BUILD_FIX_4.75.0.md](docs/history/BUILD_FIX_4.75.0.md).
 
 Do not commit real credentials or production secrets.
 
