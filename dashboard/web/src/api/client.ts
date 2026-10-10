@@ -54,8 +54,12 @@ export async function apiDelete(path: string) {
 export type McpCredentials = {mode:'default'|'service'|'bearer'; clientId?:string; secret?:string};
 
 // MCP workspace credentials are explicit and memory-only; other pages keep their configured authentication.
-export async function mcpRequest(path:string, method='GET', body?:unknown, credentials:McpCredentials={mode:'default'}) {
+export async function mcpRequest(path:string, method='GET', body?:unknown, credentials:McpCredentials={mode:'default'}, extraHeaders:Record<string,string>={}) {
   const requestHeaders=headers();
+  for(const [key,value] of Object.entries(extraHeaders)){
+    if(!['X-ZT-Delegation','MCP-Protocol-Version'].includes(key))throw new Error('Unsupported protocol header');
+    requestHeaders[key]=value;
+  }
   if(credentials.mode!=='default'){
     delete requestHeaders['X-API-Key'];
     if(!credentials.secret?.trim())throw new Error('A credential is required');

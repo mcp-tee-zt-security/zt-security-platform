@@ -5,6 +5,7 @@ import java.util.*;
 @Entity @Table(name="api_clients", uniqueConstraints=@UniqueConstraint(columnNames={
     "tenant_id","client_id"}
 ))
+@org.hibernate.annotations.DynamicUpdate
 public class ApiClient {
     @Id UUID id;
     @Column(name="tenant_id") UUID tenantId;

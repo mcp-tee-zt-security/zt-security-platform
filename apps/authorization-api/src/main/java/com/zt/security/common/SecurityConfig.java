@@ -22,6 +22,7 @@ import java.util.*;
 public class SecurityConfig {
   @Value("${zt.security.oidc.enabled:false}") boolean oidcEnabled;
   @Value("${zt.security.oidc.issuer-uri:http://localhost:8089/realms/zt}") String issuer;
+  @Value("${zt.security.oidc.jwk-set-uri:}") String jwkSetUri;
 
   @Bean
   SecurityFilterChain filterChain(HttpSecurity http, ApiKeyFilter apiKey,
@@ -55,6 +56,11 @@ public class SecurityConfig {
   @Bean
   @ConditionalOnProperty(name="zt.security.oidc.enabled", havingValue="true")
   JwtDecoder jwtDecoder() {
+      if(jwkSetUri!=null&&!jwkSetUri.isBlank()){
+          var decoder=org.springframework.security.oauth2.jwt.NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+          decoder.setJwtValidator(org.springframework.security.oauth2.jwt.JwtValidators.createDefaultWithIssuer(issuer));
+          return decoder;
+      }
       return JwtDecoders.fromIssuerLocation(issuer);
   }
 

@@ -280,3 +280,7 @@ Repository-wide distribution license terms are not currently specified. No publi
 A separate synthetic demo provides server-authorized document reads, folder inheritance, channel messages and permission-filtered search. Open **Agents & Connections → Stitch Access PoC** in the dashboard. Initialize sample data explicitly as an administrator; authenticate a registered service client to demonstrate AI restrictions.
 
 The local Compose deployment enables `ZT_STITCH_POC_ENABLED` by default. Disable it outside demo deployments. This PoC does not integrate actual Stitch data, end-user ACLs, LLM retrieval, external MCP, vector indexes or TEE. See the [demo guide](docs/api/STITCH_ACCESS_POC.ko.md) and [Postman collection](docs/postman/Stitch-Access-PoC.postman_collection.json).
+
+## Stitch integration contract
+
+The separate [standard integration contract](docs/api/STITCH_INTEGRATION_V1.md) adds OIDC human/AI delegation, live source ACL and membership sync, file/attachment retrieval, PostgreSQL RAG indexes, permission-aware ID caching and recipient deletion workflows. It includes SDK/connector code and unapplied network/DB deployment templates. It is disabled by default; actual Stitch endpoints, provider storage and deployment controls still require customer configuration. See the [local OIDC walkthrough](docs/api/STITCH_INTEGRATION_LOCAL.ko.md).

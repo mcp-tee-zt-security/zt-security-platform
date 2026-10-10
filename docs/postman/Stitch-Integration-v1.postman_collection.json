@@ -1,0 +1,1279 @@
+{
+  "info": {
+    "name": "Stitch Integration v1 - OIDC ACL RAG Lifecycle",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Standard contract with local synthetic Keycloak identities. Requires integration enabled, OIDC configured and realm imported. SourceVersion must increase on re-sync; do not blindly rerun upserts. Existing AI client secret must be supplied separately. Send individually. No real Stitch connection or requests have been executed. DELETE/ACK requests have real effects in the adapter."
+  },
+  "item": [
+    {
+      "name": "01 - Real local Keycloak tokens (synthetic identities)",
+      "item": [
+        {
+          "name": "Human fixture token",
+          "request": {
+            "method": "POST",
+            "url": "{{oidc_token_url}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "zt-stitch-human-demo"
+                },
+                {
+                  "key": "username",
+                  "value": "alice-demo"
+                },
+                {
+                  "key": "password",
+                  "value": "local-stitch-human-only"
+                }
+              ]
+            },
+            "description": "Local fixture only. Production human login uses the organization\u2019s OIDC flow; these public demo credentials must not be deployed to a real identity realm."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200)pm.environment.set('human_token',pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Connector service token",
+          "request": {
+            "method": "POST",
+            "url": "{{oidc_token_url}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials"
+                },
+                {
+                  "key": "client_id",
+                  "value": "zt-stitch-sync"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "local-stitch-sync-only"
+                }
+              ]
+            },
+            "description": "Local fixture only. Production human login uses the organization\u2019s OIDC flow; these public demo credentials must not be deployed to a real identity realm."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200)pm.environment.set('connector_token',pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Connector source directory / resources",
+      "item": [
+        {
+          "name": "Connector identity",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/context",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Provision synthetic user and groups",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/subjects",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1\",\n  \"groups\": [\n    \"employees\",\n    \"finance\"\n  ],\n  \"active\": true,\n  \"sourceVersion\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const j=pm.response.json();const v=j.aclVersion??j.acl_version;if(v)pm.environment.set('source_acl_version',v);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync contract-general",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/resources",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-general\",\n  \"parentId\": null,\n  \"kind\": \"FOLDER\",\n  \"title\": \"Contract General\",\n  \"ownerSubject\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1\",\n  \"aiAccess\": \"ALLOW\",\n  \"sourceVersion\": 1,\n  \"content\": \"\",\n  \"acl\": [\n    {\n      \"principalKind\": \"GROUP\",\n      \"principalId\": \"employees\",\n      \"permission\": \"READ\",\n      \"effect\": \"ALLOW\"\n    },\n    {\n      \"principalKind\": \"GROUP\",\n      \"principalId\": \"employees\",\n      \"permission\": \"SEARCH\",\n      \"effect\": \"ALLOW\"\n    }\n  ],\n  \"chunks\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const j=pm.response.json();const v=j.aclVersion??j.acl_version;if(v)pm.environment.set('source_acl_version',v);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync contract-handbook",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/resources",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-handbook\",\n  \"parentId\": \"contract-general\",\n  \"kind\": \"FILE\",\n  \"title\": \"Synthetic handbook\",\n  \"ownerSubject\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1\",\n  \"aiAccess\": \"ALLOW\",\n  \"sourceVersion\": 1,\n  \"content\": \"Synthetic handbook explains payroll procedures without salary data.\",\n  \"acl\": [],\n  \"chunks\": [\n    {\n      \"content\": \"Synthetic handbook explains payroll procedures without salary data.\",\n      \"embedding\": [\n        1,\n        0,\n        0\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const j=pm.response.json();const v=j.aclVersion??j.acl_version;if(v)pm.environment.set('source_acl_version',v);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync contract-payroll",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/resources",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-payroll\",\n  \"parentId\": null,\n  \"kind\": \"FOLDER\",\n  \"title\": \"Contract Payroll\",\n  \"ownerSubject\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1\",\n  \"aiAccess\": \"DENY\",\n  \"sourceVersion\": 1,\n  \"content\": \"\",\n  \"acl\": [\n    {\n      \"principalKind\": \"GROUP\",\n      \"principalId\": \"finance\",\n      \"permission\": \"READ\",\n      \"effect\": \"ALLOW\"\n    },\n    {\n      \"principalKind\": \"GROUP\",\n      \"principalId\": \"finance\",\n      \"permission\": \"SEARCH\",\n      \"effect\": \"ALLOW\"\n    }\n  ],\n  \"chunks\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const j=pm.response.json();const v=j.aclVersion??j.acl_version;if(v)pm.environment.set('source_acl_version',v);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync contract-payroll-file",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/resources",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-payroll-file\",\n  \"parentId\": \"contract-payroll\",\n  \"kind\": \"FILE\",\n  \"title\": \"Synthetic payroll file\",\n  \"ownerSubject\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1\",\n  \"aiAccess\": \"ALLOW\",\n  \"sourceVersion\": 1,\n  \"content\": \"Synthetic payroll Alice 5000, Bob 6000.\",\n  \"fileBase64\": \"U3ludGhldGljIHBheXJvbGwgZmlsZQ==\",\n  \"acl\": [],\n  \"chunks\": [\n    {\n      \"content\": \"Synthetic payroll Alice 5000, Bob 6000.\",\n      \"embedding\": [\n        1,\n        0,\n        0\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const j=pm.response.json();const v=j.aclVersion??j.acl_version;if(v)pm.environment.set('source_acl_version',v);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync contract-attachment",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/resources",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-attachment\",\n  \"parentId\": \"contract-payroll-file\",\n  \"kind\": \"ATTACHMENT\",\n  \"title\": \"Synthetic payroll attachment\",\n  \"ownerSubject\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1\",\n  \"aiAccess\": \"ALLOW\",\n  \"sourceVersion\": 1,\n  \"content\": \"Synthetic confidential attachment.\",\n  \"fileBase64\": \"U3ludGhldGljIHBheXJvbGwgZmlsZQ==\",\n  \"acl\": [],\n  \"chunks\": [\n    {\n      \"content\": \"Synthetic confidential attachment.\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const j=pm.response.json();const v=j.aclVersion??j.acl_version;if(v)pm.environment.set('source_acl_version',v);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync contract-channel",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/resources",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-channel\",\n  \"parentId\": null,\n  \"kind\": \"CHANNEL\",\n  \"title\": \"Contract Channel\",\n  \"ownerSubject\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1\",\n  \"aiAccess\": \"ALLOW\",\n  \"sourceVersion\": 1,\n  \"content\": \"\",\n  \"acl\": [\n    {\n      \"principalKind\": \"GROUP\",\n      \"principalId\": \"employees\",\n      \"permission\": \"READ\",\n      \"effect\": \"ALLOW\"\n    },\n    {\n      \"principalKind\": \"GROUP\",\n      \"principalId\": \"employees\",\n      \"permission\": \"SEARCH\",\n      \"effect\": \"ALLOW\"\n    }\n  ],\n  \"chunks\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const j=pm.response.json();const v=j.aclVersion??j.acl_version;if(v)pm.environment.set('source_acl_version',v);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync contract-message",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/resources",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-message\",\n  \"parentId\": \"contract-channel\",\n  \"kind\": \"MESSAGE\",\n  \"title\": \"Synthetic public message\",\n  \"ownerSubject\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1\",\n  \"aiAccess\": \"ALLOW\",\n  \"sourceVersion\": 1,\n  \"content\": \"Synthetic message about payroll procedures.\",\n  \"acl\": [],\n  \"chunks\": [\n    {\n      \"content\": \"Synthetic message about payroll procedures.\",\n      \"embedding\": [\n        0,\n        1,\n        0\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const j=pm.response.json();const v=j.aclVersion??j.acl_version;if(v)pm.environment.set('source_acl_version',v);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read source sync checkpoint version",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/source-state",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const j=pm.response.json();const v=j.aclVersion??j.acl_version;if(v)pm.environment.set('source_acl_version',v);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Commit complete source snapshot (required before retrieval)",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/source-state",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"ready\":true,\"expectedAclVersion\":{{source_acl_version}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Human access and delegation",
+      "item": [
+        {
+          "name": "Human identity",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/context",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{human_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Human Payroll read",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/retrieve",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{human_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-payroll-file\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Human attachment download",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/download",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{human_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-attachment\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delegate to existing AI service client",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/sessions",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{human_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aiSubject\": \"client:{{client_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200)pm.environment.set('stitch_session_id',pm.response.json().sessionId);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - AI retrieval / permission-aware RAG",
+      "item": [
+        {
+          "name": "AI identity",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/context",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "AI public handbook read",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/retrieve",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-handbook\",\n  \"sessionId\": \"{{stitch_session_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI Payroll read \u2014 inherited DENY",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/retrieve",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-payroll-file\",\n  \"sessionId\": \"{{stitch_session_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI attachment download \u2014 DENY",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/download",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-attachment\",\n  \"sessionId\": \"{{stitch_session_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI lexical search / cache",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/search",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"payroll\",\n  \"sessionId\": \"{{stitch_session_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI bounded semantic ranking (synthetic 3D vectors)",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/search",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"payroll\",\n  \"queryEmbedding\": [\n    1,\n    0,\n    0\n  ],\n  \"sessionId\": \"{{stitch_session_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI channel messages",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/children",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"contract-channel\",\n  \"sessionId\": \"{{stitch_session_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI MCP initialize",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/mcp",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$guid}}\",\n  \"method\": \"initialize\",\n  \"params\": {\n    \"protocolVersion\": \"2025-06-18\",\n    \"capabilities\": {},\n    \"clientInfo\": {\n      \"name\": \"postman\",\n      \"version\": \"1.0\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI MCP tools/list",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/mcp",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$guid}}\",\n  \"method\": \"tools/list\",\n  \"params\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI MCP readDocument (session in trusted header)",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/mcp",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-ZT-Delegation",
+                "value": "{{stitch_session_id}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "2025-06-18"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$guid}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"readDocument\",\n    \"arguments\": {\n      \"resourceId\": \"contract-payroll-file\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI own audit history",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/calls",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Revocation / retention / external deletion",
+      "item": [
+        {
+          "name": "Revoke current delegation",
+          "request": {
+            "method": "DELETE",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/sessions/{{stitch_session_id}}",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{human_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Set disclosure retention ceiling",
+          "request": {
+            "method": "PUT",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/retention",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiptTtlDays\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Run maintenance",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/maintenance",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get pending recipient deletion events",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/deletion-events",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.response.code===200){const a=pm.response.json();if(a.length)pm.environment.set('deletion_event_id',a[0].id);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Acknowledge ONLY after recipient erased copies",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/deletion-events/{{deletion_event_id}}/ack",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiptId\": \"replace-with-real-recipient-receipt\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Payroll subtree (connector)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{zt_base_url}}/v1/integrations/stitch/resources/contract-payroll",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{connector_token}}"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

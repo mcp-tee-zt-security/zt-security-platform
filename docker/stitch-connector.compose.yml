@@ -1,0 +1,29 @@
+# Standalone optional worker. Configure the standard source/OIDC contracts before starting.
+services:
+  stitch-connector:
+    build:
+      context: ../apps/stitch-connector
+    environment:
+      ZT_CONNECTOR_API_URL: ${ZT_CONNECTOR_API_URL:?Configure HTTPS ZT gateway URL}
+      STITCH_SOURCE_URL: ${STITCH_SOURCE_URL:?Configure source contract URL}
+      STITCH_CONNECTOR_TOKEN_URL: ${STITCH_CONNECTOR_TOKEN_URL:?Configure OIDC token URL}
+      STITCH_CONNECTOR_CLIENT_ID: ${STITCH_CONNECTOR_CLIENT_ID:?Configure connector client ID}
+      STITCH_CONNECTOR_CLIENT_SECRET: ${STITCH_CONNECTOR_CLIENT_SECRET:?Configure connector credential}
+      STITCH_SOURCE_TOKEN: ${STITCH_SOURCE_TOKEN:?Configure source credential}
+      STITCH_CONNECTOR_ALLOWED_HOSTS: ${STITCH_CONNECTOR_ALLOWED_HOSTS:?Configure explicit host allowlist}
+      STITCH_CONNECTOR_DEVELOPMENT_HTTP: ${STITCH_CONNECTOR_DEVELOPMENT_HTTP:-false}
+      ZT_TENANT_ID: ${ZT_TENANT_ID:?Configure tenant ID}
+      ZT_WORKSPACE_ID: ${ZT_WORKSPACE_ID:?Configure workspace ID}
+      STITCH_CONNECTOR_INTERVAL_SECONDS: ${STITCH_CONNECTOR_INTERVAL_SECONDS:-60}
+    volumes: [stitch_connector_state:/state]
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+    networks: [zt]
+networks:
+  zt:
+    external: true
+    name: ${ZT_DOCKER_NETWORK:-docker_default}
+volumes:
+  stitch_connector_state:

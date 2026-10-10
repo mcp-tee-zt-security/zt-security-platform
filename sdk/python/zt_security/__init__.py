@@ -10,6 +10,7 @@ from .errors import (
 )
 from .events import EventReplay, EventStream
 from .governance import GovernanceFacade
+from .stitch import StitchRetrieval, StitchAccessDenied
 from .models import (
     Action, ActionContext, Approval, ApprovalStatus, ContractStatus, Decision, Evidence,
     EvaluationRequest, Execution, ExecutionContract, ExecutionStatus, GovernedExecutionResult,
@@ -18,6 +19,7 @@ from .models import (
 )
 
 __all__ = [
+    "StitchRetrieval", "StitchAccessDenied",
     "__version__", "ZtSecurityClient", "ActionContext", "EvaluationRequest", "Principal",
     "Action", "Resource", "PolicyDecision", "Decision", "Risk", "Evidence", "Approval",
     "ApprovalStatus", "ExecutionContract", "ContractStatus", "Execution", "ExecutionStatus",

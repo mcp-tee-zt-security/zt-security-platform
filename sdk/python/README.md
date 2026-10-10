@@ -210,3 +210,8 @@ Implementation references: [Requests authentication](https://requests.readthedoc
 and [Python 3.10 datetime parsing](https://docs.python.org/3.10/library/datetime.html#datetime.datetime.fromisoformat).
 Java timestamps with nanosecond fractions are preserved in `to_dict()`; typed
 Python datetime fields retain microsecond precision.
+## Stitch retrieval integration
+
+`client.stitch` exposes the optional `/v1/integrations/stitch` contract. A real HUMAN OIDC token creates a delegation; a separately authenticated AI client uses `client.stitch.for_session(session_id)`. `read_document`, `list_children` and `search` return only ALLOW results and raise `StitchAccessDenied` on DENY. Keep the session handle in trusted application state, outside model arguments. Source sync and deletion methods require the connector role. This facade does not connect an LLM or source provider automatically.
+
+See [the integration contract](../../docs/api/STITCH_INTEGRATION_V1.md). Local OIDC fixtures and Postman requests are available for development; no live verification was performed for this integration change.

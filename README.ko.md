@@ -279,3 +279,7 @@ cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 대시보드 **Agents & Connections → Stitch Access PoC**에서 합성 폴더·채널 데이터를 준비하고, 관리자와 인증된 AI 서비스 클라이언트의 문서 조회·검색 결과를 비교할 수 있습니다. 상위 폴더의 AI 접근 금지 설정을 상속하며 검색 응답에서도 금지된 자료를 제외합니다.
 
 로컬 Compose는 `ZT_STITCH_POC_ENABLED=true`를 기본 사용합니다. 운영 배포에서는 비활성화하세요. 실제 Stitch 사용자 ACL·LLM·MCP·벡터 검색·TEE 연동은 포함하지 않습니다. [데모 진행 안내](docs/api/STITCH_ACCESS_POC.ko.md)와 [Postman Collection](docs/postman/Stitch-Access-PoC.postman_collection.json)을 참고하세요.
+
+## Stitch 표준 연동 계약
+
+별도의 **Stitch Integration** 표준 연동 API는 OIDC 사용자·AI 위임, 소스 ACL/그룹 동기화, 파일·첨부파일, PostgreSQL 검색/RAG, 권한 버전 캐시, 보존·삭제 요청/확인 계약을 제공합니다. 실제 Stitch와 외부 저장소에 연결하거나 네트워크 제한을 적용한 상태는 아닙니다. [연동 계약](docs/api/STITCH_INTEGRATION_V1.md)과 [로컬 OIDC 개발 절차](docs/api/STITCH_INTEGRATION_LOCAL.ko.md)를 확인하세요. 기본 설정은 비활성화입니다.

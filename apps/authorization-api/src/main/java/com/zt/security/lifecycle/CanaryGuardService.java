@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
 import java.util.*;
 @Service public class CanaryGuardService {
+ @org.springframework.beans.factory.annotation.Value("${security.canary.guard-enabled:true}") boolean guardEnabled;
  final PolicyDeploymentRepository deployments;
  final CanaryObservationRepository observations;
  final TenantRepository tenants;
@@ -26,6 +27,7 @@ import java.util.*;
      tenant=t;
      }
  @Scheduled(fixedDelayString="${security.canary.guard-delay-ms:60000}") @Transactional public void guard(){
+     if(!guardEnabled)return;
      for(var t:tenants.findAll()){
          tenant.set(t.getId());
          for(PolicyDeployment d:

@@ -13,6 +13,7 @@ from .agent import AgentRuntime
 from .errors import ZtSecurityConfigurationError, ZtSecurityProtocolError
 from .events import EventReplay
 from .governance import GovernanceFacade
+from .stitch import StitchRetrieval
 from .models import (
     ActionContext, ApiModel, Approval, Evidence, EvaluationRequest, Execution,
     ExecutionContract, JsonObject, Mission, PolicyDecision, SecurityEvent, Verification,
@@ -49,6 +50,7 @@ class ZtSecurityClient:
         self.governance = GovernanceFacade(self)
         self.agents = AgentRuntime(self)
         self.events = EventReplay(self)
+        self.stitch = StitchRetrieval(self)
 
     def close(self) -> None:
         self.http.close()

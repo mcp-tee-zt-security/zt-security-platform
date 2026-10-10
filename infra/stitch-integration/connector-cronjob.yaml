@@ -1,0 +1,35 @@
+# Deployment template only. Supply image and secrets; no cluster actions are performed.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: stitch-connector-state, namespace: zt-stitch}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: stitch-connector, namespace: zt-stitch}
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata: {labels: {app: stitch-connector}}
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+          containers:
+            - name: connector
+              image: REPLACE_WITH_CONNECTOR_IMAGE
+              envFrom: [{secretRef: {name: stitch-connector-config}}]
+              env: [{name: STITCH_CONNECTOR_ONCE, value: "true"}]
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+              resources: {requests: {cpu: 100m, memory: 64Mi}, limits: {cpu: 500m, memory: 256Mi}}
+              volumeMounts: [{name: state, mountPath: /state}]
+          volumes: [{name: state, persistentVolumeClaim: {claimName: stitch-connector-state}}]

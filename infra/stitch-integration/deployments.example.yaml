@@ -1,0 +1,75 @@
+# Supply real images/secrets/TLS and run migrations first. This file is not applied automatically.
+apiVersion: v1
+kind: Service
+metadata: {name: stitch-api, namespace: zt-stitch}
+spec:
+  type: ClusterIP
+  selector: {app: stitch-api}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: stitch-api, namespace: zt-stitch}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: stitch-api}}
+  template:
+    metadata: {labels: {app: stitch-api}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: api
+          image: example.invalid/zt/authorization-api:replace-me
+          envFrom: [{secretRef: {name: stitch-api-config}}]
+          env:
+            - {name: ZT_STITCH_INTEGRATION_ENABLED, value: "true"}
+            - {name: ZT_STITCH_POC_ENABLED, value: "false"}
+            - {name: ZT_STITCH_ALLOW_DEVELOPMENT_SYNC_KEY, value: "false"}
+            - {name: ZT_OIDC_ENABLED, value: "true"}
+            - {name: SPRING_FLYWAY_ENABLED, value: "false"}
+            - {name: SECURITY_CANARY_GUARD_ENABLED, value: "false"}
+            - {name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED, value: "true"}
+            - {name: MANAGEMENT_ENDPOINT_HEALTH_GROUP_READINESS_INCLUDE, value: "readinessState,db,redis"}
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /actuator/health/readiness, port: 8080}, initialDelaySeconds: 20, periodSeconds: 10}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "2", memory: 1Gi}}
+          volumeMounts: [{name: tmp, mountPath: /tmp}, {name: audit, mountPath: /app/data/audit-archive}]
+      volumes: [{name: tmp, emptyDir: {}}, {name: audit, emptyDir: {}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: stitch-gateway, namespace: zt-stitch}
+spec:
+  type: ClusterIP
+  selector: {app: stitch-gateway}
+  ports: [{name: ingress-http, port: 8080, targetPort: 8080}, {name: internal-tls, port: 8443, targetPort: 8443}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: stitch-gateway, namespace: zt-stitch}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: stitch-gateway}}
+  template:
+    metadata: {labels: {app: stitch-gateway}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: gateway
+          image: example.invalid/zt/unprivileged-nginx:replace-me
+          ports: [{containerPort: 8080}, {containerPort: 8443}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {requests: {cpu: 50m, memory: 32Mi}, limits: {cpu: 500m, memory: 128Mi}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/nginx/conf.d/default.conf, subPath: gateway.conf, readOnly: true}
+            - {name: tls, mountPath: /etc/tls, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: cache, mountPath: /var/cache/nginx}
+      volumes:
+        - {name: config, configMap: {name: stitch-gateway-config}}
+        - {name: tls, secret: {secretName: stitch-gateway-tls, defaultMode: 288}}
+        - {name: tmp, emptyDir: {}}
+        - {name: cache, emptyDir: {}}

@@ -1,0 +1,15 @@
+# Replace documentation IPs with real fixed IdP/source/recipient IP ranges before applying.
+# Do not use 0.0.0.0/0. Standard NetworkPolicy does not filter domain names or HTTP paths.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: configured-external-https, namespace: zt-stitch}
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [stitch-api, stitch-connector]}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock: {cidr: 192.0.2.10/32}
+        - ipBlock: {cidr: 192.0.2.11/32}
+      ports: [{port: 443, protocol: TCP}]

@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zt-stitch
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: zt-stitch}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: dns, namespace: zt-stitch}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: gateway-api, namespace: zt-stitch}
+spec:
+  podSelector: {matchLabels: {app: stitch-api}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: stitch-gateway}}
+      ports: [{port: 8080, protocol: TCP}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: postgres}}}]
+      ports: [{port: 5432, protocol: TCP}]
+    - to: [{podSelector: {matchLabels: {app: redis}}}]
+      ports: [{port: 6379, protocol: TCP}]
+    - to: [{podSelector: {matchLabels: {app: keycloak}}}]
+      ports: [{port: 8080, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: database-private, namespace: zt-stitch}
+spec:
+  podSelector: {matchLabels: {app: postgres}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app: stitch-api}}}]
+      ports: [{port: 5432, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: redis-private, namespace: zt-stitch}
+spec:
+  podSelector: {matchLabels: {app: redis}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app: stitch-api}}}]
+      ports: [{port: 6379, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: connector-api, namespace: zt-stitch}
+spec:
+  podSelector: {matchLabels: {app: stitch-connector}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: stitch-gateway}}}]
+      ports: [{port: 8443, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: gateway, namespace: zt-stitch}
+spec:
+  podSelector: {matchLabels: {app: stitch-gateway}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}}]
+      ports: [{port: 8080, protocol: TCP}]
+    - from: [{podSelector: {matchLabels: {app: stitch-connector}}}]
+      ports: [{port: 8443, protocol: TCP}]
+    - from: [{podSelector: {matchLabels: {app: stitchy}}}]
+      ports: [{port: 8443, protocol: TCP}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: stitch-api}}}]
+      ports: [{port: 8080, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: stitchy-gateway-only, namespace: zt-stitch}
+spec:
+  podSelector: {matchLabels: {app: stitchy}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: stitch-gateway}}}]
+      ports: [{port: 8443, protocol: TCP}]
