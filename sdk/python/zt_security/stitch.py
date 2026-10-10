@@ -22,7 +22,7 @@ class StitchRetrieval:
         self.session_id = valid_uuid(session_id, 'session_id') if session_id else None
 
     def for_session(self, session_id: str) -> StitchRetrieval:
-        return StitchRetrieval(self.client, session_id)
+        return type(self)(self.client, session_id)
 
     def delegate(self, ai_subject: str) -> dict[str, Any]:
         return self.client._post(self.ROOT + '/sessions', {'aiSubject': nonempty(ai_subject, 'ai_subject')})

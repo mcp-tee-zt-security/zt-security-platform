@@ -2,7 +2,7 @@
   "info": {
     "name": "Stitch Integration v1 - OIDC ACL RAG Lifecycle",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Standard contract with local synthetic Keycloak identities. Requires integration enabled, OIDC configured and realm imported. SourceVersion must increase on re-sync; do not blindly rerun upserts. Existing AI client secret must be supplied separately. Send individually. No real Stitch connection or requests have been executed. DELETE/ACK requests have real effects in the adapter."
+    "description": "Compatibility source/lifecycle requests. FIRST register the connector subject in ZT Retrieval Access and publish central AI ALLOW/DENY policies. Legacy aiAccess is ignored. Prefer Retrieval-Control-Plane-v2 collection for new clients. Send individually; versions must increase on re-sync. Source ACL/token/deletion requests modify local state."
   },
   "item": [
     {
@@ -40,7 +40,7 @@
                 }
               ]
             },
-            "description": "Local fixture only. Production human login uses the organization\u2019s OIDC flow; these public demo credentials must not be deployed to a real identity realm."
+            "description": "Local fixture only. Production human login uses the organization’s OIDC flow; these public demo credentials must not be deployed to a real identity realm."
           },
           "event": [
             {
@@ -82,7 +82,7 @@
                 }
               ]
             },
-            "description": "Local fixture only. Production human login uses the organization\u2019s OIDC flow; these public demo credentials must not be deployed to a real identity realm."
+            "description": "Local fixture only. Production human login uses the organization’s OIDC flow; these public demo credentials must not be deployed to a real identity realm."
           },
           "event": [
             {
@@ -756,7 +756,7 @@
           }
         },
         {
-          "name": "AI Payroll read \u2014 inherited DENY",
+          "name": "AI Payroll read — inherited DENY",
           "request": {
             "method": "POST",
             "url": "{{zt_base_url}}/v1/integrations/stitch/retrieve",
@@ -794,7 +794,7 @@
           }
         },
         {
-          "name": "AI attachment download \u2014 DENY",
+          "name": "AI attachment download — DENY",
           "request": {
             "method": "POST",
             "url": "{{zt_base_url}}/v1/integrations/stitch/download",

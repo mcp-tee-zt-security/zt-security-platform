@@ -212,6 +212,8 @@ Java timestamps with nanosecond fractions are preserved in `to_dict()`; typed
 Python datetime fields retain microsecond precision.
 ## Stitch retrieval integration
 
+The vendor-independent facade is now `client.retrieval` (`/v1/integrations/retrieval`). `client.stitch` remains a compatibility alias. Register the connector/workspace and publish AI retrieval policies in ZT first; source ingestion does not author AI policy. Use `client.retrieval.for_session(session_id)` for any client. See [Retrieval control plane v2](../../docs/api/RETRIEVAL_CONTROL_PLANE_V2.md) and [the client simulation walkthrough](../../docs/demo/STITCH_CLIENT_SIMULATION.ko.md).
+
 `client.stitch` exposes the optional `/v1/integrations/stitch` contract. A real HUMAN OIDC token creates a delegation; a separately authenticated AI client uses `client.stitch.for_session(session_id)`. `read_document`, `list_children` and `search` return only ALLOW results and raise `StitchAccessDenied` on DENY. Keep the session handle in trusted application state, outside model arguments. Source sync and deletion methods require the connector role. This facade does not connect an LLM or source provider automatically.
 
 See [the integration contract](../../docs/api/STITCH_INTEGRATION_V1.md). Local OIDC fixtures and Postman requests are available for development; no live verification was performed for this integration change.

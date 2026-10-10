@@ -79,8 +79,13 @@ class Handler(BaseHTTPRequestHandler):
                        'hint': 'Check local API, Keycloak realm and simulation configuration.'}, 502)
         except (ValueError, KeyError, TypeError):
             self.send({'error': 'Invalid simulation request'}, 400)
-        except Exception:
-            self.send({'error': 'Local dependency unavailable; check container logs/configuration.'}, 503)
+        except Exception as error:
+            status = getattr(error, 'code', None)
+            if isinstance(status, int):
+                self.send({'error': f'Connector dependency returned HTTP {status}. Verify the ZT connection registration, connector subject and local IdP.', 'dependencyStatus': status}, 502)
+            else:
+                print('Simulation dependency failure: ' + type(error).__name__, flush=True)
+                self.send({'error': 'Local dependency unavailable; check container logs/configuration.'}, 503)
 
     do_GET = dispatch
     do_POST = dispatch

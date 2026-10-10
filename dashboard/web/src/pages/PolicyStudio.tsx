@@ -22,6 +22,8 @@ type Props = { };
 const TENANT_ID = TENANT;
 
 const templates: Record<string,string> = {
+ 'Retrieval allow (connection)': 'policy "allow_client_retrieval" {\n effect allow\n principal.type == "AI_AGENT"\n action in ["retrieval.read", "retrieval.search", "retrieval.list", "retrieval.download"]\n resource.type == "retrieval_resource"\n condition { context.connectionId == "replace-with-connection-id" }\n}',
+ 'Retrieval deny (subtree)': 'policy "deny_client_subtree" {\n effect deny\n principal.type == "AI_AGENT"\n action in ["retrieval.read", "retrieval.search", "retrieval.list", "retrieval.download"]\n resource.type == "retrieval_resource"\n condition { context.connectionId == "replace-with-connection-id" and resource.ancestors contains "replace-with-resource-id" }\n}',
  'Order reads': 'policy "allow_order_reads" {\n effect allow\n principal.type == "AI_AGENT"\n action == "mcp.tool.call"\n resource.type == "mcp_tool"\n condition { context.mcp.tool == "getOrders" or context.mcp.tool == "getOrderStatus" }\n}',
  'Deny order cancellation': 'policy "deny_test_order_cancel" {\n effect deny\n principal.type == "AI_AGENT"\n action == "mcp.tool.call"\n resource.type == "mcp_tool"\n condition { context.mcp.tool == "cancelOrder" }\n}',
  'Approve order cancellation': 'policy "approve_order_cancel" {\n effect step_up\n principal.type == "AI_AGENT"\n action == "mcp.tool.call"\n resource.type == "mcp_tool"\n condition { context.mcp.tool == "cancelOrder" }\n}', 

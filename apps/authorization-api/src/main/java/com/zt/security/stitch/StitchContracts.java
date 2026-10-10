@@ -16,7 +16,7 @@ public final class StitchContracts {
         @Pattern(regexp="[A-Za-z0-9_.:-]{1,128}") String parentId,
         @NotBlank @Pattern(regexp="FOLDER|CHANNEL|FILE|ATTACHMENT|MESSAGE") String kind,
         @NotBlank @Size(max=256) String title,@NotBlank @Size(max=512) String ownerSubject,
-        @NotBlank @Pattern(regexp="ALLOW|DENY") String aiAccess,@Positive long sourceVersion,
+        @Pattern(regexp="ALLOW|DENY") String aiAccess,@Positive long sourceVersion,
         Instant purgeAfter,@Size(max=64000) String content,
         @NotNull @Size(max=500) List<@Valid Grant> acl,@NotNull @Size(max=128) List<@Valid Chunk> chunks,
         @Size(max=1398104) String fileBase64){}

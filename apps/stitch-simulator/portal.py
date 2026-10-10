@@ -53,16 +53,18 @@ def token(actor):
 
 def human(actor, path, method='GET', data=None):
     try:
-        return request(ZT + '/v1/integrations/stitch' + path, method, data, token(actor))
+        return request(ZT + '/v1/integrations/retrieval' + path, method, data, token(actor))
     except RemoteError as error:
         if error.status != 401:
             raise
         TOKENS.pop(actor, None)
-        return request(ZT + '/v1/integrations/stitch' + path, method, data, token(actor))
+        return request(ZT + '/v1/integrations/retrieval' + path, method, data, token(actor))
 
 
 def prepare():
     global CREDENTIAL, PREPARED
+    # Registration is a ZT administrator action, not a client-side policy/setup mutation.
+    CONNECTOR.call('/source-state')
     if CREDENTIAL is None:
         result = request(ZT + '/v1/clients', 'POST', {
             'clientId': CLIENT_ID, 'name': 'Local Stitchy Simulator',
@@ -96,6 +98,13 @@ class PortalHandler(Handler):
             self.send({'error': 'Same-origin browser request required'}, 403)
             return
         with LOCK:
+            if self.command == 'GET' and self.path == '/api/setup':
+                identity = CONNECTOR.call('/context')
+                self.send({'connectionId': 'stitch', 'displayName': 'Stitch local simulator',
+                           'connectorSubject': identity['subject'], 'enabled': True,
+                           'workspaceId': SCOPE['X-Workspace-Id'],
+                           'instruction': 'Register this identity in ZT Retrieval Access. AI policies are managed only in ZT.'})
+                return
             if self.command == 'GET' and self.path == '/api/state':
                 self.send({'prepared': PREPARED, 'autoSync': AUTO_SYNC, 'lastSync': LAST_SYNC, 'syncError': SYNC_ERROR,
                            'source': request(SOURCE + '/demo/state', headers=SOURCE_HEADERS),
@@ -146,7 +155,10 @@ class PortalHandler(Handler):
                     result = human(actor, paths[operation], 'POST', payload)
             elif action == 'source-change':
                 kind = body['kind']
-                paths = {'access': '/demo/ai-access', 'membership': '/demo/membership', 'delete': '/demo/delete', 'reset': '/demo/reset'}
+                paths = {'membership': '/demo/membership', 'delete': '/demo/delete', 'reset': '/demo/reset'}
+                if kind == 'access':
+                    self.send({'error': 'Manage AI access policies in the ZT dashboard, not in the client.'}, 400)
+                    return
                 # Block content calls until the changed source ACL has been fully committed to ZT.
                 state = CONNECTOR.call('/source-state')
                 CONNECTOR.call('/source-state', 'POST', {'ready': False, 'expectedAclVersion': state['acl_version']})

@@ -88,7 +88,7 @@ class AgentHandler(Handler):
                        'X-ZT-Delegation': body['sessionId'], 'MCP-Protocol-Version': '2025-06-18'}
             identifier = body.get('resourceId', '')
             if kind == 'download':
-                result = guarded_request('/v1/integrations/stitch/download',
+                result = guarded_request('/v1/integrations/retrieval/download',
                                          {'resourceId': identifier, 'sessionId': body['sessionId']}, headers)
                 if result.get('decision') == 'REJECTED':
                     self.send(result)
@@ -105,7 +105,7 @@ class AgentHandler(Handler):
             arguments = {'query': body['query']} if kind == 'search' else {'resourceId': identifier}
             rpc = {'jsonrpc': '2.0', 'id': str(uuid.uuid4()), 'method': 'tools/call',
                    'params': {'name': tool, 'arguments': arguments}}
-            envelope = guarded_request('/v1/integrations/stitch/mcp', rpc, headers)
+            envelope = guarded_request('/v1/integrations/retrieval/mcp', rpc, headers)
             if envelope.get('decision') == 'REJECTED':
                 self.send(envelope)
                 return
@@ -138,3 +138,4 @@ if __name__ == '__main__':
                 expire()
     threading.Thread(target=maintenance, daemon=True).start()
     serve(AgentHandler, 8767)
+

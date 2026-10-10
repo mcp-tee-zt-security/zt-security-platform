@@ -95,15 +95,6 @@ class SourceHandler(Handler):
                 return
             if parsed.path == '/demo/reset':
                 reset()
-            elif parsed.path == '/demo/ai-access':
-                identifier = body['resourceId']
-                if identifier not in STATE['resources'] or body['aiAccess'] not in ('ALLOW', 'DENY'):
-                    raise ValueError('Unknown resource/access')
-                resource = STATE['resources'][identifier]
-                resource['aiAccess'] = body['aiAccess']
-                resource['sourceVersion'] = version()
-                append('resource.upsert', resource)
-                save()
             elif parsed.path == '/demo/membership':
                 subject = STATE['subjects'][ALICE]
                 subject['groups'] = ['employees', 'finance'] if body['finance'] else ['employees']

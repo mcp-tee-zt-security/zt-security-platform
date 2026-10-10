@@ -286,6 +286,8 @@ cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 
 ### 가상 Stitch + Stitchy 시뮬레이션
 
+**AI 정책은 ZT 대시보드의 Retrieval Access / Policy Studio가 관리합니다.** 클라이언트는 사용자 ACL·자료만 동기화합니다. 공통 `/v1/integrations/retrieval` API와 `client.retrieval` SDK를 사용하며, 다음 클라이언트는 새 워크스페이스/연결을 등록하여 같은 판정 경로로 테스트합니다. 등록된 connector만 동기화할 수 있고 AI는 활성 ALLOW 정책이 없으면 기본 차단입니다. [최신 시뮬레이션 순서](docs/demo/STITCH_CLIENT_SIMULATION.ko.md)와 [공통 계약](docs/api/RETRIEVAL_CONTROL_PLANE_V2.md)을 확인하세요.
+
 선택적인 로컬 시뮬레이터는 표준 연동 API에 가상 Teams 자료/ACL 서버와 Stitchy MCP 클라이언트를 연결합니다. Alice/Bob/AI의 Payroll 접근 차이, 검색 결과 필터링, 권한 변경, 세션 취소, 임시 자료 삭제와 수신자 ACK를 전용 화면에서 비교합니다. 외부 Stitch나 LLM 연결 없이 허용된 도구 결과를 인용하여 답변합니다.
 
 [실행 및 시연 안내](docs/demo/STITCH_SIMULATION.ko.md)를 따라 `docker/stitch-simulation.compose.yml` overlay를 시작한 뒤 **http://localhost:8766**을 엽니다. 기존 대시보드 **Stitch Integration**에서도 연결할 수 있습니다. Stitchy는 전용 Docker internal network에서 읽기 gateway만 사용하며 직접 원본/DB 자격 증명을 받지 않습니다. 이 구성은 로컬 시뮬레이션이며 실행 검증을 수행한 상태는 아닙니다.

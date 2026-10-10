@@ -1,0 +1,797 @@
+{
+  "variable": [
+    {
+      "type": "string",
+      "value": "http://localhost:8080",
+      "key": "zt_base_url"
+    },
+    {
+      "type": "string",
+      "value": "11111111-1111-1111-1111-111111111111",
+      "key": "tenant_id"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "workspace_id"
+    },
+    {
+      "type": "string",
+      "value": "dev-master-key",
+      "key": "admin_key"
+    },
+    {
+      "type": "string",
+      "value": "next-client",
+      "key": "connection_id"
+    },
+    {
+      "type": "string",
+      "value": "Next client demo",
+      "key": "connection_name"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "connector_subject"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "connector_token"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "human_subject"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "human_token"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "ai_client_id"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "ai_client_secret"
+    },
+    {
+      "type": "string",
+      "value": "demo-folder",
+      "key": "folder_id"
+    },
+    {
+      "type": "string",
+      "value": "demo-document",
+      "key": "document_id"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "acl_version"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "session_id"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "allow_policy_id"
+    },
+    {
+      "type": "string",
+      "value": "",
+      "key": "deny_policy_id"
+    }
+  ],
+  "info": {
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "name": "Retrieval Control Plane v2 — Any client / ZT policies",
+    "description": "Send individually. Register a separate workspace and matching scoped IdP/connector/AI credentials first. Source ACL is owned by the client; AI policy is created/published/deactivated in ZT. No matching ALLOW denies AI content. Upsert sourceVersion and policy version must increase on repeats. These requests write local state; no requests were executed during creation."
+  },
+  "item": [
+    {
+      "name": "01 Connector verified identity — copy subject into connector_subject",
+      "request": {
+        "method": "GET",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/context",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{connector_token}}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "02 ZT admin registers connection in selected workspace",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/retrieval/connections",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{admin_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"displayName\": \"{{connection_name}}\",\r\n  \"enabled\": true,\r\n  \"connectorSubject\": \"{{connector_subject}}\",\r\n  \"connectionId\": \"{{connection_id}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "03 Source user directory — matches actual HUMAN JWT sub",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/subjects",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{connector_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"sourceVersion\": 1,\r\n  \"groups\": [\r\n    \"employees\"\r\n  ],\r\n  \"active\": true,\r\n  \"subject\": \"{{human_subject}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "04 Source root folder with user ACL only",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/resources",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{connector_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"title\": \"Demo client folder\",\r\n  \"sourceVersion\": 1,\r\n  \"acl\": [\r\n    {\r\n      \"permission\": \"READ\",\r\n      \"principalId\": \"employees\",\r\n      \"principalKind\": \"GROUP\",\r\n      \"effect\": \"ALLOW\"\r\n    },\r\n    {\r\n      \"permission\": \"SEARCH\",\r\n      \"principalId\": \"employees\",\r\n      \"principalKind\": \"GROUP\",\r\n      \"effect\": \"ALLOW\"\r\n    }\r\n  ],\r\n  \"kind\": \"FOLDER\",\r\n  \"ownerSubject\": \"synthetic-source-admin\",\r\n  \"resourceId\": \"{{folder_id}}\",\r\n  \"chunks\": []\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "05 Source document",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/resources",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{connector_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"content\": \"Project demo: synthetic document from another client.\",\r\n  \"ownerSubject\": \"synthetic-source-admin\",\r\n  \"title\": \"Client demo document\",\r\n  \"sourceVersion\": 1,\r\n  \"resourceId\": \"{{document_id}}\",\r\n  \"kind\": \"FILE\",\r\n  \"parentId\": \"{{folder_id}}\",\r\n  \"chunks\": [],\r\n  \"acl\": []\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "06 Read source state — copy acl_version to acl_version variable",
+      "request": {
+        "method": "GET",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/source-state",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{connector_token}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if(pm.response.code===200)pm.collectionVariables.set('acl_version',pm.response.json().acl_version);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Commit complete source snapshot",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/source-state",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{connector_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"ready\": true, \"expectedAclVersion\": {{acl_version}} }",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "08 ZT Validate ALLOW DSL",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/policies/validate",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{admin_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"policyText\": \"policy \\\"allow_{{connection_id}}_retrieval\\\" { effect allow principal.type == \\\"AI_AGENT\\\" action in [\\\"retrieval.read\\\", \\\"retrieval.search\\\", \\\"retrieval.list\\\", \\\"retrieval.download\\\"] resource.type == \\\"retrieval_resource\\\" condition { context.connectionId == \\\"{{connection_id}}\\\" } }\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "09 ZT Create ALLOW DRAFT",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/policies",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{admin_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"version\": 1,\r\n  \"status\": \"DRAFT\",\r\n  \"policyText\": \"policy \\\"allow_{{connection_id}}_retrieval\\\" { effect allow principal.type == \\\"AI_AGENT\\\" action in [\\\"retrieval.read\\\", \\\"retrieval.search\\\", \\\"retrieval.list\\\", \\\"retrieval.download\\\"] resource.type == \\\"retrieval_resource\\\" condition { context.connectionId == \\\"{{connection_id}}\\\" } }\",\r\n  \"name\": \"allow_{{connection_id}}_retrieval\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code >= 200 && pm.response.code < 300) pm.collectionVariables.set('allow_policy_id', pm.response.json().id || pm.response.json().sessionId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 ZT Publish ALLOW",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/policies/{{allow_policy_id}}/publish",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{admin_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "11 Human delegates to AI",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/sessions",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{human_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"aiSubject\": \"client:{{ai_client_id}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code >= 200 && pm.response.code < 300) pm.collectionVariables.set('session_id', pm.response.json().id || pm.response.json().sessionId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Human read",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/retrieve",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{human_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"resourceId\": \"{{document_id}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "13 AI read — requires source ACL and published ALLOW",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/retrieve",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Client-Id",
+            "value": "{{ai_client_id}}"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{ai_client_secret}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"resourceId\": \"{{document_id}}\",\r\n  \"sessionId\": \"{{session_id}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "14 AI search",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/search",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Client-Id",
+            "value": "{{ai_client_id}}"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{ai_client_secret}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"query\": \"Project\",\r\n  \"sessionId\": \"{{session_id}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "15 ZT Validate subtree DENY",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/policies/validate",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{admin_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"policyText\": \"policy \\\"deny_{{connection_id}}_subtree\\\" { effect deny principal.type == \\\"AI_AGENT\\\" action in [\\\"retrieval.read\\\", \\\"retrieval.search\\\", \\\"retrieval.list\\\", \\\"retrieval.download\\\"] resource.type == \\\"retrieval_resource\\\" condition { context.connectionId == \\\"{{connection_id}}\\\" and resource.ancestors contains \\\"{{folder_id}}\\\" } }\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "16 ZT Create subtree DENY DRAFT",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/policies",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{admin_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"version\": 1,\r\n  \"status\": \"DRAFT\",\r\n  \"policyText\": \"policy \\\"deny_{{connection_id}}_subtree\\\" { effect deny principal.type == \\\"AI_AGENT\\\" action in [\\\"retrieval.read\\\", \\\"retrieval.search\\\", \\\"retrieval.list\\\", \\\"retrieval.download\\\"] resource.type == \\\"retrieval_resource\\\" condition { context.connectionId == \\\"{{connection_id}}\\\" and resource.ancestors contains \\\"{{folder_id}}\\\" } }\",\r\n  \"name\": \"deny_{{connection_id}}_subtree\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code >= 200 && pm.response.code < 300) pm.collectionVariables.set('deny_policy_id', pm.response.json().id || pm.response.json().sessionId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 ZT Publish subtree DENY — repeat AI read/search afterward",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/policies/{{deny_policy_id}}/publish",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{admin_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "18 ZT audit with matched policies",
+      "request": {
+        "method": "GET",
+        "url": "{{zt_base_url}}/v1/retrieval/audit",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{admin_key}}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "19 ZT Deactivate subtree DENY",
+      "request": {
+        "method": "POST",
+        "url": "{{zt_base_url}}/v1/policies/{{deny_policy_id}}/deactivate",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{admin_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "20 Pending recipient deletion events",
+      "request": {
+        "method": "GET",
+        "url": "{{zt_base_url}}/v1/integrations/retrieval/deletion-events",
+        "header": [
+          {
+            "key": "X-Tenant-Id",
+            "value": "{{tenant_id}}"
+          },
+          {
+            "key": "X-Workspace-Id",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{connector_token}}"
+          }
+        ]
+      }
+    }
+  ]
+}

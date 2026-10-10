@@ -33,7 +33,7 @@ public class StitchIdentity {
             if(roles.contains("ROLE_SERVICE_CLIENT")||roles.contains("ROLE_AI_AGENT"))kind="AI_AGENT";
             var groups=token.getClaimAsStringList("groups");
             if(groups!=null&&(groups.size()>100||groups.stream().anyMatch(x->x==null||x.isBlank()||x.length()>256)))throw new AccessDeniedException("Invalid trusted group claims");
-            boolean sync=roles.contains("ROLE_STITCH_SYNC")&&"CONNECTOR".equals(kind);
+            boolean sync=(roles.contains("ROLE_RETRIEVAL_SYNC")||roles.contains("ROLE_STITCH_SYNC"))&&"CONNECTOR".equals(kind);
             return new Actor(token.getSubject(),kind,token.getId(),groups==null?Set.of():Set.copyOf(groups),token.getExpiresAt(),sync);
         }
         // ApiKeyFilter has already checked service credential tenant/workspace scope.
@@ -46,5 +46,7 @@ public class StitchIdentity {
         if(developmentSyncKey&&"api-key".equals(auth.getName())&&roles.contains("ROLE_PLATFORM"))return new Actor(auth.getName(),"CONNECTOR","development-sync-only",Set.of(),Instant.now().plusSeconds(300),true);
         throw new AccessDeniedException("Human access requires OIDC JWT; administrator keys cannot impersonate a user");
     }
-    public Actor connector(Authentication auth,UUID tenant,UUID workspace){var a=resolve(auth,tenant,workspace);if(!a.sync())throw new AccessDeniedException("STITCH_SYNC connector credential required");return a;}
+    public Actor connector(Authentication auth,UUID tenant,UUID workspace){return boundConnector(auth,tenant,workspace,true);}
+    public Actor cleanupConnector(Authentication auth,UUID tenant,UUID workspace){return boundConnector(auth,tenant,workspace,false);}
+    private Actor boundConnector(Authentication auth,UUID tenant,UUID workspace,boolean requireEnabled){var a=resolve(auth,tenant,workspace);if(!a.sync())throw new AccessDeniedException("RETRIEVAL_SYNC connector credential required");tenants.set(tenant);workspaces.set(workspace);if(jdbc.queryForObject("SELECT count(*) FROM retrieval_connections WHERE tenant_id=:tenant AND workspace_id=:workspace AND connector_subject=:subject AND (:required=false OR enabled=true)",Map.of("tenant",tenant,"workspace",workspace,"subject",a.subject(),"required",requireEnabled),Integer.class)!=1)throw new AccessDeniedException("Connector subject must be registered by a ZT administrator in this workspace");return a;}
 }

@@ -31,7 +31,7 @@ spring:
           issuer-uri: ${ZT_OIDC_ISSUER_URI:http://localhost:8089/realms/zt}
 zt:
   stitch:
-    enabled: ${ZT_STITCH_INTEGRATION_ENABLED:false}
+    enabled: ${ZT_RETRIEVAL_ENABLED:${ZT_STITCH_INTEGRATION_ENABLED:false}}
     audience: ${ZT_STITCH_INTEGRATION_AUDIENCE:zt-stitch-integration}
     allow-development-sync-key: ${ZT_STITCH_ALLOW_DEVELOPMENT_SYNC_KEY:false}
     session-ttl-seconds: ${ZT_STITCH_SESSION_TTL_SECONDS:300}

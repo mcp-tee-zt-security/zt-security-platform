@@ -6,13 +6,13 @@ import org.springframework.security.core.Authentication;
 import jakarta.validation.Valid;
 import java.util.*;
 
-@RestController @RequestMapping("/v1/integrations/stitch")
+@RestController @RequestMapping({"/v1/integrations/retrieval","/v1/integrations/stitch"})
 @ConditionalOnProperty(name="zt.stitch.enabled",havingValue="true")
 public class StitchIntegrationController {
     @org.springframework.beans.factory.annotation.Value("${zt.stitch.allowed-origins:http://localhost:3000,http://127.0.0.1:3000}") private String allowedOrigins;
     private final StitchIntegrationService service;
     public StitchIntegrationController(StitchIntegrationService service){this.service=service;}
-    @GetMapping("/capabilities") public Object capabilities(){return Map.of("contractVersion","1","humanAuth","OIDC JWT","aiAuth","OIDC JWT or registered service client plus human-issued delegation session","index","PostgreSQL full text / bounded cosine ranking over authorized chunks","externalIntegration","Connector configuration and source ACL sync required");}
+    @GetMapping("/capabilities") public Object capabilities(){return Map.of("contractVersion","2","humanAuth","OIDC JWT","aiAuth","OIDC JWT or registered service client plus human-issued delegation session","index","PostgreSQL full text / bounded cosine ranking over authorized chunks","policyAuthority","ZT Policy Studio: active ALLOW required, DENY overrides; source user ACL is intersected","connectionRegistration","One registered connector subject per workspace; generic /v1/integrations/retrieval API");}
     @GetMapping("/context") public Object context(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader("X-Workspace-Id") UUID w,Authentication a){return service.verify(t,w,a);}
     @GetMapping("/calls") public Object calls(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader("X-Workspace-Id") UUID w,Authentication a){return service.calls(t,w,a);}
     @GetMapping("/source-state") public Object state(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader("X-Workspace-Id") UUID w,Authentication a){return service.state(t,w,a);}

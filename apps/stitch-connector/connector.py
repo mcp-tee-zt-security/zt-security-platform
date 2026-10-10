@@ -26,7 +26,7 @@ class Connector:
     def __init__(self):
         self.allowed_hosts = {x.strip().lower() for x in os.environ['STITCH_CONNECTOR_ALLOWED_HOSTS'].split(',') if x.strip()}
         self.allow_http = os.getenv('STITCH_CONNECTOR_DEVELOPMENT_HTTP', 'false').lower() == 'true'
-        self.zt = self.validate(os.environ['ZT_CONNECTOR_API_URL']).rstrip('/') + '/v1/integrations/stitch'
+        self.zt = self.validate(os.environ['ZT_CONNECTOR_API_URL']).rstrip('/') + '/v1/integrations/retrieval'
         self.source = self.validate(os.environ['STITCH_SOURCE_URL']).rstrip('/')
         self.token_url = self.validate(os.environ['STITCH_CONNECTOR_TOKEN_URL'])
         self.client_id = os.environ['STITCH_CONNECTOR_CLIENT_ID']
@@ -136,13 +136,16 @@ class Connector:
             self.call('/deletion-events/' + event['id'] + '/ack', 'POST', {'receiptId': receipt['receiptId']})
 
     def run_once(self):
-        state = self.call('/source-state')
-        self.call('/source-state', 'POST', {'ready': False, 'expectedAclVersion': state['acl_version']})
-        self.sync()
-        self.call('/maintenance', 'POST', {})
-        state = self.call('/source-state')
-        self.call('/source-state', 'POST', {'ready': True, 'expectedAclVersion': state['acl_version']})
-        self.erase()
+        try:
+            state = self.call('/source-state')
+            self.call('/source-state', 'POST', {'ready': False, 'expectedAclVersion': state['acl_version']})
+            self.sync()
+            self.call('/maintenance', 'POST', {})
+            state = self.call('/source-state')
+            self.call('/source-state', 'POST', {'ready': True, 'expectedAclVersion': state['acl_version']})
+        finally:
+            # Cleanup is allowed for a bound disabled connection; it never grants content access.
+            self.erase()
 
 
 if __name__ == '__main__':

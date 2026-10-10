@@ -2,11 +2,13 @@
 
 가상 Stitch 서버와 Stitchy 클라이언트를 함께 사용하려면 [로컬 시뮬레이션 가이드](../demo/STITCH_SIMULATION.ko.md)를 참고하세요. Prepare/위임/권한 변경/검색/삭제를 전용 데모 화면에서 실행할 수 있습니다. 아래 내용은 표준 API를 직접 호출하는 절차입니다.
 
+**v2 변경:** 먼저 ZT **Retrieval Access**에서 워크스페이스의 검증된 connector subject를 등록합니다. 사용자 ACL/자료는 클라이언트에서 동기화하지만 AI ALLOW/DENY는 ZT에서 작성·Publish합니다. 정책이 없으면 AI는 기본 차단됩니다. 소스 aiAccess 필드는 이제 무시됩니다. [공통 계약](RETRIEVAL_CONTROL_PLANE_V2.md)과 [최신 시연 순서](../demo/STITCH_CLIENT_SIMULATION.ko.md)가 우선합니다.
+
 실제 Stitch 시스템을 연결한 자료가 아닙니다. 합성 사용자/자료를 사용하지만 인증은 Keycloak이 서명한 실제 OIDC JWT로 진행합니다. 기존 Stitch Access PoC와 별도 API/테이블입니다.
 
 ## 준비
 
-1. `docker/keycloak/stitch-contract-realm.json`은 로컬 전용 realm입니다. 이미 실행 중인 Keycloak은 새 파일을 자동으로 읽지 않을 수 있으므로, 로컬 환경에서 재시작하거나 관리자 콘솔로 새 realm을 가져옵니다. 기존 realm을 덮어쓰지 않습니다.
+1. `docker/keycloak/zt-stitch-contract-realm.json`은 로컬 전용 realm입니다. Keycloak 자동 가져오기는 `<realm 이름>-realm.json` 파일명을 요구합니다. 이미 실행 중인 Keycloak은 새 파일을 자동으로 읽지 않을 수 있으므로, 로컬 환경에서 재시작하거나 관리자 콘솔로 새 realm을 가져옵니다. 기존 realm을 덮어쓰지 않습니다.
 2. `docker/stitch-local-oidc.env.example`을 참고해 환경변수를 설정합니다.
 3. 아래 명령으로 API/대시보드를 반영합니다. 여기서는 명령을 실행하지 않았습니다.
 

@@ -12,7 +12,7 @@ public final class StitchAccess {
             if(!seen.add(current)||seen.size()>64)return false;
             var r=resources.get(current);if(r==null||Boolean.TRUE.equals(r.get("deleted")))return false;
             if(r.get("purge_after") instanceof java.sql.Timestamp expiry&&!expiry.toInstant().isAfter(java.time.Instant.now()))return false;
-            if(ai!=null&&!"ALLOW".equals(r.get("ai_access")))return false;
+            // AI policy belongs to ZT Policy Studio; the deprecated source ai_access is ignored.
             if(human.equals(r.get("owner_subject")))humanAllowed=true;
             boolean aiAllowRequired=false,aiAllowed=false;
             for(var g:grants.getOrDefault(current,List.of())){

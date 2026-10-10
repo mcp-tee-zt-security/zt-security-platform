@@ -15,7 +15,8 @@ export const MENU_PERMISSION:Record<string,string>={Overview:'overview',
     'Preventive Control Loop':'intelligence','Control Loop Verification':'intelligence',
     'Policy Auto-Tuning':'policy','AI Security Copilot':'copilot','Policy Tests':'policy','Execution Records':'approvals',
     'Policy What-if':'policy','Shadow Replay':'policy','Simulator':'policy',
-    'MCP Gateway':'runtime','Stitch Access PoC':'overview','Stitch Integration':'overview','Runtime Gateway':'runtime','Agent Behavior':'agents','Security Graph':'intelligence',
+    'MCP Gateway':'runtime','Stitch Access PoC':'overview','Stitch Integration':'overview','Retrieval Access':'overview','Runtime Gateway':'runtime','Agent Behavior':'agents','Security Graph':'intelligence',
     'Blast Radius':'attackpaths','Decision Engine':'policy'};
 export function can(role:DashboardRole, menu:string){const p=MENU_PERMISSION[menu];
     return Boolean(p && ROLE_PERMISSIONS[role]?.includes(p))}
+

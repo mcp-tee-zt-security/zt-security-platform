@@ -24,9 +24,11 @@ public class WorkspaceController {
     @PostMapping @PreAuthorize("hasAnyRole('PLATFORM','ADMIN')") @Transactional
     public Workspace create(@RequestHeader("X-Tenant-Id") UUID tenant,@RequestBody Workspace w){
         session.set(tenant);
+        if(w.getName()==null||w.getName().isBlank()||w.getName().length()>128||w.getSlug()==null||!w.getSlug().matches("[a-z0-9][a-z0-9-]{0,63}"))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,"Workspace name and lowercase slug required");
+        if(repo.findByTenantIdOrderByName(tenant).stream().anyMatch(x->w.getSlug().equals(x.getSlug())))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"Workspace slug already exists");
         w.setId(UUID.randomUUID());
         w.setTenantId(tenant);
-        return repo.save(w);
+        try{return repo.saveAndFlush(w);}catch(org.springframework.dao.DataIntegrityViolationException ex){throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"Workspace registration conflicts with existing data");}
     }
 
     @GetMapping("/{id}") @Transactional(readOnly=true)

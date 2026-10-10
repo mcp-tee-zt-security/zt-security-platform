@@ -64,6 +64,7 @@ import java.util.*;
      name,version);
      return Map.of("rolledBackTo",version,"name",name);
      }
+ @PostMapping("/{id}/deactivate") @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','POLICY_MANAGER')") @Transactional Policy deactivate(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader(value="X-Workspace-Id",required=false) UUID w,@PathVariable UUID id){session.set(t);workspace.set(w);return service.deactivate(t,w,id);}
  @PostMapping("/validate") Map<String,Object> validate(@RequestBody Map<String,
  String> body){
      try{

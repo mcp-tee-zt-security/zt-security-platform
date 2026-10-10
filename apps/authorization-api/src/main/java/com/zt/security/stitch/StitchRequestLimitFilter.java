@@ -10,7 +10,7 @@ import java.io.*;
 @Component @ConditionalOnProperty(name="zt.stitch.enabled",havingValue="true")
 public class StitchRequestLimitFilter extends OncePerRequestFilter {
     private static final int LIMIT=4*1024*1024;
-    @Override protected boolean shouldNotFilter(HttpServletRequest r){return !r.getServletPath().startsWith("/v1/integrations/stitch/")||!("POST".equals(r.getMethod())||"PUT".equals(r.getMethod()));}
+    @Override protected boolean shouldNotFilter(HttpServletRequest r){return !(r.getServletPath().startsWith("/v1/integrations/stitch/")||r.getServletPath().startsWith("/v1/integrations/retrieval/"))||!("POST".equals(r.getMethod())||"PUT".equals(r.getMethod()));}
     @Override protected void doFilterInternal(HttpServletRequest r,HttpServletResponse response,FilterChain chain)throws IOException,ServletException{
         if(r.getContentLengthLong()>LIMIT){response.sendError(413,"Connector body exceeds 4 MiB");return;}
         byte[] body=r.getInputStream().readNBytes(LIMIT+1);if(body.length>LIMIT){response.sendError(413,"Connector body exceeds 4 MiB");return;}

@@ -10,11 +10,13 @@ import com.zt.security.lifecycle.PolicyDeploymentRepository;
     final PolicyEvaluator evaluator;
     final TenantSession tenantSession;
     final PolicyDeploymentRepository deployments;
-    PolicyService(PolicyRepository r,PolicyEvaluator e,TenantSession ts,PolicyDeploymentRepository dr){
+    final org.springframework.context.ApplicationEventPublisher events;
+    PolicyService(PolicyRepository r,PolicyEvaluator e,TenantSession ts,PolicyDeploymentRepository dr,org.springframework.context.ApplicationEventPublisher events){
         repo=r;
         evaluator=e;
         tenantSession=ts;
         deployments=dr;
+        this.events=events;
         }
  @Transactional(readOnly=true) @Cacheable(cacheNames="activePolicies",
  key="#tenant") public List<Policy> active(UUID tenant){
@@ -25,7 +27,7 @@ import com.zt.security.lifecycle.PolicyDeploymentRepository;
  Policy p){
      tenantSession.set(tenant);
      p.setTenantId(tenant);
-     return repo.save(p);
+     Policy saved=repo.saveAndFlush(p);if("ACTIVE".equals(p.getStatus()))events.publishEvent(new PolicyChanged(tenant,p.getWorkspaceId()));return saved;
  }
  @Transactional @CacheEvict(cacheNames="activePolicies",key="#tenant") public Policy publish(UUID tenant,
  UUID id){
@@ -33,7 +35,7 @@ import com.zt.security.lifecycle.PolicyDeploymentRepository;
      Policy p=repo.findByIdAndTenantId(id,
      tenant).orElseThrow();
      p.setStatus("ACTIVE");
-     return repo.save(p);
+     Policy saved=repo.saveAndFlush(p);events.publishEvent(new PolicyChanged(tenant,p.getWorkspaceId()));return saved;
      }
  @Transactional(readOnly=true) public List<Policy> forEvaluation(UUID tenant,
 UUID requestId){
@@ -54,11 +56,18 @@ UUID requestId){
              base.sort(Comparator.comparingInt(Policy::getPriority));
      return base;
      }
+ @Transactional @CacheEvict(cacheNames="activePolicies",key="#tenant") public Policy deactivate(UUID tenant,UUID workspace,UUID id){
+     tenantSession.set(tenant);Policy p=repo.findByIdAndTenantId(id,tenant).orElseThrow();
+     if(p.getWorkspaceId()!=null&&!p.getWorkspaceId().equals(workspace))throw new org.springframework.security.access.AccessDeniedException("Policy workspace mismatch");
+     p.setStatus("INACTIVE");Policy saved=repo.saveAndFlush(p);events.publishEvent(new PolicyChanged(tenant,p.getWorkspaceId()));return saved;
+ }
  @Transactional @CacheEvict(cacheNames="activePolicies",key="#tenant") public void rollback(UUID tenant,
  String name,int version){
      tenantSession.set(tenant);
      repo.findByTenantIdAndNameOrderByVersionDesc(tenant,
      name).forEach(p->p.setStatus(p.getVersion()==version?"ACTIVE":"INACTIVE"));
      repo.findByTenantIdAndNameOrderByVersionDesc(tenant,name).forEach(repo::save);
+     repo.flush();events.publishEvent(new PolicyChanged(tenant,null));
  }
 }
+

@@ -24,7 +24,7 @@ def resources(version):
         item('projects', 'team', 'FOLDER', 'Projects', group='employees'),
         item('handbook', 'projects', 'FILE', 'Project handbook',
              'Project Aurora launches on October 20. Contact the platform team for onboarding. Synthetic demo data.', binary=True),
-        item('payroll', 'team', 'FOLDER', 'Payroll', group='finance', ai='DENY'),
+        item('payroll', 'team', 'FOLDER', 'Payroll', group='finance'),
         item('payroll-file', 'payroll', 'FILE', 'October payroll',
              'Payroll: Alice Demo salary KRW 5,000,000; Bob Demo salary KRW 4,000,000. Entirely fictional.', group='finance', binary=True),
         item('payroll-attachment', 'payroll-file', 'ATTACHMENT', 'Payroll supporting document',
@@ -34,7 +34,7 @@ def resources(version):
              'Project Aurora kickoff is Monday at 10:00. Please read the project handbook.'),
         item('message-attachment', 'message', 'ATTACHMENT', 'Kickoff notes',
              'Project Aurora kickoff agenda: onboarding, access review, release plan.', binary=True),
-        item('finance', 'team', 'CHANNEL', '#finance', group='finance', ai='DENY'),
+        item('finance', 'team', 'CHANNEL', '#finance', group='finance'),
         item('finance-message', 'finance', 'MESSAGE', 'Payroll discussion',
              'Payroll approval is due Friday. This finance channel is excluded from Stitchy.'),
     ]

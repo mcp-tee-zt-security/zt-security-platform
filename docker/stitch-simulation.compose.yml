@@ -11,6 +11,7 @@ services:
       ZT_OIDC_ISSUER_URI: http://localhost:8089/realms/zt-stitch-contract
       ZT_OIDC_JWK_SET_URI: http://keycloak:8080/realms/zt-stitch-contract/protocol/openid-connect/certs
       ZT_STITCH_INTEGRATION_ENABLED: "true"
+      ZT_RETRIEVAL_ENABLED: "true"
       ZT_STITCH_MAX_SOURCE_AGE_SECONDS: "120"
     depends_on:
       keycloak:

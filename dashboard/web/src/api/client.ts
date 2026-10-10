@@ -27,8 +27,8 @@ async function parse(r: Response) {
   return payload;
 }
 
-export async function apiGet(path: string) {
-  return parse(await fetch(`${API}${path}`, {headers: headers()}));
+export async function apiGet(path: string, extra: Record<string,string> = {}) {
+  return parse(await fetch(`${API}${path}`, {headers: headers(extra)}));
 }
 
 export async function apiPost(path: string, body: unknown = {}, extra: Record<string,string> = {}) {
@@ -57,7 +57,8 @@ export type McpCredentials = {mode:'default'|'service'|'bearer'; clientId?:strin
 export async function mcpRequest(path:string, method='GET', body?:unknown, credentials:McpCredentials={mode:'default'}, extraHeaders:Record<string,string>={}) {
   const requestHeaders=headers();
   for(const [key,value] of Object.entries(extraHeaders)){
-    if(!['X-ZT-Delegation','MCP-Protocol-Version'].includes(key))throw new Error('Unsupported protocol header');
+    if(!['X-ZT-Delegation','MCP-Protocol-Version','X-Workspace-Id'].includes(key))throw new Error('Unsupported protocol header');
+    if(key==='X-Workspace-Id'&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value))throw new Error('A valid workspace ID is required');
     requestHeaders[key]=value;
   }
   if(credentials.mode!=='default'){

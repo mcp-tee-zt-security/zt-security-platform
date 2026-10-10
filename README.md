@@ -287,6 +287,8 @@ The separate [standard integration contract](docs/api/STITCH_INTEGRATION_V1.md) 
 
 ### Virtual Stitch and Stitchy simulation
 
+AI policy belongs to **ZT Retrieval Access / Policy Studio**; clients sync user ACLs and content only. The generic `/v1/integrations/retrieval` contract and `client.retrieval` SDK support another client through a separate registered workspace/connector. AI content fails closed without published ALLOW. Source re-sync/reset cannot override central policy. See the [updated simulation walkthrough](docs/demo/STITCH_CLIENT_SIMULATION.ko.md) and [control-plane contract](docs/api/RETRIEVAL_CONTROL_PLANE_V2.md).
+
 An optional local simulator connects a synthetic Teams-style content/ACL server and a Stitchy MCP client to the standard ZT contract. Its UI compares human and AI payroll access, filtered retrieval, permission changes, session revocation, temporary storage and recipient erasure acknowledgments. Answers quote freshly authorized tool results; no external Stitch service or LLM is required.
 
 Follow the [local simulation guide](docs/demo/STITCH_SIMULATION.ko.md) using the `docker/stitch-simulation.compose.yml` overlay, then open **http://localhost:8766**, also linked from **Stitch Integration** in the dashboard. The runner uses an isolated Docker internal network and a read-only gateway, with no source/DB credentials. This is local simulation code; builds, runtime behavior and container isolation have not been validated.

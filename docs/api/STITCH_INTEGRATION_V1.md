@@ -1,5 +1,7 @@
 # Stitch integration contract v1
 
+**Updated in v2:** AI policy authority is now ZT Policy Studio, with generic `/v1/integrations/retrieval` endpoints and explicit source connection registration. Read [Retrieval control plane v2](RETRIEVAL_CONTROL_PLANE_V2.md) before using the source methods below. This document retains the historical filename for existing links.
+
 This is a standard integration implementation, not a connection to Stitch's private systems. It is separate from `/v1/poc/stitch`. The customer must implement the source contract, provision its issuer and claims, and deploy network/DB controls. No build, test, migration, live request or deployment was performed while creating this change.
 
 ## Implemented boundaries
@@ -7,15 +9,15 @@ This is a standard integration implementation, not a connection to Stitch's priv
 | Area | Implementation | External requirement |
 |---|---|---|
 | Authentication | Verified OIDC issuer/signature/expiry, audience/scope/JTI, source revocation feed; registered AI credentials | Trusted IdP and claim mapping |
-| Delegation | Human-issued, AI-bound session, maximum 15 minutes, source membership rechecked | Trusted app transports the session privately; AI JWT includes stitch_session_id |
-| ACL | Owner, user, group and AI subject; READ/SEARCH; inherited DENY; parent AI restriction | Authoritative folder/channel/file/attachment ACL sync |
+| Delegation | Human-issued, AI-bound session, maximum 15 minutes, source membership rechecked | Trusted app transports the session privately; AI JWT includes retrieval_session_id (legacy stitch_session_id accepted) |
+| ACL / AI policy | Source owner/user/group ACL; READ/SEARCH inherited DENY; active ZT AI policies intersected | Source ACL sync plus administrator connection/policy registration in ZT |
 | Retrieval | Text read, child/message listing, binary download up to 1 MiB | Source supplies file bytes and extracted text |
 | RAG | PostgreSQL GIN full-text index, precomputed embeddings and bounded cosine ranking | Source/query use the same embedding model and dimension; embedding generation stays with the customer |
 | Cache | Result IDs only, scope/caller/groups/session key, 60-second TTL; version invalidation and ACL recheck | Source permission changes must reach the adapter |
 | Lifecycle | Subtree purge, index/blob/cache deletion, disclosure TTL, pending recipient erasure events and acknowledgments | Recipient must erase its own copies, memories, caches and provider stores |
 | Deployment | Private DB/API NetworkPolicy and restricted DB-role artifacts | Apply/adapt templates with an enforcing CNI, TLS, credentials and real labels/IPs |
 
-This adapter enforces source ACLs and delegation directly. It does not automatically reuse payment policies, TEE attestation, MCP approval workflows, or the full ActionService/risk pipeline. Existing PoC and order demos remain separate.
+This adapter enforces source ACLs and delegation plus the existing ZT Policy Studio DSL/evaluator for AI retrieval actions. It does not include TEE attestation, MCP approval-resume, canary or the full ActionService/risk pipeline. Existing PoC and order demos remain separate.
 
 ## Enable
 
@@ -39,7 +41,7 @@ JWT group claims are intersected with the live source membership record. Unknown
 
 Source state starts incomplete. Resource/directory mutations mark it incomplete; a connector commits ready=true with expectedAclVersion only after the complete change feed is synchronized. HUMAN delegation and content retrieval fail closed while incomplete or stale. The default maximum snapshot age is 120 seconds (`ZT_STITCH_MAX_SOURCE_AGE_SECONDS`, bounded 30–3600); the local fixture uses 600 seconds. Use one source writer per workspace. Recipient erasure acknowledgment is tracked separately from source freshness.
 
-Base: `/v1/integrations/stitch`.
+Base: `/v1/integrations/retrieval`. `/v1/integrations/stitch` remains a compatibility alias. Register the bound connector subject in ZT before source synchronization.
 
 | Method/path | Caller | Function |
 |---|---|---|
@@ -82,13 +84,13 @@ Use issuer `sub` values as ownerSubject and SUBJECT grants; do not assume userna
 }
 ```
 
-Kinds: FOLDER, CHANNEL, FILE, MESSAGE, ATTACHMENT. Attachments require a FILE/MESSAGE parent, messages require a CHANNEL parent. Root folders/channels/files are allowed. Cycles and depth over 64 are rejected. An ancestor DENY or expiry blocks descendants. Any matching SUBJECT/GROUP/AI_SUBJECT DENY wins. Owner grants READ/SEARCH unless denied. AI permissions are the intersection of the delegated human's permissions and the AI restrictions; AI ALLOW entries on a level make that level an AI-subject whitelist.
+Kinds: FOLDER, CHANNEL, FILE, MESSAGE, ATTACHMENT. Attachments require a FILE/MESSAGE parent, messages require a CHANNEL parent. Root folders/channels/files are allowed. Cycles and depth over 64 are rejected. Source SUBJECT/GROUP DENY or expiry blocks descendants. Owner grants READ/SEARCH unless denied. AI_SUBJECT grants are rejected; legacy aiAccess is optional and ignored. ZT-owned policies constrain AI using server-derived connection/resource ancestry and delegation.
 
 ```json
 {"subject":"issuer-user-sub","groups":["employees","finance"],"active":true,"sourceVersion":1}
 ```
 
-Retrieve/list/download body: `{"resourceId":"...","sessionId":"AI-delegation-UUID"}`. Human requests omit sessionId. Search body: `{"query":"payroll","sessionId":"...","queryEmbedding":null}`. Embeddings are finite numeric arrays up to 1536 dimensions; generation is not provided by this adapter. AI service credentials plus the random session handle are a scoped capability: keep the handle in trusted backend state, never share it between users or put it in prompts. AI JWTs must additionally be issued with matching stitch_session_id claim.
+Retrieve/list/download body: `{"resourceId":"...","sessionId":"AI-delegation-UUID"}`. Human requests omit sessionId. Search body: `{"query":"payroll","sessionId":"...","queryEmbedding":null}`. Embeddings are finite numeric arrays up to 1536 dimensions; generation is not provided by this adapter. AI service credentials plus the random session handle are a scoped capability: keep the handle in trusted backend state, never share it between users or put it in prompts. AI JWTs must additionally be issued with matching retrieval_session_id claim (legacy stitch_session_id accepted).
 
 ## MCP / Stitchy integration
 
@@ -161,3 +163,4 @@ Correctness uses workspace transaction locks; requests within one workspace seri
 Official references: [Spring Security JWT validation](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html), [Kubernetes NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/), [MCP 2025-11-25 transport reference](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/transports.mdx). This adapter advertises the compatible 2025-06-18 protocol rather than claiming support for newer protocol revisions.
 
 The local realm follows [Keycloak's protocol-mapper examples](https://github.com/keycloak/keycloak/blob/main/testsuite/model/src/test/resources/exportimport/dir/test-realm.json). Local users and credentials are synthetic fixtures, not a customer identity integration.
+
