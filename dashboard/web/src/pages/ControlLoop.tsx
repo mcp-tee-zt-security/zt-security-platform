@@ -1,3 +1,4 @@
+import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import { AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
 import { apiGet, apiPost } from '../api/client';
@@ -8,6 +9,7 @@ export default function ControlLoop(){
  [msg,setMsg]=React.useState(''),[err,setErr]=React.useState('');
 const load=async()=>{try{setData(await apiGet('/v1/security/agent-risk/forecast/overview?windowHours=24&horizonHours=12'));
          setErr('')}catch(e:any){setErr(e.message)}};
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  const propose=async(x:any)=>{try{const r=await apiPost('/v1/security/responses/forecast-propose',
          {agent:x.agent,forecastScore:x.forecastScore,highProbability:x.highProbability,

@@ -1,3 +1,4 @@
+import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import { AlertTriangle, RefreshCw, TrendingUp } from 'lucide-react';
 import { apiGet } from '../api/client';
@@ -8,8 +9,9 @@ export default function RiskForecast(){
  [err,setErr]=React.useState('');
 const load=async()=>{try{setData(await apiGet('/v1/security/agent-risk/forecast/overview?windowHours=24&horizonHours=12'));
          setErr('')}catch(e:any){setErr(e.message)}};
-const inspect=async(id:string)=>{try{setSelected(await apiGet('/v1/security/agent-risk/forecast/'+encodeURIComponent(id)+'?windowHours=24&horizonHours=12'))}
+const inspect=async(id:string)=>{setSelected(null);setErr('');try{setSelected(await apiGet('/v1/security/agent-risk/forecast/'+encodeURIComponent(id)+'?windowHours=24&horizonHours=12'))}
      catch(e:any){setErr(e.message)}};
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  return <div>
 <div className="page-header">

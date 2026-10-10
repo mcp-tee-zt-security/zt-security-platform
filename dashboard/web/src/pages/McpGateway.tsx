@@ -1,3 +1,5 @@
+import RecordLinks from '../components/RecordLinks';
+import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import {mcpRequest} from '../api/client';
 import type {McpCredentials} from '../api/client';
@@ -19,7 +21,7 @@ export default function McpGateway(){
  const [tools,setTools]=React.useState<any[]>([]),[servers,setServers]=React.useState<any[]>([]),[catalog,setCatalog]=React.useState<any[]>([]),[bindings,setBindings]=React.useState<any[]>([]);
  const [policy,setPolicy]=React.useState<any>({}),[history,setHistory]=React.useState<any[]>([]),[approvals,setApprovals]=React.useState<any[]>([]);
  const [serverForm,setServerForm]=React.useState(newServer),[toolForm,setToolForm]=React.useState(newTool),[discovered,setDiscovered]=React.useState<any[]>([]),[discoveredServer,setDiscoveredServer]=React.useState('');
- const [selected,setSelected]=React.useState(''),[argumentsText,setArgumentsText]=React.useState('{\n  "orderId": "TEST-ZT-001"\n}');
+ const [selected,setSelected]=React.useState(''),[argumentsText,setArgumentsText]=React.useState('{}');
  const [result,setResult]=React.useState<any>(null),[lastRequest,setLastRequest]=React.useState<any>(null),[callId,setCallId]=React.useState('');
  const [approvalDetail,setApprovalDetail]=React.useState<any>(null),[busy,setBusy]=React.useState(false),[error,setError]=React.useState(''),[message,setMessage]=React.useState('');
  const ticket=React.useRef(0);
@@ -37,13 +39,14 @@ export default function McpGateway(){
      if(current!==ticket.current)return;
      setContext(c);setTools(t);setHistory(h);setServers(s.servers);setPolicy(s.registrationPolicy);
      setCatalog(m.tools);setBindings(m.bindings);setApprovals(a);
-     setSelected(value=>t.some((x:any)=>x.toolId===value)?value:t[0]?.toolId||'');
+     setSelected(value=>t.some((x:any)=>x.toolId===value)?value:'');
      setDiscoveredServer(value=>s.servers.some((x:any)=>x.serverId===value&&x.enabled)?value:s.servers.find((x:any)=>x.enabled)?.serverId||'');
      if(!c.canManage)setTab(value=>value==='servers'||value==='tools'?'execute':value);
    }catch(e:any){if(current===ticket.current){setContext(null);setError(e.message)}}
    finally{if(current===ticket.current)setBusy(false)}
  };
- React.useEffect(()=>{setContext(null);setTools([]);setServers([]);setCatalog([]);setBindings([]);setApprovals([]);setHistory([]);setDiscovered([]);setApprovalDetail(null);setResult(null);setLastRequest(null);setMessage('');void load(auth);return()=>{ticket.current++}},[auth]);
+ React.useEffect(()=>{setContext(null);setSelected('');setArgumentsText('{}');setCallId('');setTools([]);setServers([]);setCatalog([]);setBindings([]);setApprovals([]);setHistory([]);setDiscovered([]);setApprovalDetail(null);setResult(null);setLastRequest(null);setMessage('');void load(auth);return()=>{ticket.current++}},[auth]);
+ usePageRefresh(()=>load(auth));
  const act=async(job:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await job()}catch(e:any){setError(e.message)}finally{setBusy(false)}};
  const saveServer=()=>act(async()=>{
    const {serverId,...value}=serverForm;
@@ -73,14 +76,15 @@ export default function McpGateway(){
    const x=await request('/v1/mcp/management/tools','POST',{toolId:toolForm.toolId||null,name:toolForm.name,description:toolForm.description,riskLevel:toolForm.riskLevel,
      config:{serverId:toolForm.serverId,upstreamTool:toolForm.upstreamTool,allowedSubjects:lines(toolForm.subjects),inputSchema,
        redactResultPaths:lines(toolForm.paths),redactTextLiterals:lines(toolForm.literals),requireApproval:toolForm.requireApproval}});
-   setToolForm({...toolForm,toolId:x.toolId});await load();setSelected(x.toolId);
+   setToolForm({...toolForm,toolId:x.toolId});await load();setSelected('');setResult(null);setLastRequest(null);setCallId('');
    setMessage('Tool binding saved. Activate its authorization policy in Policy Studio before execution.');
  });
  const args=()=>{const x=JSON.parse(argumentsText);if(!x||typeof x!=='object'||Array.isArray(x))throw new Error('Arguments must be a JSON object');return x};
  const receive=(x:any)=>{
    setResult(x);const security=x.result?._meta?.['zt.security']||x._meta?.['zt.security']||x;
+   if(security.callId)setCallId(security.callId);
    if(x.error)setError(`${x.error.message||'MCP request failed'} (RPC ${x.error.code}). Check call history before retrying.`);
-   setCallId(security.status==='PENDING_APPROVAL'?security.callId:'');
+   
  };
  const execute=(preview:boolean)=>act(async()=>{
    const tool=tools.find(x=>x.toolId===selected);if(!tool)throw new Error('Select an executable tool');
@@ -101,7 +105,7 @@ export default function McpGateway(){
    ...(context?.canApprove?[['approvals','MCP approvals']]:[]),['history','Call history']];
  return <div className="mcp-workspace">
   <div className="page-header"><div><h2>MCP Security Gateway</h2><p>Register upstreams and tools, then inspect policy-governed execution.</p></div><button disabled={busy} onClick={()=>load()}>Refresh</button></div>
-  <details className="panel mcp-auth"><summary>Caller identity: <strong>{context?.subject||'not authenticated'}</strong></summary>
+  <RecordLinks mcp/><details className="panel mcp-auth"><summary>Caller identity: <strong>{context?.subject||'not authenticated'}</strong></summary>
    <p>Credentials apply only to this MCP workspace and stay in page memory. Switching the navigation role does not change authentication.</p>
    <div className="mcp-form-grid">
     <Field label="Authentication"><select disabled={busy} value={credentialDraft.mode} onChange={e=>setCredentialDraft({mode:e.target.value as McpCredentials['mode']})}><option value="default">Configured dashboard credential</option><option value="service">Registered service client</option><option value="bearer">OIDC bearer token</option></select></Field>
@@ -145,14 +149,17 @@ export default function McpGateway(){
    <Panel title="Workspace bindings"><div className="table-scroll"><table><thead><tr><th>Tool</th><th>Upstream</th><th>Allowed subjects</th><th>Approval</th><th/></tr></thead><tbody>{bindings.map(x=><tr key={x.toolId}><td>{catalog.find(t=>t.toolId===x.toolId)?.name||x.toolId}</td><td>{x.config.serverId} / {x.config.upstreamTool}</td><td>{x.config.allowedSubjects.join(', ')}</td><td>{x.config.requireApproval?'Required':'Policy-driven'}</td><td><button disabled={busy} onClick={()=>editBinding(x)}>Edit</button> <button disabled={busy} onClick={()=>act(async()=>{await request('/v1/mcp/tools/'+encodeURIComponent(x.toolId)+'/binding','DELETE');await load();setMessage('Binding removed. The tenant tool definition and previous call records are retained.');})}>Remove binding</button></td></tr>)}</tbody></table></div></Panel>
   </>}
   {tab==='execute'&&<div className="grid-2"><Panel title="Policy-governed tool execution">
-   <Field label="Executable tool"><select disabled={busy} value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Select tool</option>{tools.map(x=><option key={x.toolId} value={x.toolId}>{x.name} ({x.riskLevel})</option>)}</select></Field>
-   <Field label="Tool arguments (JSON)"><textarea disabled={busy} rows={8} value={argumentsText} onChange={e=>setArgumentsText(e.target.value)}/></Field>
+   <Field label="Executable tool"><select disabled={busy} value={selected} onChange={e=>{setSelected(e.target.value);setResult(null);setLastRequest(null);setCallId('');const t=tools.find(x=>x.toolId===e.target.value);const defaults:any={};for(const [key,p] of Object.entries<any>(t?.inputSchema?.properties||{})){if((t?.inputSchema?.required||[]).includes(key))defaults[key]=p.default??(p.type==='number'||p.type==='integer'?0:p.type==='boolean'?false:p.type==='object'?{}:p.type==='array'?[]:'');}setArgumentsText(JSON.stringify(defaults,null,2));}}><option value="">Select tool</option>{tools.map(x=><option key={x.toolId} value={x.toolId}>{x.name} ({x.riskLevel})</option>)}</select></Field>
+   <p>Caller: <strong>{context?.subject||'Unavailable'}</strong>. Selection does not change authentication.</p>
+   {selected&&Object.entries<any>(tools.find(t=>t.toolId===selected)?.inputSchema?.properties||{}).filter(([,p])=>['string','number','integer','boolean'].includes(p.type)).map(([key,p])=><Field key={key} label={key+((tools.find(t=>t.toolId===selected)?.inputSchema?.required||[]).includes(key)?' *':'')}>
+   {p.enum?<select disabled={busy} value={(()=>{try{return JSON.parse(argumentsText)[key]??''}catch{return ''}})()} onChange={e=>{try{const a=args();a[key]=p.type==='number'||p.type==='integer'?Number(e.target.value):e.target.value;setArgumentsText(JSON.stringify(a,null,2));setResult(null)}catch(e:any){setError(e.message)}}}><option value="">Select value</option>{p.enum.map((v:any)=><option key={String(v)} value={String(v)}>{String(v)}</option>)}</select>:<input disabled={busy} type={p.type==='boolean'?'checkbox':p.type==='string'?'text':'number'} checked={p.type==='boolean'?(()=>{try{return !!JSON.parse(argumentsText)[key]}catch{return false}})():undefined} value={p.type==='boolean'?undefined:(()=>{try{return JSON.parse(argumentsText)[key]??''}catch{return ''}})()} onChange={e=>{try{const a=args();a[key]=p.type==='boolean'?e.target.checked:p.type==='string'?e.target.value:Number(e.target.value);setArgumentsText(JSON.stringify(a,null,2));setResult(null)}catch(e:any){setError(e.message)}}}/>}</Field>)}
+   <Field label="Tool arguments (JSON)"><textarea disabled={busy} rows={8} value={argumentsText} onChange={e=>{setArgumentsText(e.target.value);setResult(null)}}/></Field>
    {!tools.length&&<p>No executable tools for this identity. Register a binding and include this authenticated subject in its permissions.</p>}
-   <div className="button-row"><button disabled={busy||!selected} onClick={()=>execute(true)}>Evaluate only</button><button className="primary" disabled={busy||!selected} onClick={()=>execute(false)}>Execute tool</button><button disabled={busy||!lastRequest} onClick={replay}>Replay same request</button></div>
-   <Field label="Saved call ID"><input disabled={busy} value={callId} onChange={e=>setCallId(e.target.value)}/></Field><div className="button-row"><button disabled={busy||!callId} onClick={resume}>Resume approved call</button><button disabled={busy||!callId} onClick={()=>act(async()=>{setResult(await request('/v1/mcp/calls/'+encodeURIComponent(callId.trim())));})}>Inspect saved call</button></div>
+   <div className="button-row"><button disabled={busy||!selected} onClick={()=>execute(true)}>Evaluate policy only</button><button className="primary" disabled={busy||!selected} onClick={()=>execute(false)}>Execute upstream tool</button><button disabled={busy||!lastRequest} onClick={replay}>Replay same request</button></div>
+   <Field label="Saved call ID"><input disabled={busy} value={callId} onChange={e=>setCallId(e.target.value)}/></Field><div className="button-row"><button disabled={busy||!callId} onClick={resume}>Resume approved call</button><button disabled={busy||!callId} onClick={()=>act(async()=>{receive(await request('/v1/mcp/calls/'+encodeURIComponent(callId.trim())));})}>Inspect saved call</button></div>
    <p className="muted">Evaluate only never calls upstream. Execute tool may change business data. UNKNOWN and unfinished EXECUTING outcomes require reconciliation before a new operation.</p>
   </Panel><Panel title="Execution result">
-   {security?.status&&<div className="mcp-result"><Status value={security.status}/><strong>{security.decision||''}</strong><p>{security.reason||security.errorCode||''}</p><small>Call: {security.callId||security.id||'—'}</small></div>}
+   {security?.status&&<div className="mcp-result"><Status value={security.status}/><strong>Policy: {security.decision||'—'}</strong><p>{security.status==='PENDING_APPROVAL'?'Waiting for approval; no execution yet.':security.status==='DENIED'?'Execution blocked by ZT.':security.status==='SUCCEEDED'?'Upstream response recorded; review tool result for business outcome.':'Review call state before retrying.'}</p><p>{security.reason||security.errorCode||''}</p><small>Call: {security.callId||security.id||'—'}</small></div>}
    {result?<pre className="json">{JSON.stringify(result,null,2)}</pre>:<p>Run an evaluation or execution to see its result.</p>}
    <p className="muted">Gateway records do not measure upstream method invocations. Prove zero calls with an upstream counter, and confirm successful business changes in the order server.</p>
   </Panel></div>}
@@ -162,7 +169,7 @@ export default function McpGateway(){
    {approvalDetail&&<Panel title="Review saved execution request"><p>{approvalDetail.toolName} requested by <strong>{approvalDetail.requestedBy}</strong></p><pre className="json">{JSON.stringify(approvalDetail.arguments,null,2)}</pre><p>{approvalDetail.reason}</p>
     <div className="button-row"><button disabled={busy||approvalDetail.status!=='PENDING'||approvalDetail.requestedBy===context.subject} onClick={()=>decide(approvalDetail,'APPROVED')}>Approve</button><button disabled={busy||approvalDetail.status!=='PENDING'||approvalDetail.requestedBy===context.subject} onClick={()=>decide(approvalDetail,'REJECTED')}>Reject</button></div>
     {approvalDetail.requestedBy===context.subject&&<p>An independent approver must decide this request.</p>}<p>After approval, the original caller can resume call <code>{approvalDetail.callId}</code>.</p></Panel>}</>}
-  {tab==='history'&&<Panel title="Recent MCP calls"><p>Up to 100 records in this workspace. Administrators see workspace calls; other callers see their own. Counts describe gateway records, not external executions.</p><div className="table-scroll"><table><thead><tr><th>Time</th><th>Tool / requester</th><th>State</th><th>Error</th><th>Call ID</th><th/></tr></thead><tbody>{history.map(x=><tr key={x.callId}><td>{stamp(x.createdAt)}</td><td>{x.toolName}<small className="mcp-block">{x.requestedBy}</small></td><td><Status value={x.status}/></td><td>{x.errorCode||'—'}</td><td><code>{x.callId}</code></td><td><button disabled={busy||x.requestedBy!==context?.subject} onClick={()=>{setCallId(x.callId);setTab('execute')}}>Open call</button></td></tr>)}</tbody></table></div></Panel>}
+  {tab==='history'&&<Panel title="Recent MCP calls"><p>Up to 100 records in this workspace. Administrators see workspace calls; other callers see their own. Counts describe gateway records, not external executions.</p>{!history.length&&<p>No MCP call records for this caller in the current workspace.</p>}<div className="table-scroll"><table><thead><tr><th>Time</th><th>Tool / requester</th><th>State</th><th>Error</th><th>Call ID</th><th/></tr></thead><tbody>{history.map(x=><tr key={x.callId}><td>{stamp(x.createdAt)}</td><td>{x.toolName}<small className="mcp-block">{x.requestedBy}</small></td><td><Status value={x.status}/></td><td>{x.errorCode||'—'}</td><td><code>{x.callId}</code></td><td><button disabled={busy||x.requestedBy!==context?.subject} onClick={()=>{setCallId(x.callId);setTab('execute')}}>Open call</button></td></tr>)}</tbody></table></div></Panel>}
   {tab==='history'&&!history.length&&<p className="muted">No committed MCP calls in this scope. A failure during evaluation, including an audit archive failure, can occur before a call record is created.</p>}
  </div>;
 }

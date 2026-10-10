@@ -23,6 +23,7 @@ async function parse(r: Response) {
     const detail = typeof payload === 'string' ? payload : JSON.stringify(payload);
     throw new Error(`${r.status} ${r.statusText}${detail ? `: ${detail}` : ''}`);
   }
+  window.dispatchEvent(new Event('zt-api-success'));
   return payload;
 }
 

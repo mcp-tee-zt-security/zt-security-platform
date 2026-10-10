@@ -27,8 +27,9 @@ FilterChain c)throws ServletException,IOException {
         else if(k!=null){
             String cid=r.getHeader("X-Client-Id");
             if(cid!=null){
-                var p=clients.authenticate(cid,
-                k);
+                java.util.UUID clientTenant;
+                try{clientTenant=java.util.UUID.fromString(r.getHeader("X-Tenant-Id"));}catch(Exception ex){s.sendError(400,"Valid X-Tenant-Id required");return;}
+                var p=clients.authenticate(clientTenant,cid,k);
                 if(p.isPresent()){
                     var pc=p.get().client();
                     if(r.getHeader("X-Tenant-Id")==null){

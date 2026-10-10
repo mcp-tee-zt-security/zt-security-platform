@@ -1,3 +1,4 @@
+import usePageRefresh from './components/usePageRefresh';
 import React from 'react';
 import {
   ShieldCheck, LayoutDashboard, FileLock2, GitBranch, ScanSearch, Play, Bot,
@@ -8,7 +9,7 @@ import {
 } from 'lucide-react';
 import './style.css';
 
-import { API, TENANT, apiGet, apiPost } from './api/client';
+import { API, TENANT, WORKSPACE, apiGet, apiPost } from './api/client';
 import {
   DATA_PLANE_REFRESH_INTERVAL_MS,
   DATA_PLANE_URL,
@@ -22,6 +23,9 @@ import SecurityCopilot from './pages/SecurityCopilot';
 import PolicyTests from './pages/PolicyTests';
 import ApprovalExecution from './pages/ApprovalExecution';
 import McpGateway from './pages/McpGateway';
+import ScopeBanner from './components/ScopeBanner';
+import SubjectSelect from './components/SubjectSelect';
+import ProductOperationsPage from './pages/ProductOperations';
 import AgentDetails from './pages/AgentDetails';
 import AgentRisk from './pages/AgentRisk';
 import RiskForecast from './pages/RiskForecast';
@@ -152,13 +156,16 @@ function App(){
    if(group)setOpenGroups(current=>current.includes(group.id)?current:[...current,group.id]);
  },[activePage]);
  const [role,setRole]=React.useState<DashboardRole>('CISO');
+ React.useEffect(()=>{const open=(e:Event)=>{const page=(e as CustomEvent).detail?.page;if(can(role,page))navigate(page);else setToast('Choose a navigation view that includes '+page)};window.addEventListener('zt-navigate',open);return()=>window.removeEventListener('zt-navigate',open)},[role]);
  React.useEffect(()=>{if(!can(role,'AI Security Copilot'))setCopilotOpen(false)},[role]);
  React.useEffect(()=>{if(!copilotOpen)return;const close=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.stopImmediatePropagation();setCopilotOpen(false);copilotToggle.current?.focus()}};window.addEventListener('keydown',close,true);return()=>window.removeEventListener('keydown',close,true)},[copilotOpen]);
  const [boot,setBoot]=React.useState(true);
  const [health,setHealth]=React.useState<any>(null);
  const [toast,setToast]=React.useState('');
- const [lastRefresh,setLastRefresh]=React.useState(new Date());
- const refresh=()=>{setLastRefresh(new Date());
+ const [lastRefresh,setLastRefresh]=React.useState<Date|null>(null);
+ React.useEffect(()=>{const updated=()=>setLastRefresh(new Date());window.addEventListener('zt-api-success',updated);return()=>window.removeEventListener('zt-api-success',updated)},[]);
+ usePageRefresh(()=>apiGet('/v1/health').then(setHealth).catch(()=>setHealth({status:'DOWN'})));
+ const refresh=()=>{
      window.dispatchEvent(new Event('zt-refresh'));
  };
  React.useEffect(()=>{apiGet('/v1/health').then(setHealth).catch(()=>setHealth({
@@ -262,7 +269,7 @@ function App(){
    onPointerCancel={()=>{drag.current=null;setResizing(false)}}
    onLostPointerCapture={()=>{drag.current=null;setResizing(false)}}/>
   </aside>
-  <main>
+  <main><ScopeBanner/>
    <header>
 <div className="dashboard-heading">
 <button ref={sidebarToggle} className="icon-btn sidebar-toggle" aria-label={menuOpen?'Hide navigation':'Show navigation'}
@@ -277,7 +284,7 @@ function App(){
 </div>
 <div className="header-actions">
 {can(role,'AI Security Copilot')&&<button ref={copilotToggle} aria-expanded={copilotOpen} aria-controls="security-copilot-panel" onClick={()=>setCopilotOpen(open=>!open)}><Sparkles size={16}/> Copilot</button>}
-<span className="last">Updated {
+<span className="last">Last API response {
        time(lastRefresh)}
 </span>
 <button className="icon-btn" onClick={refresh}
@@ -293,7 +300,7 @@ function App(){
     {tab==='Continuous Agent Risk'&&<AgentRisk/>} {tab==='Agent Risk Forecast'&&<RiskForecast/>}
     {tab==='Preventive Control Loop'&&<ControlLoop/>} {tab==='Control Loop Verification'&&<ControlLoopFeedback/>}
     {tab==='Policy Auto-Tuning'&&<PolicyAutoTuning/>} {tab==='MCP Gateway'&&<McpGateway/>}
-    {tab==='Enterprise'&&<Enterprise/>} {tab==='Product Operations'&&<ProductOperations/>}
+    {tab==='Enterprise'&&<Enterprise/>} {tab==='Product Operations'&&<ProductOperationsPage/>}
     {tab==='Policy Studio'&&<PolicyStudio/>} {tab==='Lifecycle'&&<Lifecycle/>}
     {tab==='Governance'&&<Governance/>}
     {tab==='Runtime Gateway'&&<RuntimeGateway/>} {tab==='Agents'&&<AgentDetails subject={contextSubject} role={role} onNavigate={navigate}/>}
@@ -333,6 +340,7 @@ fetch(`${DATA_PLANE_URL}/v1/fast/identity`).then(r=>r.json()),
          setAttestation(at);
          setErr('')}catch(e:any){setErr('Rust data plane is not reachable at ${DATA_PLANE_URL}')}
  };
+ usePageRefresh(load);
  React.useEffect(()=>{load();const i=setInterval(load,DATA_PLANE_REFRESH_INTERVAL_MS);return()=>clearInterval(i)},[]);
  return <div>
 <div className="page-header">
@@ -490,13 +498,12 @@ fetch(`${DATA_PLANE_URL}/v1/fast/identity`).then(r=>r.json()),
 
 
 function RuntimeIntelligence(){
- const [overview,setOverview]=React.useState<any>(null),[agent,setAgent]=React.useState('payment-agent'),
+ const [overview,setOverview]=React.useState<any>(null),[agent,setAgent]=React.useState(''),
  [data,setData]=React.useState<any>(null),[err,setErr]=React.useState('');
- const load=async()=>{try{const [o,a]=await Promise.all([apiGet('/v1/runtime/intelligence/overview'),
-         apiGet('/v1/runtime/intelligence/'+encodeURIComponent(agent))]);
-         setOverview(o);
-         setData(a);
-         setErr('')}catch(e:any){setErr(e.message)}};
+ const requestTicket=React.useRef(0);
+ const load=async()=>{const ticket=++requestTicket.current;try{const [o,a]=await Promise.all([apiGet('/v1/runtime/intelligence/overview'),agent?apiGet('/v1/runtime/intelligence/'+encodeURIComponent(agent)):Promise.resolve(null)]);if(ticket!==requestTicket.current)return;setOverview(o);setData(a);setErr('')}catch(e:any){if(ticket===requestTicket.current){setData(null);setErr(e.message)}}};
+ React.useEffect(()=>()=>{requestTicket.current++},[]);
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[agent]);
  const signals=data?.threatSummary?.byType||{};
  return <div className="runtime-intelligence">
@@ -524,11 +531,7 @@ function RuntimeIntelligence(){
    <Panel title="Agent runtime posture">
 <div className="inline-form">
 <Field label="Agent">
-<select value={
-       agent} onChange={e=>setAgent(e.target.value)}>
-<option>payment-agent</option>
-<option>refund-agent</option>
-</select>
+<SubjectSelect includeClients value={agent} onChange={v=>{requestTicket.current++;setAgent(v);setData(null);setErr('')}}/>
 </Field>
 </div>
     <div className="stats">
@@ -664,6 +667,7 @@ setLlmEndpoint]=React.useState(PRIVATE_LLM_DEFAULT_URL),
          setPerms(p.permissions||[]);
          setErr('')}catch(e:any){setErr(e.message)}
  };
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  const runPreflight=async(provider:string)=>{try{setPreflight({...preflight,
              [provider]:await apiPost('/v1/enterprise/sso/preflight/'+encodeURIComponent(provider),
@@ -919,7 +923,7 @@ function Overview({go}:any){
 <Panel title="What to try">
 <Quick title="1. Run a high-value transfer" text="Simulator → payment.transfer → ₩15,000,000" onClick={
       ()=>go('Simulator')}/>
-<Quick title="2. Inspect the compromised-agent path" text="Attack Paths → payment-agent" onClick={
+<Quick title="2. Inspect the compromised-agent path" text="Attack Paths → select an agent" onClick={
       ()=>go('Attack Paths')}/>
 <Quick title="3. Explain the decision" text="Command Center → Explain" onClick={
       ()=>go('Command Center')}/>
@@ -950,6 +954,7 @@ function Lifecycle(){
          setDeployments(d);
          if(d[0]?.stage==='CANARY')setObservations(await apiGet(`/v1/policy-lifecycle/deployments/${
              d[0].id}/observations`))}catch(e:any){setMsg(e.message)}};
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  const propose=async()=>{try{const r=await apiPost('/v1/policy-lifecycle/propose',
          {source:'DASHBOARD',name,version,policyText:text,requestedBy:'dashboard-admin',
@@ -1172,14 +1177,14 @@ function Governance(){const [draft,setDraft]=React.useState(''),[lint,
 </Panel>
 </div>}
 
-function Simulator(){const [action,setAction]=React.useState('payment.transfer'),
+function Simulator(){const [agent,setAgent]=React.useState(''),[action,setAction]=React.useState(''),
     [amount,setAmount]=React.useState(15000000),[resource,setResource]=React.useState('ACC-1001'),
     [out,setOut]=React.useState<any>(null),[busy,setBusy]=React.useState(false),
     [err,setErr]=React.useState('');
- const run=async()=>{setBusy(true);
+ const run=async()=>{if(!agent||!action)return;setBusy(true);
      setErr('');
      try{const x=await apiPost('/v1/actions/evaluate',
-         {principal:{id:action.startsWith('refund')?'refund-agent':'payment-agent',type:'AI_AGENT',attributes:{model:'demo-agent'}
+         {principal:{id:agent,type:'AI_AGENT',attributes:{model:'demo-agent'}
              },action:{name:action},resource:{type:action.startsWith('refund')?'customer_record':'bank_account',
 id:resource,attributes:{}},context:{amount,currency:'KRW',
 task_id:action.startsWith('refund')?'refund-demo-task':'payment-demo-task',
@@ -1199,25 +1204,25 @@ tool_id:action.startsWith('refund')?'33333333-3333-3333-3333-333333333302':'3333
 </div>
 </div>
 <Field label="Agent">
-<input value={action.startsWith('refund')?'refund-agent':'payment-agent'} disabled/>
+<SubjectSelect value={agent} onChange={value=>{setAgent(value);setOut(null)}}/>
 </Field>
 <Field label="Action">
 <select value={
-     action} onChange={e=>setAction(e.target.value)}>
-<option>payment.transfer</option>
+     action} onChange={e=>{setAction(e.target.value);setOut(null)}}>
+<option value="">Select a sample action</option><option>payment.transfer</option>
 <option>refund.create</option>
 </select>
 </Field>
 <Field label="Amount (KRW)">
 <input type="number" value={
-     amount} onChange={e=>setAmount(+e.target.value)}/>
+     amount} onChange={e=>{setAmount(+e.target.value);setOut(null)}}/>
 </Field>
 <Field label="Resource ID">
 <input value={
-     resource} onChange={e=>setResource(e.target.value)}/>
+     resource} onChange={e=>{setResource(e.target.value);setOut(null)}}/>
 </Field>
 <button className="primary wide" disabled={
-     busy} onClick={run}>{busy?'Evaluating…':'Evaluate request'}
+     busy||!agent||!action} onClick={run}>{busy?'Evaluating…':'Evaluate request'}
 <ChevronRight size={
      15}/>
 </button>{err&&<ErrorBanner text={err}/>}
@@ -1229,34 +1234,35 @@ tool_id:action.startsWith('refund')?'33333333-3333-3333-3333-333333333302':'3333
 
 function RuntimeGateway(){
 const [sessions,setSessions]=React.useState<any[]>([]),[sid,
-setSid]=React.useState('99999999-9999-9999-9999-999999999901'),
- [agent,setAgent]=React.useState('payment-agent'),[amount,setAmount]=React.useState(15000000),
+setSid]=React.useState(''),
+ [agent,setAgent]=React.useState(''),[runtimeScenario,setRuntimeScenario]=React.useState(''),[amount,setAmount]=React.useState(15000000),
  [decision,setDecision]=React.useState<any>(null),[detail,setDetail]=React.useState<any>(null),
  [err,setErr]=React.useState('');
- const workspace='88888888-8888-8888-8888-888888888801';
+ const workspace=WORKSPACE;
  const load=async()=>{try{const x=await apiGet('/v1/runtime/sessions');
          setSessions(x);
-         if(x[0]&&!sid)setSid(x[0].id);
+
          setErr('')}catch(e:any){setErr(e.message)}
  };
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
- const start=async()=>{try{const x=await apiPost('/v1/runtime/sessions',
-         {agent,taskId:agent==='payment-agent'?'payment-demo-task':'refund-demo-task',
+ const start=async()=>{if(!agent||!runtimeScenario)return;try{const x=await apiPost('/v1/runtime/sessions',
+         {agent,taskId:runtimeScenario==='payment'?'payment-demo-task':'refund-demo-task',
              source:'DASHBOARD',metadata:{scenario:'runtime-demo'}},{'X-Workspace-Id':workspace}
          );
          setSid(x.id);
          await load()}catch(e:any){setErr(e.message)}};
- const check=async()=>{try{const x=await apiPost('/v1/runtime/sessions/'+sid+'/check',
-{principal:{id:agent,type:'AI_AGENT',attributes:{}},action:{name:agent==='payment-agent'?'payment.transfer':'refund.create'}
-,resource:{type:agent==='payment-agent'?'bank_account':'order',id:agent==='payment-agent'?'ACC-1001':'ORDER-1001',
-                 attributes:{}},context:{amount,task_id:agent==='payment-agent'?'payment-demo-task':'refund-demo-task',
-tool_id:agent==='payment-agent'?'33333333-3333-3333-3333-333333333301':'33333333-3333-3333-3333-333333333302'}
+ const check=async()=>{if(!agent||!sid||!runtimeScenario)return;try{const x=await apiPost('/v1/runtime/sessions/'+sid+'/check',
+{principal:{id:agent,type:'AI_AGENT',attributes:{}},action:{name:runtimeScenario==='payment'?'payment.transfer':'refund.create'}
+,resource:{type:runtimeScenario==='payment'?'bank_account':'order',id:runtimeScenario==='payment'?'ACC-1001':'ORDER-1001',
+                 attributes:{}},context:{amount,task_id:runtimeScenario==='payment'?'payment-demo-task':'refund-demo-task',
+tool_id:runtimeScenario==='payment'?'33333333-3333-3333-3333-333333333301':'33333333-3333-3333-3333-333333333302'}
          },{'X-Workspace-Id':workspace});
          setDecision(x);
          const d=await apiGet('/v1/runtime/sessions/'+sid);
      setDetail(d);
      await load()}catch(e:any){setErr(e.message)}};
- const inspect=async()=>{try{setDetail(await apiGet('/v1/runtime/sessions/'+sid))}catch(e:any){setErr(e.message)}};
+ const inspect=async()=>{if(!sid)return;try{setDetail(await apiGet('/v1/runtime/sessions/'+sid))}catch(e:any){setErr(e.message)}};
  return <>
 <div className="hero-grid">
 <div className="hero">
@@ -1265,21 +1271,21 @@ tool_id:agent==='payment-agent'?'33333333-3333-3333-3333-333333333301':'33333333
 </div>
 <div>
 <span className="pill live">RUNTIME GATEWAY</span>
-<h2>Every AI-agent action is checked before execution.</h2>
-<p>Session → behavior → policy → risk → decision → evidence. The gateway keeps a tenant/workspace
+<h2>Evaluate session-bound actions before execution.</h2>
+<p>This page checks policy and risk; it does not execute an external MCP tool. Session → behavior → policy → risk → decision → evidence. The gateway keeps a tenant/workspace
 boundary around the runtime.</p>
 </div>
 </div>
 <div className="health-card">
 <small>RUNTIME MODEL</small>
 <div className="health-list">
-<span>Session identity <b>BOUND</b>
+<span>Session identity <b>{sid?'Selected':'Not selected'}</b>
 </span>
 <span>Workspace <b>ISOLATED</b>
 </span>
 <span>Risk engine <b>LIVE</b>
 </span>
-<span>Evidence <b>SAVED</b>
+<span>Evidence <b>{decision?'See result':'No check yet'}</b>
 </span>
 </div>
 </div>
@@ -1287,15 +1293,10 @@ boundary around the runtime.</p>
  <div className="grid-2">
 <Panel title="Live runtime check">
 <Field label="Agent">
-<select value={
-     agent} onChange={e=>setAgent(e.target.value)}>
-<option>payment-agent</option>
-<option>refund-agent</option>
-</select>
+<SubjectSelect value={agent} onChange={v=>{setAgent(v);setSid('');setDecision(null);setDetail(null)}}/>
 </Field>
-<Field label="Session ID">
-<input value={
-     sid} onChange={e=>setSid(e.target.value)}/>
+<Field label="Demo scenario"><select value={runtimeScenario} onChange={e=>{setRuntimeScenario(e.target.value);setDecision(null)}}><option value="">Select payment/refund sample</option><option value="payment">Payment transfer sample</option><option value="refund">Refund sample</option></select></Field><Field label="Session ID">
+<select value={sid} onChange={e=>{setSid(e.target.value);setDecision(null);setDetail(null)}} disabled={!agent}><option value="">Select an existing session</option>{sessions.filter(x=>x.agent===agent).map(x=><option key={x.id} value={x.id}>{x.id} · {x.status}</option>)}</select>
 </Field>
 <Field label="Amount">
 <input type="number" value={
@@ -1303,13 +1304,13 @@ boundary around the runtime.</p>
 </Field>
 <div className="button-row">
 <button onClick={
-     start}>
+     start} disabled={!agent||!runtimeScenario}>
 <Zap size={15}/> New session</button>
 <button className="primary" onClick={
-     check}>Runtime check <ChevronRight size={15}/>
+     check} disabled={!agent||!sid||!runtimeScenario}>Runtime check <ChevronRight size={15}/>
 </button>
 <button onClick={
-     inspect}>Inspect session</button>
+     inspect} disabled={!sid}>Inspect session</button>
 </div>{err&&<ErrorBanner text={err}/>}
 </Panel>
 <Panel title="Runtime decision">{decision?<DecisionCard out={decision}
@@ -1342,7 +1343,7 @@ boundary around the runtime.</p>
 </span>
 <span>
 <button className="link-btn" onClick={
-         ()=>{setSid(s.id);
+         ()=>{setAgent(s.agent);setSid(s.id);setDecision(null);
              setDetail(null)}}>Select</button>
 </span>
 </div>)}
@@ -1370,15 +1371,14 @@ boundary around the runtime.</p>
 }
 
 function AgentBehavior({subject=''}:{subject?:string}){const [profiles,setProfiles]=React.useState<any[]>([]),
-    [agent,setAgent]=React.useState(subject||'payment-agent'),[anoms,setAnoms]=React.useState<any[]>([]),
-    [dec,setDec]=React.useState<any[]>([]);
+    [agent,setAgent]=React.useState(subject||''),[anoms,setAnoms]=React.useState<any[]>([]),
+    [dec,setDec]=React.useState<any[]>([]),[behaviorError,setBehaviorError]=React.useState('');
     React.useEffect(()=>{if(subject)setAgent(subject)},[subject]);
-    const load=async()=>{try{setProfiles(await
-apiGet('/v1/agents/behavior/profiles'));
-            setAnoms(await apiGet('/v1/agents/behavior/'+encodeURIComponent(agent)+'/anomalies'));
-            setDec(await apiGet('/v1/agents/behavior/'+encodeURIComponent(agent)+'/decisions'))}
-        catch{}};
-        React.useEffect(()=>{load()},[agent]);
+    const requestTicket=React.useRef(0);
+    const load=async()=>{const ticket=++requestTicket.current;try{const [p,a,d]=await Promise.all([apiGet('/v1/agents/behavior/profiles'),agent?apiGet('/v1/agents/behavior/'+encodeURIComponent(agent)+'/anomalies'):Promise.resolve([]),agent?apiGet('/v1/agents/behavior/'+encodeURIComponent(agent)+'/decisions'):Promise.resolve([])]);if(ticket!==requestTicket.current)return;setProfiles(p);setAnoms(a);setDec(d);setBehaviorError('')}catch(e:any){if(ticket===requestTicket.current){setBehaviorError(e.message);setAnoms([]);setDec([])}}};
+    React.useEffect(()=>()=>{requestTicket.current++},[]);
+        usePageRefresh(load);
+ React.useEffect(()=>{load()},[agent]);
         return <>
 <div className="metric-grid">
 <Metric label="Profiles" value={
@@ -1391,14 +1391,13 @@ apiGet('/v1/agents/behavior/profiles'));
     icon={Users}/>
 </div>
 <div className="grid-2">
-<Panel title="Behavior profiles">
+{behaviorError&&<ErrorBanner text={behaviorError}/>}<Panel title="Behavior profiles">
 <ProfileTable rows={
         profiles}/>
 </Panel>
 <Panel title="Anomaly feed">
 <Field label="Inspect agent">
-<input value={
-        agent} onChange={e=>setAgent(e.target.value)}/>
+<SubjectSelect includeClients value={agent} onChange={v=>{requestTicket.current++;setAgent(v);setAnoms([]);setDec([]);setBehaviorError('')}}/>
 </Field>
 <AnomalyTable rows={
         anoms}/>
@@ -1407,11 +1406,12 @@ apiGet('/v1/agents/behavior/profiles'));
 </>}
 
 function AuditLogs({subject=''}:{subject?:string}){
+ const [revision,setRevision]=React.useState(0);usePageRefresh(()=>setRevision(x=>x+1));
  const [rows,setRows]=React.useState<any[]>([]),[verify,setVerify]=React.useState<any>(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
  React.useEffect(()=>{let current=true;setRows([]);setError('');setLoading(true);setVerify(null);
  (async()=>{try{const audit=await apiGet('/v1/audit');let filtered=audit;
  if(subject){const identities=await apiGet('/v1/identities');const identity=identities.find((row:any)=>row.externalId===subject&&row.identityType==='AI_AGENT');filtered=identity?audit.filter((row:any)=>row.identityId===identity.id):[]}
- if(current)setRows(filtered)}catch(e:any){if(current)setError(e.message)}finally{if(current)setLoading(false)}})();return()=>{current=false};},[subject]);
+ if(current)setRows(filtered)}catch(e:any){if(current)setError(e.message)}finally{if(current)setLoading(false)}})();return()=>{current=false};},[subject,revision]);
  return <Panel title="Immutable audit trail" action={<button onClick={()=>apiGet('/v1/audit/verify').then(setVerify).catch((e:any)=>setError(e.message))}><CheckCircle2 size={15}/> Verify tenant chain</button>}>
  {subject&&<p className="workflow-context">Agent: <strong>{subject}</strong>. Filtered from the 100 newest tenant audit records; this is not the complete agent history.</p>}
  {error&&<ErrorBanner text={error}/>} {loading?<p role="status">Loading audit records…</p>:<AuditTable rows={rows}/>}
@@ -1421,8 +1421,9 @@ function AuditLogs({subject=''}:{subject?:string}){
 function SIEM(){const [rows,setRows]=React.useState<any[]>([]),[name,setName]=React.useState('Demo SIEM'),
     [endpoint,setEndpoint]=React.useState('http://host.docker.internal:9999/zt-audit'),
     [msg,setMsg]=React.useState('');
-    const load=()=>apiGet('/v1/siem/sinks').then(setRows).catch(()=>setRows([]));
-    React.useEffect(()=>{load()},[]);
+    const load=()=>apiGet('/v1/siem/sinks').then(x=>{setRows(x);setMsg('')}).catch((e:any)=>{setMsg('Could not load SIEM sinks: '+e.message);setRows([])});
+    usePageRefresh(load);
+ React.useEffect(()=>{load()},[]);
     const add=async()=>{try{await apiPost('/v1/siem/sinks',
             {name,endpoint,enabled:true,eventTypes:'["AUDIT"]'});
             setMsg('SIEM sink saved');
@@ -1471,7 +1472,8 @@ function SecurityGraph(){const [g,setG]=React.useState<any>(null),[err,
     setErr]=React.useState('');
     const load=async()=>{try{setG(await apiGet('/v1/security-graph?windowMinutes=120'));
             setErr('')}catch(e:any){setErr(e.message)}};
-            React.useEffect(()=>{load();
+            usePageRefresh(load);
+ React.useEffect(()=>{load();
         const i=setInterval(load,DASHBOARD_REFRESH_INTERVAL_MS);
         return()=>clearInterval(i)},[]);
         if(err)return <ErrorBanner text={
@@ -1492,19 +1494,20 @@ function SecurityGraph(){const [g,setG]=React.useState<any>(null),[err,
 </div>
 <GraphCanvas graph={g}/>
 </>}
-function AttackPaths(){const [agent,setAgent]=React.useState('payment-agent'),
+function AttackPaths(){const [agent,setAgent]=React.useState(''),
     [out,setOut]=React.useState<any>(null),[err,setErr]=React.useState('');
-    const run=async()=>{try{setOut(await apiGet('/v1/security/attack-paths/agents/'+encodeURIComponent(agent)));
+    const requestTicket=React.useRef(0);
+    const run=async()=>{if(!agent)return;const ticket=++requestTicket.current;setOut(null);try{const result=await apiGet('/v1/security/attack-paths/agents/'+encodeURIComponent(agent));if(ticket!==requestTicket.current)return;setOut(result);
             setErr('')}catch(e:any){setErr(e.message)}};
+            usePageRefresh(run);
             return <>
 <Panel title="Compromise simulation">
 <div className="inline-form">
 <Field label="Agent">
-<input value={
-        agent} onChange={e=>setAgent(e.target.value)}/>
+<SubjectSelect includeClients value={agent} onChange={v=>{requestTicket.current++;setAgent(v);setOut(null);setErr('')}}/>
 </Field>
 <button className="primary" onClick={
-        run}>
+        run} disabled={!agent}>
 <Route size={15}/> Assess attack paths</button>
 </div>{err&&<ErrorBanner text={
             err}/>}
@@ -1542,7 +1545,8 @@ Promise.all([apiGet('/v1/security/decisions'),
             setInc(i);
             setErr('')}catch(e:any){
             setErr(e.message)}};
-            React.useEffect(()=>{load();const i=setInterval(load,
+            usePageRefresh(load);
+ React.useEffect(()=>{load();const i=setInterval(load,
         5000);
         return()=>clearInterval(i)},[]);
         const explain=async(x:any)=>{try{
@@ -1593,7 +1597,8 @@ function DecisionEngine(){const [rows,setRows]=React.useState<any[]>([]),
     const load=()=>Promise.all([apiGet('/v1/security/decisions'),
     apiGet('/v1/security/decisions/assets')]).then(([a,b])=>{setRows(a);setAssets(b)}
     ).catch(()=>{});
-    React.useEffect(()=>{load();const i=setInterval(load,DASHBOARD_REFRESH_INTERVAL_MS);
+    usePageRefresh(load);
+ React.useEffect(()=>{load();const i=setInterval(load,DASHBOARD_REFRESH_INTERVAL_MS);
         return()=>clearInterval(i)},[]);
         return <>
 <div className="metric-grid">
@@ -1619,15 +1624,17 @@ function DecisionEngine(){const [rows,setRows]=React.useState<any[]>([]),
 </>}
 
 function BlastRadius({go}:any){
- const [agent,setAgent]=React.useState('payment-agent'),[out,setOut]=React.useState<any>(null),
+ const [agent,setAgent]=React.useState(''),[out,setOut]=React.useState<any>(null),
  [history,setHistory]=React.useState<any[]>([]),[err,setErr]=React.useState(''),
  [loading,setLoading]=React.useState(false);
-const run=async()=>{setLoading(true);
+const requestTicket=React.useRef(0);
+const run=async()=>{if(!agent)return;const ticket=++requestTicket.current;setOut(null);setHistory([]);setLoading(true);
     try{const x=await apiGet('/v1/security/blast-radius/agents/'+encodeURIComponent(agent)+'?windowMinutes=120&maxDepth=12');
-         setOut(x);
-         setHistory(await apiGet('/v1/security/blast-radius/agents/'+encodeURIComponent(agent)+'/history'));
-         setErr('')}catch(e:any){setErr(e.message)}finally{setLoading(false)}};
- React.useEffect(()=>{run()},[]);
+         const history=await apiGet('/v1/security/blast-radius/agents/'+encodeURIComponent(agent)+'/history');if(ticket!==requestTicket.current)return;
+         setOut(x);setHistory(history);
+         setErr('')}catch(e:any){if(ticket===requestTicket.current)setErr(e.message)}finally{if(ticket===requestTicket.current)setLoading(false)}};
+ usePageRefresh(run);
+ React.useEffect(()=>{setOut(null);setHistory([]);setErr('')},[agent]);
  const recs=out?.recommendations||[];
  return <div>
 <div className="page-header">
@@ -1636,18 +1643,16 @@ const run=async()=>{setLoading(true);
 <p>침해된 AI Agent가 실제 기업 자산에 미칠 수 있는 영향과 권고 대응을 계산합니다.</p>
 </div>
 <button onClick={
-     run} disabled={loading}>
+     run} disabled={loading||!agent}>
 <RefreshCw size={14}/> {loading?'Assessing…':'Re-assess'}
 </button>
 </div>{err&&<ErrorBanner text={err}/>}
 <Panel title="Compromised agent">
 <div className="inline-form">
 <Field label="Agent">
-<input value={
-     agent} onChange={e=>setAgent(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')run()}
- }/>
+<SubjectSelect includeClients value={agent} onChange={v=>{requestTicket.current++;setAgent(v);setLoading(false);setOut(null);setErr('')}}/>
 </Field>
-<button className="primary" onClick={run}>
+<button className="primary" onClick={run} disabled={!agent||loading}>
 <Crosshair size={
  15}/> Calculate blast radius</button>
 </div>
@@ -1823,6 +1828,7 @@ function IncidentResponse(){
  [busy,setBusy]=React.useState(false);
  const load=async()=>{try{setRows(await apiGet('/v1/security/cases'));
          setErr('')}catch(e:any){setErr(e.message)}};
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  const open=async(id:string)=>{try{setSelected(await apiGet('/v1/security/cases/'+id));
          setErr('')}catch(e:any){setErr(e.message)}};
@@ -1986,7 +1992,8 @@ function ResponseCenter(){
  const [rows,setRows]=React.useState<any[]>([]),[err,setErr]=React.useState(''),[busy,setBusy]=React.useState('');
  const load=async()=>{try{setRows(await apiGet('/v1/security/responses'));
          setErr('')}catch(e:any){setErr(e.message)}};
-         React.useEffect(()=>{load()}
+         usePageRefresh(load);
+ React.useEffect(()=>{load()}
  ,[]);
  const act=async(id:string,kind:string)=>{setBusy(id+kind);
      setErr('');
@@ -2113,6 +2120,7 @@ function ComplianceEvidence(){
  [rows,setRows]=React.useState<any[]>([]),[report,setReport]=React.useState<any>(null),
  [err,setErr]=React.useState(''),[busy,setBusy]=React.useState(false);
  const load=()=>apiGet('/v1/compliance/assessments').then(setRows).catch(e=>setErr(e.message));
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  const generate=async()=>{setBusy(true);
      setErr('');
@@ -2316,7 +2324,7 @@ function SetupGuide(){const [copied,setCopied]=React.useState('');
     000,000 KRW</b>.</li>
 <li>Click <b>Evaluate request</b>.</li>
 <li>Open <b>Command Center</b> and click <b>Explain</b>.</li>
-<li>Open <b>Attack Paths</b> and assess <b>payment-agent</b>.</li>
+<li>Open <b>Attack Paths</b> and select a registered agent.</li>
 <li>Open <b>Security Graph</b> to see Agent → Task → MCP Gateway → Tool → Action → Resource.</li>
 </ol>
 </Step>
@@ -2826,60 +2834,6 @@ function Quick({title,text,onClick}:any){return <button className="quick" onClic
         16}/>
 </button>}
 
-function ProductOperations(){const [clients,setClients]=React.useState<any[]>([]);
-    const [hooks,setHooks]=React.useState<any[]>([]);
-    const [settings,setSettings]=React.useState<any>(null);
-    const load=async()=>{try{setClients(await apiGet('/v1/clients'));
-            setHooks(await apiGet('/v1/webhooks'));
-            setSettings(await apiGet('/v1/settings'));
-            }catch(e){}};
-            React.useEffect(()=>{
-        load()},[]);
-        return <section>
-<div className="page-header">
-<div>
-<h2>Product Operations</h2>
-<p>Enterprise control plane administration</p>
-</div>
-</div>
-<div className="cards">
-<div className="card">
-<b>API Clients</b>
-<strong>{
-        clients.length}
-</strong>
-<span>service identities</span>
-</div>
-<div className="card">
-<b>Webhooks</b>
-<strong>{
-        hooks.length}
-</strong>
-<span>active endpoints</span>
-</div>
-<div className="card">
-<b>Security Mode</b>
-<strong>{
-        settings?.securityMode||'ENFORCED'}
-</strong>
-<span>tenant policy</span>
-</div>
-</div>
-<div className="panel">
-<h3>2.0 Production Controls</h3>
-<ul>
-<li>Tenant-scoped service clients with one-time secrets</li>
-<li>Webhook delivery boundary with event subscriptions</li>
-<li>Durable security event outbox for future Kafka/streaming adapters</li>
-<li>Tenant-level runtime,
-    rate-limit and retention settings</li>
-</ul>
-</div>
-</section>}
-
-
-
-
 export default App;
 
 function KubernetesPolicies(){
@@ -2887,7 +2841,8 @@ function KubernetesPolicies(){
  const [error,setError]=React.useState('');
  const load=async()=>{try{setRows(await apiGet('/v1/kubernetes/policies'));
          setError('')}catch(e:any){setError(e.message)}};
-         React.useEffect(()=>{
+         usePageRefresh(load);
+ React.useEffect(()=>{
      load()},[]);
  return <div>
 <div className="page-header">

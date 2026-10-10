@@ -1,3 +1,4 @@
+import usePageRefresh from '../components/usePageRefresh';
 import { RISK_THRESHOLDS } from '../config/risk';
 import React from 'react';
 import { Brain, ShieldCheck, AlertTriangle, CheckCircle2, FileLock2, RefreshCw, Sparkles } from 'lucide-react';
@@ -36,6 +37,7 @@ setScenario]=React.useState(initialScenario||'high-value AI agent payment transf
  const load=async()=>{setBusy(true);
      try{setData(await apiGet('/v1/security/copilot/analysis?windowMinutes=120'));
          setErr('')}catch(e:any){setErr(e.message)}finally{setBusy(false)}};
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  const recommend=async()=>{try{setDraft(await apiPost('/v1/security/copilot/policy-recommendation',
          {scenario}))}catch(e:any){setErr(e.message)}};

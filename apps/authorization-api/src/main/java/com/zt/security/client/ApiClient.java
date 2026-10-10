@@ -47,6 +47,7 @@ public class ApiClient {
     public void setName(String v){
     name=v;
     }
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public String getSecretHash(){
         return secretHash;
     }

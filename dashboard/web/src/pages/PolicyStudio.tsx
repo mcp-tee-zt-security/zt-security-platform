@@ -1,7 +1,9 @@
+import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import { CheckCircle2, Code2, Copy, FileLock2, Play, Plus, RefreshCw, Save,
     ScanSearch, ShieldAlert, Sparkles, Terminal, XCircle } from 'lucide-react';
-import { apiGet, apiPost } from '../api/client';
+import SubjectSelect from '../components/SubjectSelect';
+import { TENANT, apiGet, apiPost } from '../api/client';
 import { POLICY_EXAMPLE_AMOUNT } from '../config/risk';
 
 type PolicyRow = { id:string;
@@ -17,9 +19,12 @@ type PolicyRow = { id:string;
 
 type Props = { };
 
-const TENANT_ID = '11111111-1111-1111-1111-111111111111';
+const TENANT_ID = TENANT;
 
 const templates: Record<string,string> = {
+ 'Order reads': 'policy "allow_order_reads" {\n effect allow\n principal.type == "AI_AGENT"\n action == "mcp.tool.call"\n resource.type == "mcp_tool"\n condition { context.mcp.tool == "getOrders" or context.mcp.tool == "getOrderStatus" }\n}',
+ 'Deny order cancellation': 'policy "deny_test_order_cancel" {\n effect deny\n principal.type == "AI_AGENT"\n action == "mcp.tool.call"\n resource.type == "mcp_tool"\n condition { context.mcp.tool == "cancelOrder" }\n}',
+ 'Approve order cancellation': 'policy "approve_order_cancel" {\n effect step_up\n principal.type == "AI_AGENT"\n action == "mcp.tool.call"\n resource.type == "mcp_tool"\n condition { context.mcp.tool == "cancelOrder" }\n}', 
   'High-value transfer': `policy "high_value_transfer_protection" {\n  priority 10\n  effect step_up\n
 description "Protect high-value AI agent transfers"\n  mode "enforce"\n  tags ["banking",
       "payment", "ai-agent"]\n\n  principal.type == "AI_AGENT"\n  action in ["payment.transfer",
@@ -39,7 +44,7 @@ ${POLICY_EXAMPLE_AMOUNT} and (\n      risk.score >= 70 or\n      agent.behavior 
       \n}`
 };
 
-const starter = templates['High-value transfer'];
+const starter = '';
 
 function parsePreview(text:string) {
   const name = text.match(/policy\s+"([^"\\]+)"/)?.[1] || '';
@@ -58,7 +63,7 @@ function prettyError(e:any){ return e instanceof Error ? e.message : String(e);
 
 export default function PolicyStudio(_:Props){
   const [rows,setRows]=React.useState<PolicyRow[]>([]);
-  const [name,setName]=React.useState('high_value_transfer_protection');
+  const [name,setName]=React.useState('');
   const [text,setText]=React.useState(starter);
   const [status,setStatus]=React.useState('DRAFT');
   const [message,setMessage]=React.useState('');
@@ -68,6 +73,8 @@ export default function PolicyStudio(_:Props){
   const [amount,setAmount]=React.useState(15000000);
   const [risk,setRisk]=React.useState(75);
   const [simulation,setSimulation]=React.useState<any>(null);
+  const [simSubject,setSimSubject]=React.useState(''),[simScenario,setSimScenario]=React.useState(''),[simOrderId,setSimOrderId]=React.useState('');
+  const [simRequest,setSimRequest]=React.useState('{}');
 
   const preview=React.useMemo(()=>parsePreview(text),[text]);
 
@@ -76,7 +83,8 @@ export default function PolicyStudio(_:Props){
     } catch(e:any) { setMessage(prettyError(e));
     }
   },[]);
-  React.useEffect(()=>{load()},[load]);
+  usePageRefresh(load);
+ React.useEffect(()=>{load()},[load]);
 
   const validate=async()=>{
     setBusy(true);
@@ -96,6 +104,8 @@ export default function PolicyStudio(_:Props){
     setBusy(true);
     setMessage('');
     try {
+      const checked=await apiPost('/v1/policies/validate',{policyText:text});setValidation(checked);
+      if(!checked.valid)throw new Error(checked.error||'Policy validation failed');
       const existing=rows.filter(x=>x.name===name).map(x=>Number(x.version)||0);
       const version=(existing.length?Math.max(...existing):0)+1;
       const r=await apiPost('/v1/policies',{name,version,priority:preview.priority,status:nextStatus,policyText:text});
@@ -111,12 +121,10 @@ export default function PolicyStudio(_:Props){
     setBusy(true);
     setMessage('');
     try {
-      const r=await apiPost('/v1/policies/simulate-draft',{policyText:text,
-          request:{principal:{id:'payment-agent',type:'AI_AGENT',attributes:{behavior:risk>=70?'ANOMALOUS':'NORMAL',
-                      trust_score:Math.max(0,100-risk)}},action:{name:'payment.transfer'},resource:{
-                  type:'bank_account',id:'ACC-1001',attributes:{classification:'CONFIDENTIAL'}
-              },context:{amount,risk_score:risk,'risk.score':risk,'agent.behavior':risk>=70?'ANOMALOUS':'NORMAL'}
-      }});
+      if(!simSubject||!simScenario)throw new Error('Select a simulation identity and scenario first');
+      const request=JSON.parse(simRequest);
+      request.principal={...request.principal,id:simSubject,type:'AI_AGENT'};
+      const r=await apiPost('/v1/policies/simulate-draft',{policyText:text,request});
       setSimulation(r);
       setActiveTab('simulator');
       setMessage('Draft simulation completed.');
@@ -244,7 +252,7 @@ export default function PolicyStudio(_:Props){
                 `priority ${e.target.value}`))}/>
 </label>
 </div>
-            <textarea className="policy-editor" value={text} onChange={e=>setText(e.target.value)} spellCheck={false}/>
+            <textarea className="policy-editor" value={text} onChange={e=>{setText(e.target.value);setValidation(null);setSimulation(null)}} spellCheck={false}/>
             {validation&&<div className={validation.valid?'validation success':'validation failure'}
                 >{validation.valid?<CheckCircle2 size={16}/>:<XCircle size={16}/>}
 <div>
@@ -259,9 +267,13 @@ export default function PolicyStudio(_:Props){
 </div>}
 </>}
           {activeTab==='preview'&&<PolicyPreview p={preview} validation={validation}/>} 
-          {activeTab==='simulator'&&<SimulatorPanel amount={amount} setAmount={
-                  setAmount} risk={risk} setRisk={setRisk} run={simulate} result={simulation}
-              />}
+          {activeTab==='simulator'&&<><section className="panel"><h3>Draft simulation input</h3><p>Simulation evaluates a hypothetical request. Selecting a caller does not authenticate as that caller or execute a tool.</p>
+ <SubjectSelect includeClients value={simSubject} onChange={v=>{setSimSubject(v);setSimulation(null)}}/>
+ <label>Scenario<select value={simScenario} onChange={e=>{const v=e.target.value;setSimScenario(v);setSimulation(null);const mcp=v!=='payment';setSimRequest(JSON.stringify({principal:{id:simSubject,type:'AI_AGENT',attributes:{}},action:{name:mcp?'mcp.tool.call':'payment.transfer'},resource:{type:mcp?'mcp_tool':'bank_account',id:mcp?v:'ACC-1001',attributes:{}},context:mcp?{mcp:{tool:v,arguments:v==='getOrders'?{status:'PENDING'}:{orderId:simOrderId}}}:{amount,risk_score:risk}},null,2))}}><option value="">Select scenario</option><option value="getOrders">Order list</option><option value="getOrderStatus">Order status</option><option value="cancelOrder">Order cancellation</option><option value="payment">Payment sample</option></select></label>
+ <label>Order ID<input value={simOrderId} onChange={e=>{setSimOrderId(e.target.value);setSimulation(null);try{const r=JSON.parse(simRequest);if(simScenario==='cancelOrder'||simScenario==='getOrderStatus'){r.context.mcp.arguments.orderId=e.target.value;setSimRequest(JSON.stringify(r,null,2))}}catch{}}} placeholder="Enter actual test order ID"/></label>
+ <label>Request JSON<textarea rows={12} value={simRequest} onChange={e=>{setSimRequest(e.target.value);setSimulation(null)}}/></label></section><SimulatorPanel amount={amount} setAmount={
+                  x=>{setAmount(x);setSimulation(null);try{const r=JSON.parse(simRequest);if(simScenario==='payment'){r.context={...r.context,amount:x};setSimRequest(JSON.stringify(r,null,2))}}catch{}}} risk={risk} setRisk={x=>{setRisk(x);setSimulation(null);try{const r=JSON.parse(simRequest);r.context={...r.context,risk_score:x,'risk.score':x};setSimRequest(JSON.stringify(r,null,2))}catch{}}} run={simulate} result={simulation}
+              /></>}
           {message&&<div className="policy-message">{message}
 </div>}
 </div>
@@ -459,7 +471,7 @@ function SimulatorPanel({amount,setAmount,risk,setRisk,run,result}:{amount:numbe
 <Terminal size={
           24}/>
 <b>No simulation yet</b>
-<small>Use the current policy against a payment-agent request.</small>
+<small>Select an identity and scenario, then review the JSON request.</small>
 </div>}
 </div>
 }

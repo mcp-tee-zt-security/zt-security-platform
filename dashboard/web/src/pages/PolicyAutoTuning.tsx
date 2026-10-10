@@ -1,9 +1,11 @@
+import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import { AlertTriangle, CheckCircle2, FlaskConical, RefreshCw, ShieldCheck } from 'lucide-react';
+import SubjectSelect from '../components/SubjectSelect';
 import { apiGet, apiPost } from '../api/client';
 
 const sampleRequest = {
-  principal:{id:'payment-agent',type:'service',attributes:{}},
+  principal:{id:'',type:'AI_AGENT',attributes:{}},
   action:{name:'read'},
   resource:{type:'payment',id:'txn-001',attributes:{}},
   context:{source:'3.19-tuning-simulation'}
@@ -23,6 +25,7 @@ setPolicies(p);
 setProposals(r);
 if(!base&&p.length)setBase(p.find((x:any)=>x.status==='PUBLISHED'||x.status==='ACTIVE')?.id||p[0].id);
          setErr('')}catch(e:any){setErr(e.message)}};
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  const propose=async(c:any)=>{if(!base){setErr('Select a published/active base policy first.');
          return}setBusy(true);
@@ -34,10 +37,10 @@ if(!base&&p.length)setBase(p.find((x:any)=>x.status==='PUBLISHED'||x.status==='A
          await load()}catch(e:any){setErr(e.message)}finally{setBusy(false)}};
  const simulate=async(p:any)=>{setBusy(true);
      try{let req;
-         try{req=JSON.parse(request)}
+         try{req=JSON.parse(request);if(!req.principal?.id)throw new Error('Select a simulation identity first')}
          catch{throw new Error('Simulation request JSON is invalid')}const r=await
 apiPost(`/v1/security/control-loop/policy-tuning/proposals/${
-             p.proposalId}/simulate`,req);setSelected(r);setMsg('Simulation passed. Human approval is now available.');
+             p.proposalId}/simulate`,req);setSelected(r);setMsg('Simulation completed. Review the returned state before approving.');
          await load()}catch(e:any){setErr(e.message)}finally{setBusy(false)}};
 const approve=async(p:any)=>{setBusy(true);
     try{const r=await apiPost(`/v1/security/control-loop/policy-tuning/proposals/${
@@ -52,7 +55,7 @@ p.proposalId}/approve?actor=dashboard-admin`,{});setSelected(r);setMsg('Approved
  return <div>
 <div className="page-header">
 <div>
-<h2>Policy Auto-Tuning</h2>
+<h2>Policy Auto-Tuning</h2><SubjectSelect includeClients value={(()=>{try{return JSON.parse(request).principal?.id||''}catch{return ''}})()} onChange={value=>{try{const r=JSON.parse(request);r.principal={...r.principal,id:value};setRequest(JSON.stringify(r,null,2));setSelected(null)}catch{setErr('Fix request JSON before choosing an identity')}}}/>
 <p>Effectiveness evidence → simulation → human approval → DRAFT. Publishing remains a separate action.</p>
 </div>
 <button onClick={

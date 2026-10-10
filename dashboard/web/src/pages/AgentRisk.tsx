@@ -1,3 +1,4 @@
+import usePageRefresh from '../components/usePageRefresh';
 import { RISK_THRESHOLDS } from '../config/risk';
 import React from 'react';
 import { Activity, AlertTriangle, RefreshCw, ShieldCheck, TrendingUp, TrendingDown } from 'lucide-react';
@@ -15,9 +16,10 @@ export default function AgentRisk(){
  [detail,setDetail]=React.useState<any>(null),[err,setErr]=React.useState('');
  const load=async()=>{try{setData(await apiGet('/v1/security/agent-risk/overview?windowHours=24'));
          setErr('')}catch(e:any){setErr(e.message)}};
-const loadAgent=async(id:string)=>{setAgent(id);
+const loadAgent=async(id:string)=>{setAgent(id);setDetail(null);setErr('');
     try{setDetail(await apiGet('/v1/security/agent-risk/'+encodeURIComponent(id)+'?windowHours=24'))}
      catch(e:any){setErr(e.message)}};
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  return <div>
   <div className="page-header">

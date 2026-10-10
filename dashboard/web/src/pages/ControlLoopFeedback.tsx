@@ -1,3 +1,4 @@
+import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import { RefreshCw, CheckCircle2, AlertTriangle, Activity } from 'lucide-react';
 import { apiGet, apiPost } from '../api/client';
@@ -15,6 +16,7 @@ const load=async()=>{try{const [r,p]=await Promise.all([apiGet('/v1/security/con
          await apiPost(`/v1/security/control-loop/feedback/${
              id}/verify?observationHours=6`);await load()}catch(e:any){setErr(e.message)}
      finally{setBusy(null)}};
+ usePageRefresh(load);
  React.useEffect(()=>{load()},[]);
  const effective=rows.filter(x=>x.verification==='EFFECTIVE').length;
  const pending=rows.filter(x=>x.verification==='PENDING_OBSERVATION').length;

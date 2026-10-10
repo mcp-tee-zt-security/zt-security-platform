@@ -1,3 +1,5 @@
+import usePageRefresh from '../components/usePageRefresh';
+import RecordLinks from '../components/RecordLinks';
 import React from 'react';
 import { apiGet, apiPost } from '../api/client';
 
@@ -23,6 +25,7 @@ export default function ApprovalExecution({subject='',initialView='pending',onAg
      if(loadRequest.current===ticket){setApprovals(a);setContracts(c)}
    }catch(e:any){if(loadRequest.current===ticket){setApprovals([]);setContracts([]);setError(e.message)}}finally{if(loadRequest.current===ticket)setBusy(false)}
  },[subject]);
+ usePageRefresh(load);
  React.useEffect(()=>{detailRequest.current++;setSelection(null);setDetail(null);setDetailError('');load()},[load]);
  const inspect=async(kind:'approval'|'contract',row:any)=>{
    const ticket=++detailRequest.current;
@@ -46,7 +49,7 @@ export default function ApprovalExecution({subject='',initialView='pending',onAg
  const approval=selection?.kind==='approval'?selection.row:detail?.approval;
  const selectedContracts=selection?.kind==='approval'?detail?.contracts||[]:detail?.contract?[detail.contract]:[];
  const agent=detail?.decision?.subject||detail?.contract?.subject||subject;
- return <div className="workflow-workspace">
+ return <div className="workflow-workspace"><RecordLinks/>
   <div className="page-header"><div><h2>Approvals & Execution</h2><p>Follow the stored decision, human approval, execution contract and verified outcome.</p></div><button onClick={load} disabled={busy}>Refresh records</button></div>
   {subject&&<div className="workflow-context">Agent filter: <strong>{subject}</strong></div>}
   <div className="workflow-tabs" role="tablist" aria-label="Approval and execution records">
