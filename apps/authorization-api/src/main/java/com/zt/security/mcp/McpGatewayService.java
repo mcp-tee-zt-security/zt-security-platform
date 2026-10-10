@@ -89,7 +89,9 @@ public class McpGatewayService {
         JsonNode filtered;
         String status, code = null;
         try {
-            JsonNode response = upstream.call(plan.binding().config(), plan.arguments());
+            JsonNode response = plan.binding().server() == null
+                ? upstream.call(plan.binding().config(), plan.arguments())
+                : upstream.call(plan.binding().config(), plan.arguments(), plan.binding().server());
             try {
                 filtered = McpResultFilter.filter(response, plan.binding().config(), mapper, properties.getMaxResponseBytes());
                 if (filtered.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > properties.getMaxResponseBytes())

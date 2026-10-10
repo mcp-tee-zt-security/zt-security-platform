@@ -119,11 +119,11 @@ The gateway executes registered tools after authenticating the caller, validatin
 ### Setup
 
 1. Configure an upstream MCP endpoint and its dedicated credential on the server.
-2. Create or select an enabled tool, then register its workspace-scoped binding through `PUT /v1/mcp/tools/{toolId}/binding`.
+2. In **MCP Gateway > Upstream servers**, register the connection and load its tool definitions. Use **Tool registration** to create or select a tool and save its workspace-scoped binding. The existing binding API remains available.
 3. Define allowed caller subjects and argument constraints, and publish the required authorization policy.
 4. Call `POST /v1/mcp/json-rpc` with an authenticated identity and matching tenant/workspace headers.
 
-Upstream endpoints and bindings are not configured automatically. The [example Compose override](docker/docker-compose.mcp.example.yml) is a setup template. Replace its endpoint and supply the upstream credential before using it.
+Upstream endpoints and bindings are not configured automatically. Dashboard-managed registrations persist in PostgreSQL with tenant/workspace isolation. Local HTTP requires explicit opt-in; other registration hosts and credential environment references require deployment allowlists. The [dashboard registration guide](docs/api/MCP_DASHBOARD_REGISTRATION.md) covers the order-server example, MCP approvals and call history. The [example Compose override](docker/docker-compose.mcp.example.yml) remains available for deployment-managed connections.
 
 ### Decision and execution behavior
 
@@ -266,6 +266,7 @@ Development emphasizes stabilization, readable code and documentation. Add capab
 - [Security model](docs/security/4.75_SECURITY_MODEL.md)
 - [Backend API and governance](docs/api/4.75_BACKEND_API.md)
 - [MCP Gateway execution](docs/api/MCP_GATEWAY_EXECUTION.md)
+- [MCP dashboard registration](docs/api/MCP_DASHBOARD_REGISTRATION.md)
 - [Rust data plane](apps/policy-data-plane/README.md)
 - [Python SDK](sdk/python/README.md)
 - [Operations](docs/operations/4.75_OPERATIONS.md)

@@ -17,6 +17,9 @@ public class McpGatewayProperties {
     private int approvalTtlSeconds = 900;
     private int maxConcurrentCalls = 32;
     private boolean allowHttp = false;
+    private boolean allowDevelopmentHttpRegistration = true;
+    private Set<String> registrationHosts = Set.of("host.docker.internal", "localhost", "127.0.0.1");
+    private Set<String> credentialEnvAllowlist = Set.of();
     private Set<String> allowedOrigins = Set.of("http://localhost:3000", "http://127.0.0.1:3000");
 
     public static class Server {
@@ -77,6 +80,12 @@ public class McpGatewayProperties {
     public void setMaxConcurrentCalls(int value) { maxConcurrentCalls = value; }
     public boolean isAllowHttp() { return allowHttp; }
     public void setAllowHttp(boolean value) { allowHttp = value; }
+    public boolean isAllowDevelopmentHttpRegistration() { return allowDevelopmentHttpRegistration; }
+    public void setAllowDevelopmentHttpRegistration(boolean value) { allowDevelopmentHttpRegistration = value; }
+    public Set<String> getRegistrationHosts() { return registrationHosts; }
+    public void setRegistrationHosts(Set<String> value) { registrationHosts = value; }
+    public Set<String> getCredentialEnvAllowlist() { return credentialEnvAllowlist; }
+    public void setCredentialEnvAllowlist(Set<String> value) { credentialEnvAllowlist = value; }
     public Set<String> getAllowedOrigins() { return allowedOrigins; }
     public void setAllowedOrigins(Set<String> value) { allowedOrigins = value; }
 }

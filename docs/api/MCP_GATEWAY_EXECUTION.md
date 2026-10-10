@@ -28,7 +28,9 @@ Origin이 있는 MCP 요청은 정확한 허용 목록과 일치해야 합니다
 
 ## 1. upstream 설정
 
-upstream 서버 주소는 서버 설정에만 등록합니다. 호출 body나 도구 바인딩에 URL을 받을 수 없습니다. HTTPS가 기본이고 개발용 HTTP는 명시적으로 켜야 합니다.
+대시보드의 MCP Gateway에서 Upstream 등록, tools/list 조회, 도구 생성·바인딩, 실제 실행, MCP 승인 및 호출 이력 조회를 할 수 있습니다. 상세 순서는 [대시보드 등록 가이드](MCP_DASHBOARD_REGISTRATION.md)를 참고하세요.
+
+upstream 서버 주소는 관리자 전용 서버 등록 API 또는 배포 설정으로 등록합니다. 실행 요청 body나 도구 바인딩에 URL을 받을 수 없습니다. DB 등록은 정확한 tenant/workspace에 격리되며 배포에서 허용한 호스트와 인증 정보 참조만 사용할 수 있습니다. HTTPS가 기본이고 개발용 HTTP는 명시적으로 켜야 합니다.
 
 ```yaml
 zt:
@@ -123,6 +125,8 @@ POST /v1/mcp/json-rpc (application/json)
 POST /v1/mcp/authorize는 평가만 수행하고 upstream을 호출하지 않습니다. ALLOW preview는 NOT_EXECUTED이며 실제 실행하려면 새 tools/call 요청이 필요합니다. 승인 대기 preview는 저장된 callId로 승인 후 재개할 수 있습니다. legacy agent 값은 신원에 사용하지 않고, legacy context는 도구 인자로만 취급합니다.
 
 Gateway 메뉴에서도 JSON 인자 입력, Evaluate only, Execute tool, Resume approved call을 제공합니다. tools/list에는 현재 workspace에서 바인딩됐고 호출자에게 허용된 도구만 나타납니다.
+
+MCP approvals 탭에서는 현재 workspace의 MCP 승인을 별도로 조회하고 저장된 인자를 검토해 결정할 수 있습니다. Caller identity에서 실제 서비스 클라이언트 또는 OIDC 신원을 적용해야 요청자와 승인자를 구분할 수 있습니다. 기존 메뉴 역할 선택은 인증 신원을 바꾸지 않습니다. Call history는 Gateway 기록이며 Upstream 호출 횟수가 아닙니다.
 
 ## 재전송과 장애
 

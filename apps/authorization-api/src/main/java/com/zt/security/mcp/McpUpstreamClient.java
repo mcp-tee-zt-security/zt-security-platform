@@ -34,7 +34,15 @@ public class McpUpstreamClient {
             .connectTimeout(Duration.ofSeconds(properties.getTimeoutSeconds())).build();
     }
     public JsonNode call(McpToolConfig config, JsonNode arguments) {
-        McpGatewayProperties.Server server = properties.server(config.serverId());
+        return call(config, arguments, properties.server(config.serverId()));
+    }
+    public JsonNode call(McpToolConfig config, JsonNode arguments, McpGatewayProperties.Server server) {
+        return request(server, "tools/call", mapper.valueToTree(Map.of("name", config.upstreamTool(), "arguments", arguments)));
+    }
+    public JsonNode discover(McpGatewayProperties.Server server) {
+        return request(server, "tools/list", mapper.createObjectNode());
+    }
+    private JsonNode request(McpGatewayProperties.Server server, String method, JsonNode params) {
         if (!slots.tryAcquire()) throw new Failure("UPSTREAM_CAPACITY_EXHAUSTED", false);
         String session = null, version = "2025-11-25";
         boolean executionPossible = false;
@@ -61,10 +69,9 @@ public class McpUpstreamClient {
                 throw new Failure("UPSTREAM_INITIALIZATION_NOT_ACKNOWLEDGED", false);
             }
             String callId = UUID.randomUUID().toString();
-            JsonNode params = mapper.valueToTree(Map.of("name", config.upstreamTool(), "arguments", arguments));
-            executionPossible = true;
+            executionPossible = "tools/call".equals(method);
             // Arguments are exactly those evaluated/stored by the gateway. No caller headers/_meta escape this boundary.
-            return response(exchange(server, rpc(callId, "tools/call", params), session, version, "POST"), callId);
+            return response(exchange(server, rpc(callId, method, params), session, version, "POST"), callId);
         } catch (Failure error) {
             throw new Failure(error.code(), executionPossible || error.executionPossible());
         } catch (RuntimeException error) {

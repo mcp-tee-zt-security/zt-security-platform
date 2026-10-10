@@ -14,7 +14,6 @@ public record McpToolConfig(String serverId, String upstreamTool, Set<String> al
     void validate(McpGatewayProperties properties) {
         if (serverId == null || !serverId.matches("[A-Za-z0-9_-]{1,64}"))
             throw new IllegalArgumentException("MCP serverId is required");
-        properties.server(serverId);
         if (upstreamTool == null || !upstreamTool.matches("[A-Za-z0-9_.:-]{1,128}")
             || allowedSubjects.isEmpty() || allowedSubjects.size() > 1000
             || allowedSubjects.stream().anyMatch(s -> s.isBlank() || s.length() > 512)

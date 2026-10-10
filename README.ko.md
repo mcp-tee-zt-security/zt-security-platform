@@ -119,11 +119,11 @@ Gateway는 호출자를 인증하고 인자를 검증한 뒤 전체 Java 정책 
 ### 연동 순서
 
 1. 서버에 외부 MCP 엔드포인트와 해당 서버 전용 인증 정보를 설정합니다.
-2. 활성 도구를 생성하거나 선택한 뒤 `PUT /v1/mcp/tools/{toolId}/binding`으로 워크스페이스별 실행 바인딩을 등록합니다.
+2. **MCP Gateway > Upstream servers**에서 연결을 등록하고 도구 목록을 불러옵니다. **Tool registration**에서 도구를 생성하거나 선택하고 워크스페이스별 실행 바인딩을 저장합니다. 기존 바인딩 API도 사용할 수 있습니다.
 3. 허용할 호출자 신원과 인자 제약을 정의하고 필요한 인가 정책을 발행합니다.
 4. 인증 정보와 일치하는 테넌트·워크스페이스 헤더로 `POST /v1/mcp/json-rpc`를 호출합니다.
 
-외부 서버와 바인딩은 자동으로 설정되지 않습니다. [Compose 재정의 예시](docker/docker-compose.mcp.example.yml)는 설정 템플릿입니다. 사용 전에 엔드포인트를 교체하고 외부 서버의 인증 정보를 설정해야 합니다.
+외부 서버와 바인딩은 자동으로 설정되지 않습니다. 대시보드에서 등록한 연결은 테넌트·워크스페이스별로 격리해 PostgreSQL에 저장합니다. 로컬 HTTP는 명시적으로 선택해야 하며, 다른 등록 대상 호스트와 인증 정보의 환경 변수 참조는 배포 설정의 허용 목록이 필요합니다. 주문 서버 예제, MCP 승인 및 호출 이력 사용법은 [대시보드 등록 가이드](docs/api/MCP_DASHBOARD_REGISTRATION.md)를 참고하세요. 배포 설정으로 연결을 관리하려면 [Compose 재정의 예시](docker/docker-compose.mcp.example.yml)도 사용할 수 있습니다.
 
 ### 판단과 실행 동작
 
@@ -266,6 +266,7 @@ cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 - [보안 모델](docs/security/4.75_SECURITY_MODEL.md)
 - [백엔드 API와 거버넌스](docs/api/4.75_BACKEND_API.md)
 - [MCP Gateway 실행](docs/api/MCP_GATEWAY_EXECUTION.md)
+- [MCP 대시보드 등록](docs/api/MCP_DASHBOARD_REGISTRATION.md)
 - [Rust 데이터 플레인](apps/policy-data-plane/README.md)
 - [Python SDK](sdk/python/README.md)
 - [운영](docs/operations/4.75_OPERATIONS.md)

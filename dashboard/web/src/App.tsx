@@ -21,6 +21,7 @@ import PolicyStudio from './pages/PolicyStudio';
 import SecurityCopilot from './pages/SecurityCopilot';
 import PolicyTests from './pages/PolicyTests';
 import ApprovalExecution from './pages/ApprovalExecution';
+import McpGateway from './pages/McpGateway';
 import AgentDetails from './pages/AgentDetails';
 import AgentRisk from './pages/AgentRisk';
 import RiskForecast from './pages/RiskForecast';
@@ -487,132 +488,6 @@ fetch(`${DATA_PLANE_URL}/v1/fast/identity`).then(r=>r.json()),
  </div>
 }
 
-function McpGateway(){
- const [tools,setTools]=React.useState<any[]>([]),[selected,setSelected]=React.useState(''),
- [argumentsText,setArgumentsText]=React.useState('{}'),[out,setOut]=React.useState<any>(null),
- [rpc,setRpc]=React.useState<any>(null),[err,setErr]=React.useState(''),
- [busy,setBusy]=React.useState(false),[callId,setCallId]=React.useState('');
- const load=async()=>{try{const rows=await apiGet('/v1/mcp/tools');setTools(rows);
-         setSelected(current=>rows.some((x:any)=>x.toolId===current)?current:rows[0]?.toolId||'');
-         setErr('')}catch(e:any){setErr(e.message)}};
- React.useEffect(()=>{load()},[]);
- const argumentsValue=()=>{const value=JSON.parse(argumentsText);
-         if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Tool arguments must be a JSON object');
-         return value};
- const authorize=async()=>{if(busy)return;setBusy(true);try{const t=tools.find(x=>x.toolId===selected);
-         if(!t)throw new Error('Select a registered tool');
-         const x=await apiPost('/v1/mcp/authorize',{toolId:t.toolId,arguments:argumentsValue()});
-         setOut(x);setCallId(x.status==='PENDING_APPROVAL'?x.callId:'');
-         setErr('')}catch(e:any){setErr(e.message)}finally{setBusy(false)}};
- const callRpc=async(method:string)=>{if(busy)return;setBusy(true);try{
-         if(method==='tools/call'&&!selected)throw new Error('Select a registered tool');
-         const x=await apiPost('/v1/mcp/json-rpc',
-         {jsonrpc:'2.0',id:crypto.randomUUID(),method,params:method==='tools/call'?{
-                 name:tools.find(x=>x.toolId===selected)?.name||'',arguments:argumentsValue()}:{}}
-         );
-         setRpc(x);
-         if(method==='tools/call'){const security=x.result?._meta?.['zt.security'];
-             setCallId(security?.status==='PENDING_APPROVAL'?security.callId:'')}
-         setErr('')}catch(e:any){setErr(e.message)}finally{setBusy(false)}};
- const resume=async()=>{if(busy||!callId)return;setBusy(true);try{
-         const x=await apiPost('/v1/mcp/calls/'+encodeURIComponent(callId)+'/resume',{});
-         setRpc(x);const security=x._meta?.['zt.security'];
-         if(security?.status!=='PENDING_APPROVAL')setCallId('');
-         setErr('')}catch(e:any){setErr(e.message)}finally{setBusy(false)}};
- return <div>
-<div className="page-header">
-<div>
-<h2>MCP Security Gateway</h2>
-<p>인증된 호출자의 인자를 평가하고, 승인된 요청만 등록된 MCP 서버에서 실행합니다.</p>
-</div>
-<button onClick={
-     load}>
-<RefreshCw size={14}/> Refresh</button>
-</div>{err&&<ErrorBanner text={
-         err}/>}
-<div className="metric-grid">
-<Metric icon={ShieldCheck} label="Registered tools" value={
-     tools.length}/>
-<Metric icon={Lock} label="Execution" value="UPSTREAM"/>
-<Metric icon={
-     Brain} label="Threat inspection" value="ON"/>
-<Metric icon={ScrollText}
- label="Audit" value="OUTBOX"/>
-</div>
- <div className="grid-2">
-<Panel title="Tool authorization">
-<p>호출자 신원은 현재 인증 정보에서 결정됩니다. 도구 인자는 신원을 변경할 수 없습니다.</p>
-<Field label="MCP Tool">
-<select value={
-     selected} onChange={e=>setSelected(e.target.value)}>
-<option value="">Select tool</option>{
-     tools.map(x=>
-<option key={x.toolId} value={x.toolId}>{x.name} · {x.riskLevel}
-</option>)}
-</select>
-</Field>
-<Field label="Tool arguments (JSON)">
-<textarea rows={6} value={argumentsText} disabled={busy} onChange={e=>setArgumentsText(e.target.value)}/>
-</Field>
-{tools.length===0&&<p>현재 호출자에게 허용된 실행 도구가 없습니다. 관리자에게 upstream 연결과 도구 등록을 요청하세요.</p>}
-<div className="button-row">
-<button className="primary" disabled={busy||!selected} onClick={
-     authorize}>
-<ShieldCheck size={15}/> Evaluate only</button>
-<button disabled={busy} onClick={
-     ()=>callRpc('tools/list')}>MCP tools/list</button>
-<button disabled={busy||!selected} onClick={()=>callRpc('tools/call')}
- >Execute tool</button>
-{callId&&<button disabled={busy} onClick={resume}>Resume approved call</button>}
-</div>{out&&<pre className="json">{JSON.stringify(out,
-         null,2)}
-</pre>}
-</Panel>
- <Panel title="MCP security boundary">
-<div className="policy-flow">
-<span>Authenticated Caller</span>
-<i>→</i>
-<span>MCP Tool</span>
-<i>→</i>
-<span>Threat Signals</span>
-<i>→</i>
-<span>Policy</span>
-<i>→</i>
-<span className="final">ALLOW / STEP_UP / DENY</span>
-<i>→</i><span>Upstream execution → Filter → Audit</span>
-</div>
-<div className="table-scroll">
-<table>
-<thead>
-<tr>
-<th>Tool</th>
-<th>Risk</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>{
-     tools.map(x=>
-<tr key={x.toolId}>
-<td>
-<b>{x.name}
-</b>
-</td>
-<td>
-<Status value={
-         x.riskLevel}/>
-</td>
-<td>{x.description||'—'}
-</td>
-</tr>)}
-</tbody>
-</table>
-</div>{
-     rpc&&<pre className="json">{JSON.stringify(rpc,null,2)}
-</pre>}
-</Panel>
-</div>
-</div>
-}
 
 function RuntimeIntelligence(){
  const [overview,setOverview]=React.useState<any>(null),[agent,setAgent]=React.useState('payment-agent'),

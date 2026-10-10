@@ -178,6 +178,41 @@ public class McpInvocationService {
         }
         return result; // Raw stored arguments and credentials never enter the inspection response.
     }
+    public List<Map<String, Object>> history(UUID tenant, UUID workspace, McpActor actor, boolean manager) {
+        registry.scope(tenant, workspace);
+        return jdbc.queryForList("SELECT i.id AS \"callId\",i.tool_id AS \"toolId\",t.name AS \"toolName\",i.actor_subject AS \"requestedBy\"," +
+            "i.status,i.approval_id AS \"approvalId\",i.error_code AS \"errorCode\",i.created_at AS \"createdAt\",i.updated_at AS \"updatedAt\" " +
+            "FROM mcp_invocations i JOIN agent_tools t ON t.id=i.tool_id AND t.tenant_id=i.tenant_id " +
+            "WHERE i.tenant_id=:tenant AND i.workspace_id IS NOT DISTINCT FROM CAST(:workspace AS uuid) " +
+            (manager ? "" : "AND i.actor_key=:actor ") + "ORDER BY i.created_at DESC LIMIT 100",
+            McpToolRegistry.params(tenant, workspace).addValue("actor", actor.key()));
+    }
+    public List<Map<String, Object>> approvalQueue(UUID tenant, UUID workspace) {
+        registry.scope(tenant, workspace);
+        return jdbc.queryForList("SELECT i.id AS \"callId\",i.approval_id AS \"approvalId\",i.actor_subject AS \"requestedBy\"," +
+            "t.name AS \"toolName\",i.arguments_hash AS \"argumentsHash\",a.reason,a.expires_at AS \"expiresAt\"," +
+            "a.decided_by AS \"decidedBy\",CASE WHEN a.status='PENDING' AND a.expires_at<=now() THEN 'EXPIRED' ELSE a.status END AS status " +
+            "FROM mcp_invocations i JOIN approvals a ON a.id=i.approval_id AND a.tenant_id=i.tenant_id " +
+            "JOIN agent_tools t ON t.id=i.tool_id AND t.tenant_id=i.tenant_id " +
+            "WHERE i.tenant_id=:tenant AND i.workspace_id IS NOT DISTINCT FROM CAST(:workspace AS uuid) " +
+            "AND a.approval_type='MCP_EXECUTION' ORDER BY i.updated_at DESC LIMIT 100",
+            McpToolRegistry.params(tenant, workspace));
+    }
+    public Map<String, Object> approvalDetail(UUID tenant, UUID workspace, UUID id) {
+        registry.scope(tenant, workspace);
+        var rows = jdbc.queryForList("SELECT i.id AS \"callId\",i.approval_id AS \"approvalId\",i.actor_subject AS \"requestedBy\"," +
+            "t.name AS \"toolName\",i.arguments::text AS arguments_json,i.arguments_hash AS \"argumentsHash\",a.reason," +
+            "a.expires_at AS \"expiresAt\",CASE WHEN a.status='PENDING' AND a.expires_at<=now() THEN 'EXPIRED' ELSE a.status END AS status " +
+            "FROM mcp_invocations i JOIN approvals a ON a.id=i.approval_id AND a.tenant_id=i.tenant_id " +
+            "JOIN agent_tools t ON t.id=i.tool_id AND t.tenant_id=i.tenant_id " +
+            "WHERE i.tenant_id=:tenant AND i.workspace_id IS NOT DISTINCT FROM CAST(:workspace AS uuid) " +
+            "AND i.id=:id AND a.approval_type='MCP_EXECUTION'",
+            McpToolRegistry.params(tenant, workspace).addValue("id", id));
+        if (rows.isEmpty()) throw new AccessDeniedException("MCP approval unavailable in this workspace");
+        Map<String, Object> result = new LinkedHashMap<>(rows.get(0));
+        result.put("arguments", parse((String) result.remove("arguments_json")));
+        return result;
+    }
     private Map<String, Object> row(UUID tenant, UUID workspace, McpActor actor, UUID id, boolean lock) {
         var rows = jdbc.queryForList("SELECT *, arguments::text AS arguments_json FROM mcp_invocations WHERE " + SCOPE + " AND id=:id AND actor_key=:actor" + (lock ? " FOR UPDATE" : ""),
             McpToolRegistry.params(tenant, workspace).addValue("id", id).addValue("actor", actor.key()));
