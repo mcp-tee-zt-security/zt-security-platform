@@ -1,4 +1,4 @@
-"""Trusted local demo controller. Credentials stay server-side, separate from Stitchy."""
+"""Trusted local demo controller. Explicit local setup view exposes test credentials."""
 import json
 import os
 import threading
@@ -89,7 +89,7 @@ class PortalHandler(Handler):
         if self.command == 'GET' and self.path == '/':
             self.send(Path('/app/index.html').read_text(), content_type='text/html')
             return
-        # Loopback-only published UI, same-origin requests and no CORS. No tokens exposed to JS.
+        # Loopback-only test UI. Explicit setup request exposes demo credentials at the user's request.
         host = self.headers.get('Host', '')
         if host not in ('localhost:8766', '127.0.0.1:8766'):
             self.send({'error': 'Use http://localhost:8766'}, 403)
@@ -100,9 +100,28 @@ class PortalHandler(Handler):
         with LOCK:
             if self.command == 'GET' and self.path == '/api/setup':
                 identity = CONNECTOR.call('/context')
+                credentials = {
+                    'connector': {'clientId': CONNECTOR.client_id, 'clientSecret': CONNECTOR.client_secret,
+                                  'bearerToken': CONNECTOR.token, 'refreshAfterEpoch': CONNECTOR.token_expiry},
+                    'ai': dict(CREDENTIAL) if CREDENTIAL else {'clientId': CLIENT_ID, 'status': 'Prepare client data to issue the AI secret'},
+                    'humans': {},
+                }
+                for human_actor in ('alice', 'bob'):
+                    try:
+                        token(human_actor)
+                        verified = human(human_actor, '/context')
+                        credentials['humans'][human_actor] = {
+                            'username': human_actor + '-demo', 'subject': verified['subject'],
+                            'bearerToken': TOKENS[human_actor]['token'],
+                            'refreshAfterEpoch': TOKENS[human_actor]['expires'],
+                        }
+                    except Exception as error:
+                        code = getattr(error, 'status', getattr(error, 'code', None))
+                        credentials['humans'][human_actor] = {'status': f'Token unavailable (HTTP {code})' if code else 'Local identity provider unavailable'}
                 self.send({'connectionId': 'stitch', 'displayName': 'Stitch local simulator',
                            'connectorSubject': identity['subject'], 'enabled': True,
                            'workspaceId': SCOPE['X-Workspace-Id'],
+                           'credentials': credentials,
                            'instruction': 'Register this identity in ZT Retrieval Access. AI policies are managed only in ZT.'})
                 return
             if self.command == 'GET' and self.path == '/api/state':
@@ -120,7 +139,7 @@ class PortalHandler(Handler):
                 self.send(prepare())
                 return
             if not PREPARED:
-                self.send({'error': 'Click Prepare demo first.'}, 409)
+                self.send({'error': 'Click Prepare client data first.'}, 409)
                 return
             if action == 'delegate':
                 actor = body.get('human', 'alice')
@@ -164,12 +183,20 @@ class PortalHandler(Handler):
                 CONNECTOR.call('/source-state', 'POST', {'ready': False, 'expectedAclVersion': state['acl_version']})
                 result = request(SOURCE + paths[kind], 'POST', body, SOURCE_HEADERS)
                 if AUTO_SYNC:
-                    sync()
-                    result['synced'] = True
+                    try:
+                        sync()
+                        result['synced'] = True
+                    except Exception as error:
+                        code = getattr(error, 'status', getattr(error, 'code', None))
+                        result['synced'] = False
+                        result['syncError'] = f'Connector sync/erasure cycle failed (HTTP {code})' if code else 'Connector sync/erasure cycle failed'
                 else:
                     result['synced'] = False
                 if kind == 'reset':
-                    request(RUNNER + '/clear', 'POST', {}, RUNNER_HEADERS)
+                    try:
+                        request(RUNNER + '/clear', 'POST', {}, RUNNER_HEADERS)
+                    except Exception:
+                        result['cleanupError'] = 'Client fixtures reset, but simulator memory cleanup failed'
             elif action == 'sync':
                 sync()
                 result = {'synced': True, 'lastSync': LAST_SYNC}

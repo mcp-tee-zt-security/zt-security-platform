@@ -28,12 +28,14 @@ Keycloak 파일명은 `docker/keycloak/zt-stitch-contract-realm.json`입니다. 
 
 ## 2. ZT에서 연결 등록
 
-1. **http://localhost:8766** → **Show ZT connection details**. 검증된 connectorSubject를 확인합니다. 토큰/secret은 표시하지 않습니다.
+1. **http://localhost:8766** → **Show ZT connection details**. 페이지 상단 전용 영역에서 검증된 connectorSubject와 테스트 자격 증명을 확인합니다. Connector JWT/client secret, Alice/Bob JWT, 발급된 Stitchy AI secret을 표시하며 Copy 버튼으로 복사할 수 있습니다. AI secret은 Prepare client data 이후 발급됩니다. 연결 정보를 먼저 열어두면 준비 완료 후 AI 자격 증명도 갱신합니다. 토큰 정보는 버튼을 다시 눌러 불러올 수 있습니다.
 2. **http://localhost:3000 → Agents & Connections → Retrieval Access**.
 3. 워크스페이스 `88888888-8888-8888-8888-888888888801`을 선택합니다.
 4. Connection ID `stitch`, Display name `Stitch local simulator`, Authenticated connector subject에는 앞서 확인한 값을 복사하고 Enabled를 체크하여 **Save connection**.
 5. 클라이언트 화면 → **Prepare client data**. 사용자·자료·ACL/source 완료 체크포인트를 동기화합니다. 처음이면 AI 서비스 계정도 등록합니다. **AI 정책은 생성하지 않습니다.**
 6. ZT 화면 → **Refresh resources / policies**.
+
+시뮬레이터, Retrieval Access, 클라이언트 콘솔과 호환 API 콘솔은 실행 중/완료/실패 알림을 표시합니다. DENY는 HTTP 실패와 구분하여 요청 완료·접근 차단으로 안내하며, ALLOW + 빈 결과는 반환 0건으로 표시합니다. 서버 변경이 저장된 뒤 화면 갱신이 실패하면 저장 완료와 후속 실패를 구분합니다. 자동 상태 갱신은 마지막 작업 메시지를 지우지 않습니다. Enabled 체크박스는 문구 옆에 배치합니다.
 
 워크스페이스당 한 소스 연결을 사용합니다. 기존 자료를 다른 connector에게 재할당하지 않습니다. 등록되지 않은 connector는 같은 sync 역할을 가져도 동기화할 수 없습니다.
 

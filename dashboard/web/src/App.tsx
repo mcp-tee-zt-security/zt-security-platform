@@ -26,6 +26,7 @@ import McpGateway from './pages/McpGateway';
 import StitchAccessPoc from './pages/StitchAccessPoc';
 import StitchIntegration from './pages/StitchIntegration';
 import RetrievalAccess from './pages/RetrievalAccess';
+import ActionToastHost from './components/ActionFeedback';
 import ScopeBanner from './components/ScopeBanner';
 import SubjectSelect from './components/SubjectSelect';
 import ProductOperationsPage from './pages/ProductOperations';
@@ -272,7 +273,7 @@ function App(){
    onPointerCancel={()=>{drag.current=null;setResizing(false)}}
    onLostPointerCapture={()=>{drag.current=null;setResizing(false)}}/>
   </aside>
-  <main><ScopeBanner/>
+  <main><ScopeBanner/><ActionToastHost/>
    <header>
 <div className="dashboard-heading">
 <button ref={sidebarToggle} className="icon-btn sidebar-toggle" aria-label={menuOpen?'Hide navigation':'Show navigation'}

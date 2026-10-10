@@ -3,6 +3,7 @@ import React from 'react';
 import { CheckCircle2, Code2, Copy, FileLock2, Play, Plus, RefreshCw, Save,
     ScanSearch, ShieldAlert, Sparkles, Terminal, XCircle } from 'lucide-react';
 import SubjectSelect from '../components/SubjectSelect';
+import {notifyAction,summarizeResponse} from '../components/ActionFeedback';
 import { TENANT, apiGet, apiPost } from '../api/client';
 import { POLICY_EXAMPLE_AMOUNT } from '../config/risk';
 
@@ -80,29 +81,34 @@ export default function PolicyStudio(_:Props){
 
   const preview=React.useMemo(()=>parsePreview(text),[text]);
 
-  const load=React.useCallback(async()=>{
-    try { setRows(await apiGet('/v1/policies/all'));
-    } catch(e:any) { setMessage(prettyError(e));
+  const load=React.useCallback(async(announce=false)=>{
+    if(announce)notifyAction('running','정책 목록 불러오는 중…');
+    try { setRows(await apiGet('/v1/policies/all'));if(announce)notifyAction('success','정책 목록 갱신 완료');
+    } catch(e:any) { setMessage(prettyError(e));notifyAction('error','정책 목록 갱신 실패: '+prettyError(e));
     }
   },[]);
   usePageRefresh(load);
  React.useEffect(()=>{load()},[load]);
 
   const validate=async()=>{
+    if(busy)return;notifyAction('running','정책 DSL 검증 중…');
     setBusy(true);
     setMessage('');
     try { const r=await apiPost('/v1/policies/validate',{policyText:text}
         );
         setValidation(r);
         setMessage(r.valid?'Policy DSL validated successfully.':'Policy validation failed.');
+        notifyAction(r.valid?'success':'error',r.valid?'정책 DSL 검증 완료':'정책 검증 실패: '+(r.error||'DSL을 확인하세요.'));
     }
     catch(e:any){setValidation({valid:false,error:prettyError(e)});
+        notifyAction('error','정책 검증 실패: '+prettyError(e));
         setMessage(prettyError(e));
     }
     finally{setBusy(false)}
   };
 
   const save=async(nextStatus:'DRAFT'|'ACTIVE')=>{
+    if(busy)return;notifyAction('running',nextStatus==='ACTIVE'?'정책 활성화 중…':'정책 DRAFT 저장 중…');
     setBusy(true);
     setMessage('');
     try {
@@ -113,13 +119,15 @@ export default function PolicyStudio(_:Props){
       const r=await apiPost('/v1/policies',{name,version,priority:preview.priority,status:nextStatus,policyText:text});
       setStatus(nextStatus);
       setMessage(`Saved ${r.name} v${r.version} as ${nextStatus}.`);
+      notifyAction('success',`${r.name} v${r.version} · ${nextStatus==='ACTIVE'?'활성화':'DRAFT 저장'} 완료`);
       await load();
-    } catch(e:any){setMessage(prettyError(e));
+    } catch(e:any){setMessage(prettyError(e));notifyAction('error','정책 저장/활성화 실패: '+prettyError(e));
     }
     finally{setBusy(false)}
   };
 
   const simulate=async()=>{
+    if(busy)return;notifyAction('running','정책 시뮬레이션 실행 중…');
     setBusy(true);
     setMessage('');
     try {
@@ -130,7 +138,8 @@ export default function PolicyStudio(_:Props){
       setSimulation(r);
       setActiveTab('simulator');
       setMessage('Draft simulation completed.');
-    } catch(e:any){setMessage(prettyError(e));
+      const outcome=summarizeResponse(r);notifyAction(outcome.kind,'정책 시뮬레이션 · '+outcome.message);
+    } catch(e:any){setMessage(prettyError(e));notifyAction('error','정책 시뮬레이션 실패: '+prettyError(e));
     }
     finally{setBusy(false)}
   };
@@ -139,7 +148,7 @@ export default function PolicyStudio(_:Props){
       setName(parsePreview(templates[key]).name);
       setValidation(null);
       setSimulation(null);
-      setMessage(`Loaded ${key} template.`)}
+      setMessage(`Loaded ${key} template.`);notifyAction('success',key+' 템플릿 불러오기 완료')}
   ;
 
   return <div className="policy-studio">
@@ -158,10 +167,10 @@ export default function PolicyStudio(_:Props){
         <p>Write, validate, simulate and publish authorization policies without leaving the security control plane.</p>
       </div>
       <div className="policy-hero-actions">
-<button onClick={load}>
+<button onClick={()=>load(true)}>
 <RefreshCw size={
           14}/> Refresh</button>
-<button className="primary" onClick={()=>setText(starter)}
+<button className="primary" onClick={()=>{setText(starter);notifyAction('success','새 정책 편집기 열기 완료')}}
       >
 <Sparkles size={14}/> New policy</button>
 </div>
@@ -343,7 +352,7 @@ should use Lifecycle approval and canary rollout.</p>
 <div className="panel-title-row">
 <h3>Policy versions</h3>
 <button onClick={
-            load}>
+            ()=>load(true)}>
 <RefreshCw size={13}/> Refresh</button>
 </div>
 <div className="table-scroll">
