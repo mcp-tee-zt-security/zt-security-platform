@@ -1,4 +1,5 @@
 import React from 'react';
+import AgentConnections from '../components/AgentConnections';
 import {apiGet,apiPost,WORKSPACE} from '../api/client';
 export default function ProductOperations(){
  const [clients,setClients]=React.useState<any[]>([]),[settings,setSettings]=React.useState<any>(null),[identities,setIdentities]=React.useState<any[]>([]),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[clientId,setClientId]=React.useState(''),[name,setName]=React.useState(''),[secret,setSecret]=React.useState(''),[message,setMessage]=React.useState('');
@@ -10,5 +11,6 @@ export default function ProductOperations(){
  <section className="panel"><h3>Register client / agent</h3><label>External ID / Client ID<input value={clientId} onChange={e=>setClientId(e.target.value)} placeholder="order-ai-client"/></label><label>Name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Order AI Client"/></label><div className="button-row"><button disabled={busy||!clientId.trim()||!name.trim()} onClick={create}>Create service client</button><button disabled={busy||!clientId.trim()||!name.trim()} onClick={createAgent}>Create AI-agent identity</button></div>
  {secret&&<div><p>One-time secret. Store securely; it cannot be retrieved later.</p><input type="password" readOnly value={secret} aria-label="One-time secret"/><button onClick={async()=>{try{await navigator.clipboard.writeText(secret);setMessage('Secret copied. Configure it in the IDE environment; never share it.')}catch{setError('Clipboard unavailable. Select and copy the secret manually.')}}}>Copy secret</button><button onClick={()=>setSecret('')}>Dismiss secret</button></div>}</section>
  <section className="panel"><h3>Service clients</h3><button disabled={busy} onClick={load}>Refresh</button><table><thead><tr><th>Name</th><th>Caller subject</th><th>Status</th><th>Workspace</th></tr></thead><tbody>{clients.map(x=><tr key={x.id}><td>{x.name}</td><td>client:{x.clientId}</td><td>{x.status}</td><td>{x.workspaceId||'Tenant scope'}</td></tr>)}</tbody></table>{!busy&&!clients.length&&!error&&<p>No clients registered.</p>}</section>
+ <AgentConnections/>
  <section className="panel"><h3>AI-agent identities</h3>{identities.filter(x=>x.identityType==='AI_AGENT').map(x=><p key={x.id}>{x.name} · {x.externalId}</p>)}</section></div>;
 }

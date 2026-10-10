@@ -1,4 +1,5 @@
 import React from 'react';
+import AgentConnections from '../components/AgentConnections';
 import usePageRefresh from '../components/usePageRefresh';
 import SubjectSelect from '../components/SubjectSelect';
 import {apiGet} from '../api/client';
@@ -16,6 +17,8 @@ export default function AgentDetails({subject='',role,onNavigate}:{subject?:stri
     .catch(e=>{if(current)setError(e.message)}).finally(()=>{if(current)setLoading(false)});
    return()=>{current=false};
  },[selected,revision]);
+ const [calls,setCalls]=React.useState<any[]>([]),[callError,setCallError]=React.useState('');
+ React.useEffect(()=>{let current=true;setCalls([]);setCallError('');if(selected)apiGet('/v1/mcp/agent-calls?subject='+encodeURIComponent(selected)).then(x=>{if(current)setCalls(x)}).catch(e=>{if(current)setCallError(e.message)});return()=>{current=false}},[selected,revision]);
  const identity=identities.find(row=>row.externalId===selected&&row.identityType==='AI_AGENT');
  const links=[['Approvals','Approval requests'],['Execution Records','Execution records'],['Audit Logs','Audit records'],['Agent Behavior','Behavior analysis'],['Policy Studio','Policy Studio']] as const;
  return <div>
@@ -26,5 +29,6 @@ export default function AgentDetails({subject='',role,onNavigate}:{subject?:stri
    <div className="workflow-actions">{links.filter(([page])=>!!selected&&can(role,page)).map(([page,label])=><button key={page} onClick={()=>onNavigate(page,selected)}>{label}</button>)}</div>
    <p className="muted small">Approval and execution links use this agent's external ID. Policy Studio shows tenant policies; it does not imply that all policies are assigned to this agent.</p>
   </section><section className="panel"><h3>Permission graph</h3>{graph?<pre className="json">{JSON.stringify(graph,null,2)}</pre>:<p>No permission graph loaded.</p>}</section></div>
+ {selected&&<><AgentConnections agentExternalId={selected}/><section className="panel"><h3>Agent MCP approvals & execution</h3><p>Latest 100 calls for this Agent in the current workspace. Service authentication and policy Agent are recorded separately.</p>{callError&&<div className="error-banner" role="alert">{callError}</div>}<div className="table-scroll"><table><thead><tr><th>Service</th><th>Agent / tool</th><th>Execution</th><th>Approval</th><th>Call ID</th></tr></thead><tbody>{calls.map(x=><tr key={x.callId}><td>{x.requestedBy}</td><td>{x.policySubject}<br/>{x.toolName}</td><td>{x.status}</td><td>{x.approvalStatus||'Not required'}{x.approvalId&&<small className="mcp-block">{x.approvalId}</small>}</td><td><code>{x.callId}</code></td></tr>)}</tbody></table></div>{!callError&&!calls.length&&<p>No MCP calls for this Agent.</p>}{can(role,'MCP Gateway')&&<button onClick={()=>onNavigate('MCP Gateway',selected)}>Review MCP approvals and calls</button>}</section></>}
  </div>;
 }

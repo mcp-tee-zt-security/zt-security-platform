@@ -25,7 +25,7 @@ public class McpGatewayService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("protocol", "MCP"); result.put("gatewayVersion", "3.0.0");
         result.put("security", List.of("authenticated-caller", "argument-constraints", "policy-enforcement",
-            "bound-human-approval", "response-filtering", "execution-audit"));
+            "bound-human-approval", "response-filtering", "execution-audit", "service-agent-binding"));
         result.put("executionTransport", "STREAMABLE_HTTP");
         result.put("tenant", tenant); result.put("workspace", workspace);
         return result;

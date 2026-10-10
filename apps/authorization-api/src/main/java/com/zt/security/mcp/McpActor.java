@@ -6,7 +6,13 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import java.util.UUID;
 
 /** Caller identity comes from verified authentication, never tool arguments or forwarded headers. */
-public record McpActor(String key, String subject) {
+public record McpActor(String key, String subject, String requestedAgent) {
+    public McpActor(String key,String subject) { this(key,subject,null); }
+    public boolean serviceClient() { return key.startsWith("service:") && subject.startsWith("client:"); }
+    public McpActor selecting(String requested) {
+        if(requested!=null && !requested.matches("[A-Za-z0-9][A-Za-z0-9._:@-]{0,254}"))throw new IllegalArgumentException("Invalid X-ZT-Agent-Id");
+        return new McpActor(key,subject,requested);
+    }
     public static McpActor from(Authentication auth, UUID tenant, UUID workspace, McpGatewayProperties config) {
         if (auth == null || !auth.isAuthenticated() || auth.getName() == null || auth.getName().isBlank() || auth.getName().length() > 512) {
             throw new AccessDeniedException("Authenticated MCP caller required");

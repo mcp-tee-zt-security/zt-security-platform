@@ -1414,7 +1414,7 @@ function AuditLogs({subject=''}:{subject?:string}){
  const [rows,setRows]=React.useState<any[]>([]),[verify,setVerify]=React.useState<any>(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
  React.useEffect(()=>{let current=true;setRows([]);setError('');setLoading(true);setVerify(null);
  (async()=>{try{const audit=await apiGet('/v1/audit');let filtered=audit;
- if(subject){const identities=await apiGet('/v1/identities');const identity=identities.find((row:any)=>row.externalId===subject&&row.identityType==='AI_AGENT');filtered=identity?audit.filter((row:any)=>row.identityId===identity.id):[]}
+ if(subject){const identities=await apiGet('/v1/identities');const identity=identities.find((row:any)=>row.externalId===subject&&row.identityType==='AI_AGENT');filtered=identity?audit.filter((row:any)=>{let metadata:any={};try{metadata=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}}catch{}return row.identityId===identity.id||metadata.principal===subject}):[]}
  if(current)setRows(filtered)}catch(e:any){if(current)setError(e.message)}finally{if(current)setLoading(false)}})();return()=>{current=false};},[subject,revision]);
  return <Panel title="Immutable audit trail" action={<button onClick={()=>apiGet('/v1/audit/verify').then(setVerify).catch((e:any)=>setError(e.message))}><CheckCircle2 size={15}/> Verify tenant chain</button>}>
  {subject&&<p className="workflow-context">Agent: <strong>{subject}</strong>. Filtered from the 100 newest tenant audit records; this is not the complete agent history.</p>}

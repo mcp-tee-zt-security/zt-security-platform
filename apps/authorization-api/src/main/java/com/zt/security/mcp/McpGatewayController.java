@@ -22,26 +22,26 @@ public class McpGatewayController {
         this.service = service; this.registry = registry; this.invocations = invocations;
         this.properties = properties; this.mapper = mapper;
     }
-    private McpActor actor(Authentication auth, UUID tenant, UUID workspace) {
-        return McpActor.from(auth, tenant, workspace, properties);
+    private McpActor actor(Authentication auth, UUID tenant, UUID workspace,String selectedAgent) {
+        return McpActor.from(auth, tenant, workspace, properties).selecting(selectedAgent);
     }
     @GetMapping("/capabilities")
     public Map<String, Object> capabilities(@RequestHeader("X-Tenant-Id") UUID tenant,
-            @RequestHeader(value = "X-Workspace-Id", required = false) UUID workspace, Authentication auth) {
-        actor(auth, tenant, workspace);
+            @RequestHeader(value = "X-Workspace-Id", required = false) UUID workspace, Authentication auth, @RequestHeader(value="X-ZT-Agent-Id",required=false) String selectedAgent) {
+        actor(auth, tenant, workspace,selectedAgent);
         return service.capabilities(tenant, workspace);
     }
     @GetMapping("/tools")
     public List<Map<String, Object>> tools(@RequestHeader("X-Tenant-Id") UUID tenant,
-            @RequestHeader(value = "X-Workspace-Id", required = false) UUID workspace, Authentication auth) {
-        return service.listTools(tenant, workspace, actor(auth, tenant, workspace));
+            @RequestHeader(value = "X-Workspace-Id", required = false) UUID workspace, Authentication auth, @RequestHeader(value="X-ZT-Agent-Id",required=false) String selectedAgent) {
+        return service.listTools(tenant, workspace, actor(auth, tenant, workspace,selectedAgent));
     }
     @PutMapping("/tools/{id}/binding")
     @PreAuthorize("hasAnyRole('PLATFORM','ADMIN')")
     public Map<String, Object> binding(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value = "X-Workspace-Id", required = false) UUID workspace,
-            @PathVariable UUID id, HttpServletRequest request, Authentication auth) {
-        actor(auth, tenant, workspace);
+            @PathVariable UUID id, HttpServletRequest request, Authentication auth, @RequestHeader(value="X-ZT-Agent-Id",required=false) String selectedAgent) {
+        actor(auth, tenant, workspace,selectedAgent);
         JsonNode body = McpJson.read(request, mapper, properties.getMaxRequestBytes());
         if (body == null || !body.isObject()) throw new IllegalArgumentException("MCP binding must be an object");
         Set<String> fields = Set.of("serverId", "upstreamTool", "allowedSubjects", "inputSchema",
@@ -58,8 +58,8 @@ public class McpGatewayController {
     @PostMapping("/authorize")
     public Map<String, Object> authorize(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value = "X-Workspace-Id", required = false) UUID workspace,
-            HttpServletRequest request, Authentication auth) {
-        McpActor actor = actor(auth, tenant, workspace);
+            HttpServletRequest request, Authentication auth, @RequestHeader(value="X-ZT-Agent-Id",required=false) String selectedAgent) {
+        McpActor actor = actor(auth, tenant, workspace,selectedAgent);
         JsonNode body = McpJson.read(request, mapper, properties.getMaxRequestBytes());
         UUID tool = UUID.fromString(McpJson.text(body, "toolId"));
         // Legacy context is treated only as tool input, never an identity assertion.
@@ -70,8 +70,8 @@ public class McpGatewayController {
     @PostMapping("/json-rpc")
     public ResponseEntity<?> jsonRpc(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value = "X-Workspace-Id", required = false) UUID workspace,
-            HttpServletRequest request, Authentication auth) {
-        McpActor actor = actor(auth, tenant, workspace);
+            HttpServletRequest request, Authentication auth, @RequestHeader(value="X-ZT-Agent-Id",required=false) String selectedAgent) {
+        McpActor actor = actor(auth, tenant, workspace,selectedAgent);
         JsonNode body = McpJson.read(request, mapper, properties.getMaxRequestBytes());
         String protocol = request.getHeader("MCP-Protocol-Version");
         if (protocol != null && !McpGatewayService.PROTOCOLS.contains(protocol)) {
@@ -86,13 +86,13 @@ public class McpGatewayController {
     @GetMapping("/calls/{id}")
     public Map<String, Object> inspect(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value = "X-Workspace-Id", required = false) UUID workspace,
-            @PathVariable UUID id, Authentication auth) {
-        return invocations.inspect(tenant, workspace, actor(auth, tenant, workspace), id);
+            @PathVariable UUID id, Authentication auth, @RequestHeader(value="X-ZT-Agent-Id",required=false) String selectedAgent) {
+        return invocations.inspect(tenant, workspace, actor(auth, tenant, workspace,selectedAgent), id);
     }
     @PostMapping("/calls/{id}/resume")
     public JsonNode resume(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value = "X-Workspace-Id", required = false) UUID workspace,
-            @PathVariable UUID id, Authentication auth) {
-        return service.resume(tenant, workspace, actor(auth, tenant, workspace), id);
+            @PathVariable UUID id, Authentication auth, @RequestHeader(value="X-ZT-Agent-Id",required=false) String selectedAgent) {
+        return service.resume(tenant, workspace, actor(auth, tenant, workspace,selectedAgent), id);
     }
 }

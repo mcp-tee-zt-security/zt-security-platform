@@ -33,6 +33,10 @@ class PolicyEvaluatorTest {
      var r=evaluator.evaluate(List.of(),req(1));
      assertEquals("DENY",r.decision());
  }
+ @Test void agentConditionSeparatesAgentsUsingTheTrustedPrincipal(){
+     assertEquals("ALLOW",evaluator.evaluate(List.of(p("agent-specific","allow","principal.id == \"agent-1\"")),req(1)).decision());
+     assertEquals("DENY",evaluator.evaluate(List.of(p("another-agent","allow","principal.id == \"agent-2\"")),req(1)).decision());
+ }
  @Test void stepUpBeforeAllow(){
      var r=evaluator.evaluate(List.of(p("allow",
      "allow","context.amount <= 10000000"),p("step","step_up","context.amount > 5000000")),

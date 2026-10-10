@@ -2349,3 +2349,5 @@ td button
 .action-feedback-toast.running .action-feedback-icon{animation:action-feedback-spin 1s linear infinite}
 @keyframes action-feedback-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.action-feedback-toast.running .action-feedback-icon{animation:none}}
+
+.agent-connections{margin-top:18px}.agent-connections .workflow-filter{flex-wrap:wrap}.agent-connections .agent-check{display:flex;align-items:center;gap:8px;min-width:0}.agent-check input{width:auto}.agent-connections td{overflow-wrap:anywhere}

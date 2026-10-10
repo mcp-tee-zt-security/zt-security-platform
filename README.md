@@ -217,6 +217,10 @@ This is the planned architecture. The current Java service combines management, 
 
 The first TEE milestone protects the Rust policy engine. Extending protection to MCP execution requires an attested execution component, credentials inside the protected boundary and enforcement against bypass. Attesting Rust alone does not protect the Java gateway.
 
+### TODO
+
+- [ ] **Bind access tokens to the caller's key:** support [DPoP (RFC 9449)](https://www.rfc-editor.org/rfc/rfc9449.html) or [certificate-bound mTLS access tokens (RFC 8705)](https://www.rfc-editor.org/rfc/rfc8705.html). Verify the token's key binding and possession of the corresponding private key, with client/SDK support, to reduce the risk of reuse of a copied token. This protection is planned and is not currently implemented.
+
 ## Repository structure
 
 | Path | Responsibility |

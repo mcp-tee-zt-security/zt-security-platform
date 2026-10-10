@@ -17,6 +17,7 @@ const Panel=({title,children}:{title:string;children:React.ReactNode})=><section
 
 export default function McpGateway(){
  const [auth,setAuth]=React.useState<McpCredentials>({mode:'default'}),[credentialDraft,setCredentialDraft]=React.useState<McpCredentials>({mode:'default'});
+ const [agentSelection,setAgentSelection]=React.useState(''),[agentOptions,setAgentOptions]=React.useState<any[]>([]);
  const [context,setContext]=React.useState<any>(null),[tab,setTab]=React.useState('execute');
  const [tools,setTools]=React.useState<any[]>([]),[servers,setServers]=React.useState<any[]>([]),[catalog,setCatalog]=React.useState<any[]>([]),[bindings,setBindings]=React.useState<any[]>([]);
  const [policy,setPolicy]=React.useState<any>({}),[history,setHistory]=React.useState<any[]>([]),[approvals,setApprovals]=React.useState<any[]>([]);
@@ -25,11 +26,14 @@ export default function McpGateway(){
  const [result,setResult]=React.useState<any>(null),[lastRequest,setLastRequest]=React.useState<any>(null),[callId,setCallId]=React.useState('');
  const [approvalDetail,setApprovalDetail]=React.useState<any>(null),[busy,setBusy]=React.useState(false),[error,setError]=React.useState(''),[message,setMessage]=React.useState('');
  const ticket=React.useRef(0);
- const request=(path:string,method='GET',body?:unknown)=>mcpRequest(path,method,body,auth);
+ const request=(path:string,method='GET',body?:unknown)=>mcpRequest(path,method,body,auth,agentSelection?{'X-ZT-Agent-Id':agentSelection}:{});
  const load=async(credentials=auth)=>{
    const current=++ticket.current;setBusy(true);setError('');
    try{
      const c=await mcpRequest('/v1/mcp/management/context','GET',undefined,credentials);
+     const options=await mcpRequest('/v1/mcp/agent-options','GET',undefined,credentials);
+     try{const identity=await mcpRequest('/v1/mcp/identity','GET',undefined,credentials,agentSelection?{'X-ZT-Agent-Id':agentSelection}:{});Object.assign(c,identity)}catch(e:any){c.agentSelectionError=e.message}
+     if(current===ticket.current)setAgentOptions(options);
      const [t,h,s,m,a]=await Promise.all([
        mcpRequest('/v1/mcp/tools','GET',undefined,credentials),mcpRequest('/v1/mcp/calls','GET',undefined,credentials),
        c.canManage?mcpRequest('/v1/mcp/servers','GET',undefined,credentials):Promise.resolve({servers:[],registrationPolicy:{}}),
@@ -45,7 +49,7 @@ export default function McpGateway(){
    }catch(e:any){if(current===ticket.current){setContext(null);setError(e.message)}}
    finally{if(current===ticket.current)setBusy(false)}
  };
- React.useEffect(()=>{setContext(null);setSelected('');setArgumentsText('{}');setCallId('');setTools([]);setServers([]);setCatalog([]);setBindings([]);setApprovals([]);setHistory([]);setDiscovered([]);setApprovalDetail(null);setResult(null);setLastRequest(null);setMessage('');void load(auth);return()=>{ticket.current++}},[auth]);
+ React.useEffect(()=>{setContext(null);setSelected('');setArgumentsText('{}');setCallId('');setTools([]);setServers([]);setCatalog([]);setBindings([]);setApprovals([]);setHistory([]);setDiscovered([]);setApprovalDetail(null);setResult(null);setLastRequest(null);setMessage('');void load(auth);return()=>{ticket.current++}},[auth,agentSelection]);
  usePageRefresh(()=>load(auth));
  const act=async(job:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await job()}catch(e:any){setError(e.message)}finally{setBusy(false)}};
  const saveServer=()=>act(async()=>{
@@ -105,13 +109,18 @@ export default function McpGateway(){
    ...(context?.canApprove?[['approvals','MCP approvals']]:[]),['history','Call history']];
  return <div className="mcp-workspace">
   <div className="page-header"><div><h2>MCP Security Gateway</h2><p>Register upstreams and tools, then inspect policy-governed execution.</p></div><button disabled={busy} onClick={()=>load()}>Refresh</button></div>
+  <section className="panel"><h3>Execution Agent</h3><p>Authenticated service: <strong>{context?.subject||'Unknown'}</strong> · Policy Agent: <strong>{context?.policySubject||'Selection required'}</strong></p>
+   <label>Agent for this service<select value={agentSelection} disabled={busy} onChange={e=>setAgentSelection(e.target.value)}><option value="">Use default Agent / legacy service subject</option>{agentOptions.map(x=><option key={x.agentExternalId} value={x.agentExternalId} disabled={!x.enabled}>{x.agentName} · {x.agentExternalId}{x.isDefault?' (default)':''}{!x.enabled?' (disabled)':''}</option>)}</select></label>
+   {context?.agentSelectionError&&<p role="alert">{context.agentSelectionError}</p>}
+   <p className="muted">Selection is checked against this service's registered connections. Approval resume requires the original service and Agent.</p>
+  </section>
   <RecordLinks mcp/><details className="panel mcp-auth"><summary>Caller identity: <strong>{context?.subject||'not authenticated'}</strong></summary>
    <p>Credentials apply only to this MCP workspace and stay in page memory. Switching the navigation role does not change authentication.</p>
    <div className="mcp-form-grid">
     <Field label="Authentication"><select disabled={busy} value={credentialDraft.mode} onChange={e=>setCredentialDraft({mode:e.target.value as McpCredentials['mode']})}><option value="default">Configured dashboard credential</option><option value="service">Registered service client</option><option value="bearer">OIDC bearer token</option></select></Field>
     {credentialDraft.mode==='service'&&<Field label="Client ID"><input disabled={busy} autoComplete="off" value={credentialDraft.clientId||''} onChange={e=>setCredentialDraft({...credentialDraft,clientId:e.target.value})}/></Field>}
     {credentialDraft.mode!=='default'&&<Field label={credentialDraft.mode==='bearer'?'Bearer token':'Client secret'}><input type="password" autoComplete="off" disabled={busy} value={credentialDraft.secret||''} onChange={e=>setCredentialDraft({...credentialDraft,secret:e.target.value})}/></Field>}
-   </div><button disabled={busy} onClick={()=>{if(credentialDraft.mode!=='default'&&(!credentialDraft.secret||credentialDraft.mode==='service'&&!credentialDraft.clientId)){setError('Provide the credential and client ID when required');return}setAuth({...credentialDraft});setCredentialDraft({...credentialDraft,secret:''})}}>Apply identity</button>
+   </div><button disabled={busy} onClick={()=>{if(credentialDraft.mode!=='default'&&(!credentialDraft.secret||credentialDraft.mode==='service'&&!credentialDraft.clientId)){setError('Provide the credential and client ID when required');return}setAgentSelection('');setAuth({...credentialDraft});setCredentialDraft({...credentialDraft,secret:''})}}>Apply identity</button>
    <p className="muted">For approvals, request as a registered service client, switch to an independent authorized approver, then switch back to resume. Service clients do not receive approval rights.</p>
   </details>
   {error&&<div className="error-banner" role="alert">{error}</div>}{message&&<p className="mcp-message" role="status">{message}</p>}
@@ -164,12 +173,12 @@ export default function McpGateway(){
    <p className="muted">Gateway records do not measure upstream method invocations. Prove zero calls with an upstream counter, and confirm successful business changes in the order server.</p>
   </Panel></div>}
   {context?.canApprove&&tab==='approvals'&&<><Panel title="MCP request approvals"><p>Approve only after reviewing the saved arguments. Self-approval is blocked by the server. Approval does not execute the tool.</p>
-   <div className="table-scroll"><table><thead><tr><th>Tool / requester</th><th>State</th><th>Expires</th><th>Call ID</th><th/></tr></thead><tbody>{approvals.map(x=><tr key={x.approvalId}><td>{x.toolName}<small className="mcp-block">{x.requestedBy}</small></td><td><Status value={x.status}/></td><td>{stamp(x.expiresAt)}</td><td><code>{x.callId}</code></td><td><button disabled={busy} onClick={()=>inspectApproval(x)}>Review request</button></td></tr>)}</tbody></table></div>
+   <div className="table-scroll"><table><thead><tr><th>Tool / requester</th><th>State</th><th>Expires</th><th>Call ID</th><th/></tr></thead><tbody>{approvals.map(x=><tr key={x.approvalId}><td>{x.toolName}<small className="mcp-block">{x.requestedBy} · Agent: {x.policySubject||x.requestedBy}</small></td><td><Status value={x.status}/></td><td>{stamp(x.expiresAt)}</td><td><code>{x.callId}</code></td><td><button disabled={busy} onClick={()=>inspectApproval(x)}>Review request</button></td></tr>)}</tbody></table></div>
    {!approvals.length&&<p>No MCP approvals in this workspace.</p>}</Panel>
-   {approvalDetail&&<Panel title="Review saved execution request"><p>{approvalDetail.toolName} requested by <strong>{approvalDetail.requestedBy}</strong></p><pre className="json">{JSON.stringify(approvalDetail.arguments,null,2)}</pre><p>{approvalDetail.reason}</p>
+   {approvalDetail&&<Panel title="Review saved execution request"><p>{approvalDetail.toolName} requested by <strong>{approvalDetail.requestedBy}</strong> · Agent: <strong>{approvalDetail.policySubject||approvalDetail.requestedBy}</strong></p><pre className="json">{JSON.stringify(approvalDetail.arguments,null,2)}</pre><p>{approvalDetail.reason}</p>
     <div className="button-row"><button disabled={busy||approvalDetail.status!=='PENDING'||approvalDetail.requestedBy===context.subject} onClick={()=>decide(approvalDetail,'APPROVED')}>Approve</button><button disabled={busy||approvalDetail.status!=='PENDING'||approvalDetail.requestedBy===context.subject} onClick={()=>decide(approvalDetail,'REJECTED')}>Reject</button></div>
     {approvalDetail.requestedBy===context.subject&&<p>An independent approver must decide this request.</p>}<p>After approval, the original caller can resume call <code>{approvalDetail.callId}</code>.</p></Panel>}</>}
-  {tab==='history'&&<Panel title="Recent MCP calls"><p>Up to 100 records in this workspace. Administrators see workspace calls; other callers see their own. Counts describe gateway records, not external executions.</p>{!history.length&&<p>No MCP call records for this caller in the current workspace.</p>}<div className="table-scroll"><table><thead><tr><th>Time</th><th>Tool / requester</th><th>State</th><th>Error</th><th>Call ID</th><th/></tr></thead><tbody>{history.map(x=><tr key={x.callId}><td>{stamp(x.createdAt)}</td><td>{x.toolName}<small className="mcp-block">{x.requestedBy}</small></td><td><Status value={x.status}/></td><td>{x.errorCode||'—'}</td><td><code>{x.callId}</code></td><td><button disabled={busy||x.requestedBy!==context?.subject} onClick={()=>{setCallId(x.callId);setTab('execute')}}>Open call</button></td></tr>)}</tbody></table></div></Panel>}
+  {tab==='history'&&<Panel title="Recent MCP calls"><p>Up to 100 records in this workspace. Administrators see workspace calls; other callers see their own. Counts describe gateway records, not external executions.</p>{!history.length&&<p>No MCP call records for this caller in the current workspace.</p>}<div className="table-scroll"><table><thead><tr><th>Time</th><th>Tool / requester</th><th>State</th><th>Error</th><th>Call ID</th><th/></tr></thead><tbody>{history.map(x=><tr key={x.callId}><td>{stamp(x.createdAt)}</td><td>{x.toolName}<small className="mcp-block">{x.requestedBy} · Agent: {x.policySubject||x.requestedBy}</small></td><td><Status value={x.status}/></td><td>{x.errorCode||'—'}</td><td><code>{x.callId}</code></td><td><button disabled={busy||x.requestedBy!==context?.subject} onClick={()=>{setCallId(x.callId);setTab('execute')}}>Open call</button></td></tr>)}</tbody></table></div></Panel>}
   {tab==='history'&&!history.length&&<p className="muted">No committed MCP calls in this scope. A failure during evaluation, including an audit archive failure, can occur before a call record is created.</p>}
  </div>;
 }
