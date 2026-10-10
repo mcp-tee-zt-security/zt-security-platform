@@ -207,6 +207,28 @@
       "realmRoles": [
         "STITCH_SYNC"
       ]
+    },
+    {
+      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+      "username": "bob-demo",
+      "enabled": true,
+      "email": "bob-demo@example.invalid",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Synthetic",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-stitch-human-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/employees"
+      ]
     }
   ]
 }

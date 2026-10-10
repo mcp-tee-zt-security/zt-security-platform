@@ -1,0 +1,87 @@
+# Overlay on docker-compose.yml. All content and credentials here are local synthetic fixtures.
+services:
+  keycloak:
+    environment:
+      # Keep JWT issuer stable for internal token requests as well as the host browser.
+      KC_HOSTNAME: http://localhost:8089
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+  authorization-api:
+    environment:
+      ZT_OIDC_ENABLED: "true"
+      ZT_OIDC_ISSUER_URI: http://localhost:8089/realms/zt-stitch-contract
+      ZT_OIDC_JWK_SET_URI: http://keycloak:8080/realms/zt-stitch-contract/protocol/openid-connect/certs
+      ZT_STITCH_INTEGRATION_ENABLED: "true"
+      ZT_STITCH_MAX_SOURCE_AGE_SECONDS: "120"
+    depends_on:
+      keycloak:
+        condition: service_started
+  stitch-source:
+    build: &sim_build
+      context: ..
+      dockerfile: apps/stitch-simulator/Dockerfile
+    command: ["python", "/app/source.py"]
+    environment: &sim_shared
+      STITCH_SOURCE_TOKEN: local-synthetic-source-only
+      STITCH_SIM_INTERNAL_TOKEN: local-synthetic-runner-only
+      STITCH_SIM_AI_SUBJECT: client:stitchy-simulator
+      ZT_TENANT_ID: 11111111-1111-1111-1111-111111111111
+      ZT_WORKSPACE_ID: 88888888-8888-8888-8888-888888888801
+      STITCH_AGENT_URL: http://stitch-sim-gateway/runner
+    volumes: [stitch_sim_source:/state]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  stitchy-simulator:
+    build: *sim_build
+    command: ["python", "/app/agent.py"]
+    environment:
+      STITCH_SIM_INTERNAL_TOKEN: local-synthetic-runner-only
+      STITCH_SIM_AI_SUBJECT: client:stitchy-simulator
+      ZT_SIM_GATEWAY_URL: http://stitch-sim-gateway
+    networks: [stitch_ai]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  stitch-sim-gateway:
+    image: nginx:alpine
+    volumes: ["./stitch-simulation.gateway.conf:/etc/nginx/conf.d/default.conf:ro"]
+    networks: [default, stitch_ai]
+    depends_on:
+      authorization-api:
+        condition: service_healthy
+      stitchy-simulator:
+        condition: service_started
+    restart: unless-stopped
+  stitch-simulator:
+    build: *sim_build
+    environment:
+      <<: *sim_shared
+      ZT_CONNECTOR_API_URL: http://authorization-api:8080
+      STITCH_SOURCE_URL: http://stitch-source:8765
+      STITCH_CONNECTOR_TOKEN_URL: http://keycloak:8080/realms/zt-stitch-contract/protocol/openid-connect/token
+      STITCH_CONNECTOR_CLIENT_ID: zt-stitch-sync
+      STITCH_CONNECTOR_CLIENT_SECRET: local-stitch-sync-only
+      STITCH_CONNECTOR_ALLOWED_HOSTS: authorization-api,stitch-source,keycloak
+      STITCH_CONNECTOR_DEVELOPMENT_HTTP: "true"
+      STITCH_CONNECTOR_CURSOR_FILE: /state/cursor.json
+      ZT_SIM_ADMIN_KEY: dev-master-key
+      STITCH_SIM_CLIENT_ID: stitchy-simulator
+    ports: ["127.0.0.1:8766:8766"]
+    volumes: [stitch_sim_portal:/state]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      stitch-source:
+        condition: service_started
+      stitch-sim-gateway:
+        condition: service_started
+    restart: unless-stopped
+networks:
+  stitch_ai:
+    internal: true
+volumes:
+  stitch_sim_source:
+  stitch_sim_portal:

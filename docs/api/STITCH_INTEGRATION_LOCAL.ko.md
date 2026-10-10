@@ -1,5 +1,7 @@
 # 표준 Stitch 연동의 로컬 개발 절차
 
+가상 Stitch 서버와 Stitchy 클라이언트를 함께 사용하려면 [로컬 시뮬레이션 가이드](../demo/STITCH_SIMULATION.ko.md)를 참고하세요. Prepare/위임/권한 변경/검색/삭제를 전용 데모 화면에서 실행할 수 있습니다. 아래 내용은 표준 API를 직접 호출하는 절차입니다.
+
 실제 Stitch 시스템을 연결한 자료가 아닙니다. 합성 사용자/자료를 사용하지만 인증은 Keycloak이 서명한 실제 OIDC JWT로 진행합니다. 기존 Stitch Access PoC와 별도 API/테이블입니다.
 
 ## 준비

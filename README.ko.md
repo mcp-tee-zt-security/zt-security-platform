@@ -283,3 +283,9 @@ cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 ## Stitch 표준 연동 계약
 
 별도의 **Stitch Integration** 표준 연동 API는 OIDC 사용자·AI 위임, 소스 ACL/그룹 동기화, 파일·첨부파일, PostgreSQL 검색/RAG, 권한 버전 캐시, 보존·삭제 요청/확인 계약을 제공합니다. 실제 Stitch와 외부 저장소에 연결하거나 네트워크 제한을 적용한 상태는 아닙니다. [연동 계약](docs/api/STITCH_INTEGRATION_V1.md)과 [로컬 OIDC 개발 절차](docs/api/STITCH_INTEGRATION_LOCAL.ko.md)를 확인하세요. 기본 설정은 비활성화입니다.
+
+### 가상 Stitch + Stitchy 시뮬레이션
+
+선택적인 로컬 시뮬레이터는 표준 연동 API에 가상 Teams 자료/ACL 서버와 Stitchy MCP 클라이언트를 연결합니다. Alice/Bob/AI의 Payroll 접근 차이, 검색 결과 필터링, 권한 변경, 세션 취소, 임시 자료 삭제와 수신자 ACK를 전용 화면에서 비교합니다. 외부 Stitch나 LLM 연결 없이 허용된 도구 결과를 인용하여 답변합니다.
+
+[실행 및 시연 안내](docs/demo/STITCH_SIMULATION.ko.md)를 따라 `docker/stitch-simulation.compose.yml` overlay를 시작한 뒤 **http://localhost:8766**을 엽니다. 기존 대시보드 **Stitch Integration**에서도 연결할 수 있습니다. Stitchy는 전용 Docker internal network에서 읽기 gateway만 사용하며 직접 원본/DB 자격 증명을 받지 않습니다. 이 구성은 로컬 시뮬레이션이며 실행 검증을 수행한 상태는 아닙니다.

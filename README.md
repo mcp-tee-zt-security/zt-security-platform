@@ -284,3 +284,9 @@ The local Compose deployment enables `ZT_STITCH_POC_ENABLED` by default. Disable
 ## Stitch integration contract
 
 The separate [standard integration contract](docs/api/STITCH_INTEGRATION_V1.md) adds OIDC human/AI delegation, live source ACL and membership sync, file/attachment retrieval, PostgreSQL RAG indexes, permission-aware ID caching and recipient deletion workflows. It includes SDK/connector code and unapplied network/DB deployment templates. It is disabled by default; actual Stitch endpoints, provider storage and deployment controls still require customer configuration. See the [local OIDC walkthrough](docs/api/STITCH_INTEGRATION_LOCAL.ko.md).
+
+### Virtual Stitch and Stitchy simulation
+
+An optional local simulator connects a synthetic Teams-style content/ACL server and a Stitchy MCP client to the standard ZT contract. Its UI compares human and AI payroll access, filtered retrieval, permission changes, session revocation, temporary storage and recipient erasure acknowledgments. Answers quote freshly authorized tool results; no external Stitch service or LLM is required.
+
+Follow the [local simulation guide](docs/demo/STITCH_SIMULATION.ko.md) using the `docker/stitch-simulation.compose.yml` overlay, then open **http://localhost:8766**, also linked from **Stitch Integration** in the dashboard. The runner uses an isolated Docker internal network and a read-only gateway, with no source/DB credentials. This is local simulation code; builds, runtime behavior and container isolation have not been validated.
