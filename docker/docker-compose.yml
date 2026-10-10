@@ -48,6 +48,7 @@ services:
       REDIS_PORT: 6379
       ZT_API_KEY: dev-master-key
       ZT_OIDC_ENABLED: "false"
+      ZT_STITCH_POC_ENABLED: ${ZT_STITCH_POC_ENABLED:-true}
       ZT_AUDIT_LOCAL_ARCHIVE: /app/data/audit-archive
       ZT_AUDIT_S3_ENABLED: ${ZT_AUDIT_S3_ENABLED:-false}
       ZT_AUDIT_BUCKET: ${ZT_AUDIT_BUCKET:-}

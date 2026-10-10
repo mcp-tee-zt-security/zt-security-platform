@@ -274,3 +274,9 @@ Development emphasizes stabilization, readable code and documentation. Add capab
 - [Historical build and startup notes](docs/history/BUILD_FIX_4.75.0.md)
 
 Repository-wide distribution license terms are not currently specified. No public SDK package publication or production certification is asserted by this README.
+
+## Stitch AI access PoC
+
+A separate synthetic demo provides server-authorized document reads, folder inheritance, channel messages and permission-filtered search. Open **Agents & Connections → Stitch Access PoC** in the dashboard. Initialize sample data explicitly as an administrator; authenticate a registered service client to demonstrate AI restrictions.
+
+The local Compose deployment enables `ZT_STITCH_POC_ENABLED` by default. Disable it outside demo deployments. This PoC does not integrate actual Stitch data, end-user ACLs, LLM retrieval, external MCP, vector indexes or TEE. See the [demo guide](docs/api/STITCH_ACCESS_POC.ko.md) and [Postman collection](docs/postman/Stitch-Access-PoC.postman_collection.json).

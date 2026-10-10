@@ -1,0 +1,664 @@
+{
+  "info": {
+    "name": "Stitch AI Access - Synthetic PoC",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Use existing ZT Local environment: zt_base_url, admin_api_key, tenant_id, workspace_id, client_id, client_secret. Register a service client first using main ZT collection. Send requests individually; settings requests change access. Synthetic data, server-side authorization, no real Stitch integration, no TEE/LLM/RAG. Requires ZT_STITCH_POC_ENABLED=true. No requests were run by Codex."
+  },
+  "item": [
+    {
+      "name": "01 - Administrator setup / human demo",
+      "item": [
+        {
+          "name": "Initialize synthetic fixtures (idempotent)",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/setup",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Existing settings are preserved; no production policies are published.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Administrator context",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/poc/stitch/context",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "description": ""
+          }
+        },
+        {
+          "name": "Folder/channel metadata (admin only)",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/poc/stitch/management",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "description": ""
+          }
+        },
+        {
+          "name": "Human administrator reads Payroll",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/readDocument",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentId\": \"payroll-2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Human search payroll",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/searchDocuments",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"payroll\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Human reads restricted channel",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/listChannelMessages",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channelId\": \"payroll-channel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Authenticated AI retrieval",
+      "item": [
+        {
+          "name": "AI service context",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/poc/stitch/context",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              }
+            ],
+            "description": ""
+          }
+        },
+        {
+          "name": "AI reads handbook — ALLOW",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/readDocument",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentId\": \"handbook\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI reads Payroll — DENY",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/readDocument",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentId\": \"payroll-2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI reads archive — inherited DENY",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/readDocument",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentId\": \"payroll-archive-2025\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI searches payroll — authorized results only",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/searchDocuments",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"payroll\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI searches Alice — no restricted matches",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/searchDocuments",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Alice\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI reads general channel — ALLOW",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/listChannelMessages",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channelId\": \"general-channel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI reads Payroll channel — DENY",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/listChannelMessages",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channelId\": \"payroll-channel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Spoofed client attributes cannot grant access",
+          "request": {
+            "method": "POST",
+            "url": "{{zt_base_url}}/v1/poc/stitch/readDocument",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Extra attributes are ignored or rejected by binding configuration; server authentication and stored metadata remain authoritative.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentId\": \"payroll-2026\",\n  \"agentAccess\": \"ALLOW\",\n  \"actorType\": \"HUMAN\",\n  \"principal\": {\n    \"type\": \"HUMAN\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AI own PoC history",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/poc/stitch/calls",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              }
+            ],
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Settings / workspace history",
+      "item": [
+        {
+          "name": "Allow AI Payroll (intentional demo change)",
+          "request": {
+            "method": "PUT",
+            "url": "{{zt_base_url}}/v1/poc/stitch/areas/payroll/access",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Changes AI access immediately. Re-send AI read to demonstrate change, then restore DENY. Existing responses cannot be recalled.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentAccess\": \"ALLOW\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Restore AI Payroll DENY",
+          "request": {
+            "method": "PUT",
+            "url": "{{zt_base_url}}/v1/poc/stitch/areas/payroll/access",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentAccess\": \"DENY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Workspace PoC history",
+          "request": {
+            "method": "GET",
+            "url": "{{zt_base_url}}/v1/poc/stitch/calls",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "description": ""
+          }
+        }
+      ]
+    }
+  ]
+}

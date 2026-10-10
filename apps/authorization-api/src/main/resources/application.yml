@@ -30,6 +30,10 @@ spring:
         jwt:
           issuer-uri: ${ZT_OIDC_ISSUER_URI:http://localhost:8089/realms/zt}
 zt:
+  poc:
+    stitch:
+      enabled: ${ZT_STITCH_POC_ENABLED:false}
+      audience: ${ZT_STITCH_POC_AUDIENCE:zt-stitch-poc}
   security:
     oidc:
       enabled: ${ZT_OIDC_ENABLED:false}

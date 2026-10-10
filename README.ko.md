@@ -274,3 +274,8 @@ cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 - [과거 빌드·시작 오류 수정 기록](docs/history/BUILD_FIX_4.75.0.md)
 
 저장소 전체에 적용되는 배포·재배포 라이선스 조건은 아직 명시되어 있지 않습니다. 이 README는 공개 SDK 패키지 배포나 운영 인증을 주장하지 않습니다.
+## Stitch AI 접근 통제 PoC
+
+대시보드 **Agents & Connections → Stitch Access PoC**에서 합성 폴더·채널 데이터를 준비하고, 관리자와 인증된 AI 서비스 클라이언트의 문서 조회·검색 결과를 비교할 수 있습니다. 상위 폴더의 AI 접근 금지 설정을 상속하며 검색 응답에서도 금지된 자료를 제외합니다.
+
+로컬 Compose는 `ZT_STITCH_POC_ENABLED=true`를 기본 사용합니다. 운영 배포에서는 비활성화하세요. 실제 Stitch 사용자 ACL·LLM·MCP·벡터 검색·TEE 연동은 포함하지 않습니다. [데모 진행 안내](docs/api/STITCH_ACCESS_POC.ko.md)와 [Postman Collection](docs/postman/Stitch-Access-PoC.postman_collection.json)을 참고하세요.
