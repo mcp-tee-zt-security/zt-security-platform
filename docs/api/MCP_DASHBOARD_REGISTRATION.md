@@ -99,6 +99,8 @@ The UI never accepts or persists upstream token values. To use authentication, d
 
 **Call history** shows the latest 100 scoped gateway records. Administrators can see workspace calls; other callers see their own. It does not measure calls received by the upstream.
 
+If evaluation fails before the invocation is inserted, no call record is committed. For example, `Audit archive failed` aborts the evaluation transaction and prevents upstream execution. The Docker image creates a directory writable by UID 10001, and Compose mounts the persistent `zt_audit_archive` volume at `/app/data/audit-archive`. Keep that path writable when using custom mounts. Archive errors identify the LOCAL or S3 stage; details are logged by the backend. Fix the storage/configuration issue rather than bypassing mandatory audit handling.
+
 For a real enforcement test, instrument `cancelOrder` on the MCP server and compare its invocation count before and after the request. Also inspect the actual order status. `SUCCEEDED` indicates an upstream result was received and recorded; it does not interpret strings such as `ORDER_NOT_FOUND` as a completed cancellation.
 
 | Scenario | Expected cancellation-call increase |

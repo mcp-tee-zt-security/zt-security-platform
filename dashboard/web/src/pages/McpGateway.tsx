@@ -79,16 +79,18 @@ export default function McpGateway(){
  const args=()=>{const x=JSON.parse(argumentsText);if(!x||typeof x!=='object'||Array.isArray(x))throw new Error('Arguments must be a JSON object');return x};
  const receive=(x:any)=>{
    setResult(x);const security=x.result?._meta?.['zt.security']||x._meta?.['zt.security']||x;
+   if(x.error)setError(`${x.error.message||'MCP request failed'} (RPC ${x.error.code}). Check call history before retrying.`);
    setCallId(security.status==='PENDING_APPROVAL'?security.callId:'');
  };
  const execute=(preview:boolean)=>act(async()=>{
    const tool=tools.find(x=>x.toolId===selected);if(!tool)throw new Error('Select an executable tool');
-   if(preview)receive(await request('/v1/mcp/authorize','POST',{toolId:tool.toolId,arguments:args()}));
-   else{const body={jsonrpc:'2.0',id:crypto.randomUUID(),method:'tools/call',params:{name:tool.name,arguments:args()}};setLastRequest(body);receive(await request('/v1/mcp/json-rpc','POST',body))}
-   await load();
+   let response;
+   if(preview)response=await request('/v1/mcp/authorize','POST',{toolId:tool.toolId,arguments:args()});
+   else{const body={jsonrpc:'2.0',id:crypto.randomUUID(),method:'tools/call',params:{name:tool.name,arguments:args()}};setLastRequest(body);response=await request('/v1/mcp/json-rpc','POST',body)}
+   await load();receive(response);
  });
- const resume=()=>act(async()=>{if(!callId.trim())throw new Error('Call ID is required');receive(await request('/v1/mcp/calls/'+encodeURIComponent(callId.trim())+'/resume','POST',{}));await load()});
- const replay=()=>act(async()=>{if(!lastRequest)throw new Error('No request to replay');receive(await request('/v1/mcp/json-rpc','POST',lastRequest));await load()});
+ const resume=()=>act(async()=>{if(!callId.trim())throw new Error('Call ID is required');const x=await request('/v1/mcp/calls/'+encodeURIComponent(callId.trim())+'/resume','POST',{});await load();receive(x)});
+ const replay=()=>act(async()=>{if(!lastRequest)throw new Error('No request to replay');const x=await request('/v1/mcp/json-rpc','POST',lastRequest);await load();receive(x)});
  const inspectApproval=(row:any)=>act(async()=>{setApprovalDetail(await request('/v1/mcp/approvals/'+encodeURIComponent(row.callId)))});
  const decide=(row:any,status:string)=>act(async()=>{
    const x=await request('/v1/approvals/'+encodeURIComponent(row.approvalId)+'/decision?status='+status,'POST',{});
@@ -161,5 +163,6 @@ export default function McpGateway(){
     <div className="button-row"><button disabled={busy||approvalDetail.status!=='PENDING'||approvalDetail.requestedBy===context.subject} onClick={()=>decide(approvalDetail,'APPROVED')}>Approve</button><button disabled={busy||approvalDetail.status!=='PENDING'||approvalDetail.requestedBy===context.subject} onClick={()=>decide(approvalDetail,'REJECTED')}>Reject</button></div>
     {approvalDetail.requestedBy===context.subject&&<p>An independent approver must decide this request.</p>}<p>After approval, the original caller can resume call <code>{approvalDetail.callId}</code>.</p></Panel>}</>}
   {tab==='history'&&<Panel title="Recent MCP calls"><p>Up to 100 records in this workspace. Administrators see workspace calls; other callers see their own. Counts describe gateway records, not external executions.</p><div className="table-scroll"><table><thead><tr><th>Time</th><th>Tool / requester</th><th>State</th><th>Error</th><th>Call ID</th><th/></tr></thead><tbody>{history.map(x=><tr key={x.callId}><td>{stamp(x.createdAt)}</td><td>{x.toolName}<small className="mcp-block">{x.requestedBy}</small></td><td><Status value={x.status}/></td><td>{x.errorCode||'—'}</td><td><code>{x.callId}</code></td><td><button disabled={busy||x.requestedBy!==context?.subject} onClick={()=>{setCallId(x.callId);setTab('execute')}}>Open call</button></td></tr>)}</tbody></table></div></Panel>}
+  {tab==='history'&&!history.length&&<p className="muted">No committed MCP calls in this scope. A failure during evaluation, including an audit archive failure, can occur before a call record is created.</p>}
  </div>;
 }

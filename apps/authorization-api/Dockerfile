@@ -8,6 +8,7 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/apps/authorization-api/target/authorization-api-2.0.0.jar app.jar
 RUN groupadd --gid 10001 zt && useradd --uid 10001 --gid 10001 --no-create-home zt
+RUN mkdir -p /app/data/audit-archive && chown -R 10001:10001 /app/data
 USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","app.jar"]

@@ -84,7 +84,7 @@ curl http://localhost:8091/ready
 docker compose -f docker/docker-compose.yml down
 ```
 
-Rust 서비스에 사용 가능한 정책 번들이 없거나 준비 조건을 충족하지 못하면 `/ready`는 사유와 함께 HTTP 503을 반환합니다. `down`으로 종료하면 이름이 지정된 볼륨은 유지됩니다. `-v`를 추가하거나 `make reset`을 실행하면 로컬 데이터베이스와 캐시 볼륨이 삭제됩니다.
+Rust 서비스에 사용 가능한 정책 번들이 없거나 준비 조건을 충족하지 못하면 `/ready`는 사유와 함께 HTTP 503을 반환합니다. `down`으로 종료하면 이름이 지정된 볼륨은 유지됩니다. `-v`를 추가하거나 `make reset`을 실행하면 로컬 데이터베이스·캐시·감사 아카이브 볼륨이 삭제됩니다.
 
 ## 환경 설정
 

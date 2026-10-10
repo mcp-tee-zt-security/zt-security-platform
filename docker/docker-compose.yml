@@ -48,6 +48,9 @@ services:
       REDIS_PORT: 6379
       ZT_API_KEY: dev-master-key
       ZT_OIDC_ENABLED: "false"
+      ZT_AUDIT_LOCAL_ARCHIVE: /app/data/audit-archive
+      ZT_AUDIT_S3_ENABLED: ${ZT_AUDIT_S3_ENABLED:-false}
+      ZT_AUDIT_BUCKET: ${ZT_AUDIT_BUCKET:-}
       ZT_MCP_AUDIENCE: ${ZT_MCP_AUDIENCE:-zt-mcp-gateway}
       ZT_MCP_ALLOW_HTTP: ${ZT_MCP_ALLOW_HTTP:-false}
       ZT_MCP_ALLOW_DEVELOPMENT_HTTP_REGISTRATION: ${ZT_MCP_ALLOW_DEVELOPMENT_HTTP_REGISTRATION:-true}
@@ -56,6 +59,8 @@ services:
       ZT_MCP_ALLOWED_ORIGINS: ${ZT_MCP_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       ZT_POLICY_SIGNING_PRIVATE_KEY_B64: ${ZT_POLICY_SIGNING_PRIVATE_KEY_B64:-}
       ZT_POLICY_SIGNING_KEY_ID: ${ZT_POLICY_SIGNING_KEY_ID:-dev-ed25519}
+    volumes:
+      - zt_audit_archive:/app/data/audit-archive
     ports: ["8080:8080"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/v1/health || exit 1"]
@@ -157,6 +162,7 @@ services:
       - policy-data-plane
 
 volumes:
+  zt_audit_archive: {}
   zt_pg: {}
   zt_dp1_cache: {}
   zt_dp2_cache: {}

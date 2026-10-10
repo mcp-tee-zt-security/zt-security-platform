@@ -84,7 +84,7 @@ curl http://localhost:8091/ready
 docker compose -f docker/docker-compose.yml down
 ```
 
-`/ready` returns HTTP 503 with a reason when the Rust service lacks a usable policy bundle or another readiness requirement is unmet. Stopping with `down` preserves named volumes. Adding `-v`, or using `make reset`, deletes the local database and cache volumes.
+`/ready` returns HTTP 503 with a reason when the Rust service lacks a usable policy bundle or another readiness requirement is unmet. Stopping with `down` preserves named volumes. Adding `-v`, or using `make reset`, deletes the local database, cache and audit archive volumes.
 
 ## Configuration
 
