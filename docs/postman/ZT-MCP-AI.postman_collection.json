@@ -1,0 +1,1908 @@
+{
+  "info": {
+    "name": "ZT Security - MCP and AI Agent",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Source-based local workflow. Select ZT Local environment. Send requests individually; do not run the entire collection: setup and policy changes plus actual cancellation are included. No build or live request verification performed. Admin and service identities are separate. Secrets are blank except default development admin key. Existing client secrets cannot be retrieved. AI client needs its own IDE environment secret."
+  },
+  "item": [
+    {
+      "name": "00 - Demo order data (direct upstream setup)",
+      "description": "Create isolated demo data via existing order REST API. Direct status read is an independent check; governed cancellation must use ZT folders 03/05.",
+      "item": [
+        {
+          "name": "Create PENDING demo order (saves order_id)",
+          "request": {
+            "url": "{{order_base_url}}/orders",
+            "body": {
+              "raw": "{\"customerId\":\"ZT-DEMO-CUSTOMER\",\"totalAmount\":10000}",
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "header": [
+              {
+                "value": "application/json",
+                "key": "Content-Type"
+              }
+            ],
+            "description": "Creates a new order on every Send. Server generates its ID. Does not pass through ZT; data setup only.",
+            "method": "POST"
+          },
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "if(pm.response.code===201){const j=pm.response.json(); if(j.orderId)pm.environment.set(\"order_id\",j.orderId);}"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "Read actual upstream order status",
+          "request": {
+            "url": "{{order_base_url}}/orders/{{order_id}}",
+            "description": "Read after ZT DENY to check order remains PENDING. This request reads directly from the order server.",
+            "header": [],
+            "method": "GET"
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Admin setup (send individually)",
+      "item": [
+        {
+          "name": "List existing clients",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/clients",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create order-ai-client (ONCE; saves secret)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/clients",
+            "description": "Run only when this client does not exist. Secret is returned once. Saved to selected environment; copy to IDE ZT_ORDER_AGENT_SECRET. Environment with secret must not be shared.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"name\": \"Order AI Client\",\n  \"workspaceId\": \"{{workspace_id}}\",\n  \"scopes\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  "if(pm.response.code>=200&&pm.response.code<300){const j=pm.response.json();if(j.secret)pm.environment.set('client_secret',j.secret);if(j.id)pm.environment.set('client_record_id',j.id);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin identity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/management/context",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register local orders upstream",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/servers/{{server_id}}",
+            "description": "Writes server settings. Default endpoint assumes ZT in Docker and order server on Windows host.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Order MCP Server\",\n  \"endpoint\": \"{{upstream_url}}\",\n  \"bearerTokenEnv\": null,\n  \"enabled\": true,\n  \"developmentHttp\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Discover upstream tools (saves schemas)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/servers/{{server_id}}/discover",
+            "description": "Discovery must run before tool registration. Uses actual upstream input schemas.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  "if(pm.response.code===200){for(const t of pm.response.json().tools||[]){if(['getOrders','getOrderStatus','cancelOrder'].includes(t.name)){const s=t.inputSchema;delete s.$schema;if(s.type==='object')s.additionalProperties=false;pm.environment.set(t.name+'_schema',JSON.stringify(s));}}}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List registered tools and bindings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/management/tools",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  "if(pm.response.code===200){for(const t of pm.response.json().tools||[]){if(['getOrders','getOrderStatus','cancelOrder'].includes(t.name))pm.environment.set(t.name+'_tool_id',t.toolId);}}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register/update getOrders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/management/tools",
+            "description": "Uses discovered schema. Changes binding permissions; invalidates pending approval. Does not create an ALLOW policy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toolId\": {{getOrders_tool_id_json}},\n  \"name\": \"getOrders\",\n  \"description\": \"ZT-governed getOrders\",\n  \"riskLevel\": \"LOW\",\n  \"config\": {\n    \"serverId\": \"{{server_id}}\",\n    \"upstreamTool\": \"getOrders\",\n    \"allowedSubjects\": [\n      \"api-key\",\n      \"client:{{client_id}}\"\n    ],\n    \"inputSchema\": {{getOrders_schema}},\n    \"redactResultPaths\": [],\n    \"redactTextLiterals\": [],\n    \"requireApproval\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const id=pm.environment.get('getOrders_tool_id'); pm.variables.set('getOrders_tool_id_json', id ? JSON.stringify(id) : 'null');",
+                  "if(!pm.environment.get('getOrders_schema')) { throw new Error('Run Discover upstream tools first'); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  "if(pm.response.code>=200&&pm.response.code<300){pm.environment.set('getOrders_tool_id',pm.response.json().toolId);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register/update getOrderStatus",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/management/tools",
+            "description": "Uses discovered schema. Changes binding permissions; invalidates pending approval. Does not create an ALLOW policy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toolId\": {{getOrderStatus_tool_id_json}},\n  \"name\": \"getOrderStatus\",\n  \"description\": \"ZT-governed getOrderStatus\",\n  \"riskLevel\": \"LOW\",\n  \"config\": {\n    \"serverId\": \"{{server_id}}\",\n    \"upstreamTool\": \"getOrderStatus\",\n    \"allowedSubjects\": [\n      \"api-key\",\n      \"client:{{client_id}}\"\n    ],\n    \"inputSchema\": {{getOrderStatus_schema}},\n    \"redactResultPaths\": [],\n    \"redactTextLiterals\": [],\n    \"requireApproval\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const id=pm.environment.get('getOrderStatus_tool_id'); pm.variables.set('getOrderStatus_tool_id_json', id ? JSON.stringify(id) : 'null');",
+                  "if(!pm.environment.get('getOrderStatus_schema')) { throw new Error('Run Discover upstream tools first'); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  "if(pm.response.code>=200&&pm.response.code<300){pm.environment.set('getOrderStatus_tool_id',pm.response.json().toolId);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register/update cancelOrder",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/management/tools",
+            "description": "Uses discovered schema. Changes binding permissions; invalidates pending approval. Does not create an ALLOW policy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toolId\": {{cancelOrder_tool_id_json}},\n  \"name\": \"cancelOrder\",\n  \"description\": \"ZT-governed cancelOrder\",\n  \"riskLevel\": \"MEDIUM\",\n  \"config\": {\n    \"serverId\": \"{{server_id}}\",\n    \"upstreamTool\": \"cancelOrder\",\n    \"allowedSubjects\": [\n      \"api-key\",\n      \"client:{{client_id}}\"\n    ],\n    \"inputSchema\": {{cancelOrder_schema}},\n    \"redactResultPaths\": [],\n    \"redactTextLiterals\": [],\n    \"requireApproval\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const id=pm.environment.get('cancelOrder_tool_id'); pm.variables.set('cancelOrder_tool_id_json', id ? JSON.stringify(id) : 'null');",
+                  "if(!pm.environment.get('cancelOrder_schema')) { throw new Error('Run Discover upstream tools first'); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  "if(pm.response.code>=200&&pm.response.code<300){pm.environment.set('cancelOrder_tool_id',pm.response.json().toolId);}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Policies (writes; review before publish)",
+      "item": [
+        {
+          "name": "List all policies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/policies/all",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validate read policy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/policies/validate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policyText\": \"policy \\\"allow_order_reads\\\" {\\n effect allow\\n principal.type == \\\"AI_AGENT\\\"\\n action == \\\"mcp.tool.call\\\"\\n resource.type == \\\"mcp_tool\\\"\\n condition { context.mcp.tool == \\\"getOrders\\\" or context.mcp.tool == \\\"getOrderStatus\\\" }\\n}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create read policy DRAFT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/policies",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"allow_order_reads\",\n  \"version\": 1,\n  \"status\": \"DRAFT\",\n  \"policyText\": \"policy \\\"allow_order_reads\\\" {\\n effect allow\\n principal.type == \\\"AI_AGENT\\\"\\n action == \\\"mcp.tool.call\\\"\\n resource.type == \\\"mcp_tool\\\"\\n condition { context.mcp.tool == \\\"getOrders\\\" or context.mcp.tool == \\\"getOrderStatus\\\" }\\n}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  "if(pm.response.code>=200&&pm.response.code<300)pm.environment.set('read_policy_id',pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish read policy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/policies/{{read_policy_id}}/publish",
+            "description": "Activates policy. Existing policies/risk checks still apply. DENY policy must be changed before cancellation ALLOW/approval scenario.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validate deny policy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/policies/validate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policyText\": \"policy \\\"deny_test_order_cancel\\\" {\\n effect deny\\n principal.type == \\\"AI_AGENT\\\"\\n action == \\\"mcp.tool.call\\\"\\n resource.type == \\\"mcp_tool\\\"\\n condition { context.mcp.tool == \\\"cancelOrder\\\" }\\n}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create deny policy DRAFT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/policies",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"deny_test_order_cancel\",\n  \"version\": 1,\n  \"status\": \"DRAFT\",\n  \"policyText\": \"policy \\\"deny_test_order_cancel\\\" {\\n effect deny\\n principal.type == \\\"AI_AGENT\\\"\\n action == \\\"mcp.tool.call\\\"\\n resource.type == \\\"mcp_tool\\\"\\n condition { context.mcp.tool == \\\"cancelOrder\\\" }\\n}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  "if(pm.response.code>=200&&pm.response.code<300)pm.environment.set('deny_policy_id',pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish deny policy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/policies/{{deny_policy_id}}/publish",
+            "description": "Activates policy. Existing policies/risk checks still apply. DENY policy must be changed before cancellation ALLOW/approval scenario.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Service client / actual MCP",
+      "item": [
+        {
+          "name": "Service identity (client:order-ai-client)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/management/context",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Available tools",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/tools",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MCP tools/list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/json-rpc",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$guid}}\",\n  \"method\": \"tools/list\",\n  \"params\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Evaluate cancelOrder ONLY",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/authorize",
+            "description": "Policy evaluation only; not external execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toolId\": \"{{cancelOrder_tool_id}}\",\n  \"arguments\": {\n    \"orderId\": \"{{order_id}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execute getOrders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/json-rpc",
+            "description": "Executes registered upstream tool if authorized.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$guid}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"getOrders\",\n    \"arguments\": {\n      \"status\": \"PENDING\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execute getOrderStatus",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/json-rpc",
+            "description": "Executes registered upstream tool if authorized.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$guid}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"getOrderStatus\",\n    \"arguments\": {\n      \"orderId\": \"{{order_id}}\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execute cancelOrder",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/json-rpc",
+            "description": "Can cancel a real order when authorized. Use isolated test data. Each send uses a new RPC ID; do not resend uncertain operations.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$guid}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"cancelOrder\",\n    \"arguments\": {\n      \"orderId\": \"{{order_id}}\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My call history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/calls",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inspect captured call",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/calls/{{call_id}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resume approved saved call",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{client_secret}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "X-Client-Id",
+                "value": "{{client_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/calls/{{call_id}}/resume",
+            "description": "Original caller only. Can execute the saved upstream operation; do not regenerate original tools/call.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Independent admin approval",
+      "item": [
+        {
+          "name": "Workspace call history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/calls",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pending MCP approvals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/approvals",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inspect approval by call ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/mcp/approvals/{{call_id}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approve captured approval",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/approvals/{{approval_id}}/decision?status=APPROVED",
+            "description": "Independent approver; approval alone does not execute. Resume as original service client.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject captured approval",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{admin_api_key}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{zt_base_url}}/v1/approvals/{{approval_id}}/decision?status=REJECTED",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - AI Client :9999",
+      "item": [
+        {
+          "name": "Available ZT tools",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{ai_base_url}}/ai/tools",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ask: list pending orders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{ai_base_url}}/ai",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Show me all pending orders.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ask: cancel isolated test order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{ai_base_url}}/ai",
+            "description": "May execute cancellation when authorized.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Cancel order {{order_id}}.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ask: list and cancel pending orders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{ai_base_url}}/ai",
+            "description": "Potentially modifies multiple orders. Stops on denial, pending approval or uncertain outcome. Previously completed calls are not rolled back.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Show me all pending orders and cancel them.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inspect AI captured call",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{ai_base_url}}/ai/calls/{{call_id}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resume saved AI call after approval",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{ai_base_url}}/ai/calls/{{call_id}}/resume",
+            "description": "Resumes one saved call, not the full original agent workflow.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  " let j; try { j = pm.response.json(); } catch(e) { return; }",
+                  " const s = j.result && j.result._meta && j.result._meta['zt.security'];",
+                  " const r = s || j;",
+                  " if(r.callId) pm.environment.set('call_id', r.callId);",
+                  " if(r.approvalId) pm.environment.set('approval_id', r.approvalId);",
+                  " if(j.executionStatus) { pm.environment.set('execution_status',j.executionStatus); const a=j.toolExecutions||[]; const x=a.slice().reverse().find(x=>x.callId); if(x) {pm.environment.set('call_id',x.callId);if(x.approvalId)pm.environment.set('approval_id',x.approvalId);} }",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
