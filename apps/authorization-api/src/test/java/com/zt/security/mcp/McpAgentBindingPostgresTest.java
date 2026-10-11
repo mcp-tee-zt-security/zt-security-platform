@@ -21,6 +21,7 @@ import static org.mockito.Mockito.*;
 class McpAgentBindingPostgresTest {
     final UUID tenant=UUID.randomUUID(),workspace=UUID.randomUUID(),otherWorkspace=UUID.randomUUID(),client=UUID.randomUUID(),orders=UUID.randomUUID(),refunds=UUID.randomUUID();
     final McpActor actor=new McpActor("service:test","client:commerce");
+    final String runtimeRole="agent_binding_test_"+UUID.randomUUID().toString().replace("-","");
     JdbcTemplate jdbc,admin;
     TransactionTemplate tx;
     McpAgentBindingService service;
@@ -28,16 +29,16 @@ class McpAgentBindingPostgresTest {
     @BeforeAll void setup() {
         var root=new DriverManagerDataSource(System.getenv("ZT_TEST_DB_URL"),"postgres","fixture-password");
         Flyway.configure().dataSource(root).load().migrate();admin=new JdbcTemplate(root);
-        admin.execute("CREATE ROLE agent_binding_test LOGIN PASSWORD 'fixture-runtime' NOSUPERUSER NOBYPASSRLS");
-        admin.execute("GRANT USAGE ON SCHEMA public TO agent_binding_test");
-        admin.execute("GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA public TO agent_binding_test");
-        admin.update("INSERT INTO tenants(id,slug,name) VALUES (?,?,?)",tenant,"agent-binding-test","Agent binding test");
+        admin.execute("CREATE ROLE "+runtimeRole+" LOGIN PASSWORD 'fixture-runtime' NOSUPERUSER NOBYPASSRLS");
+        admin.execute("GRANT USAGE ON SCHEMA public TO "+runtimeRole);
+        admin.execute("GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA public TO "+runtimeRole);
+        admin.update("INSERT INTO tenants(id,slug,name) VALUES (?,?,?)",tenant,"agent-binding-test-"+tenant,"Agent binding test");
         admin.update("INSERT INTO workspaces(id,tenant_id,slug,name) VALUES (?,?,?,?)",workspace,tenant,"main","Main");
         admin.update("INSERT INTO workspaces(id,tenant_id,slug,name) VALUES (?,?,?,?)",otherWorkspace,tenant,"other","Other");
         admin.update("INSERT INTO api_clients(id,tenant_id,workspace_id,client_id,name,secret_hash) VALUES (?,?,?,?,?,?)",client,tenant,workspace,"commerce","Commerce","fixture-only");
         admin.update("INSERT INTO identities(id,tenant_id,external_id,identity_type,name) VALUES (?,?,?,'AI_AGENT',?)",orders,tenant,"order-agent","Orders");
         admin.update("INSERT INTO identities(id,tenant_id,external_id,identity_type,name) VALUES (?,?,?,'AI_AGENT',?)",refunds,tenant,"refund-agent","Refunds");
-        var runtime=new DriverManagerDataSource(System.getenv("ZT_TEST_DB_URL"),"agent_binding_test","fixture-runtime");
+        var runtime=new DriverManagerDataSource(System.getenv("ZT_TEST_DB_URL"),runtimeRole,"fixture-runtime");
         jdbc=new JdbcTemplate(runtime);tx=new TransactionTemplate(new DataSourceTransactionManager(runtime));
         var registry=mock(McpToolRegistry.class);
         doAnswer(i->{jdbc.queryForObject("SELECT set_config('app.tenant_id',?,true)",String.class,i.getArgument(0).toString());jdbc.queryForObject("SELECT set_config('app.workspace_id',?,true)",String.class,i.getArgument(1)==null?"":i.getArgument(1).toString());return null;}).when(registry).scope(any(),nullable(UUID.class));

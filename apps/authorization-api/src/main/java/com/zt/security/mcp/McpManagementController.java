@@ -11,6 +11,8 @@ import java.util.*;
 @RestController
 @RequestMapping("/v1/mcp")
 public class McpManagementController {
+    @org.springframework.beans.factory.annotation.Value("${zt.security.mcp.require-oidc-approval:false}")
+    private boolean requireOidcApproval;
     private final McpServerRegistry servers;
     private final McpToolRegistry tools;
     private final McpUpstreamClient upstream;
@@ -41,7 +43,9 @@ public class McpManagementController {
     public Map<String, Object> context(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value="X-Workspace-Id",required=false) UUID workspace, Authentication auth) {
         var caller = actor(auth, tenant, workspace);
-        return Map.of("subject", caller.subject(), "canManage", hasRole(auth, "ROLE_PLATFORM", "ROLE_ADMIN"),
+        return Map.of("subject", caller.subject(), "requiresOidcApproval",requireOidcApproval,
+            "authenticationMethod",auth instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken?"OIDC":"SERVICE_KEY",
+            "canManage", hasRole(auth, "ROLE_PLATFORM", "ROLE_ADMIN"),
             "canApprove", hasRole(auth, "ROLE_PLATFORM", "ROLE_ADMIN", "ROLE_APPROVER"));
     }
     @GetMapping("/servers")

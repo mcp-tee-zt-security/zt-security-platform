@@ -1,0 +1,20 @@
+# Local order approval demo. Apply after docker-compose.yml; uses its own OIDC realm.
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: http://localhost:8089
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+  authorization-api:
+    environment:
+      ZT_OIDC_ENABLED: "true"
+      ZT_OIDC_ISSUER_URI: http://localhost:8089/realms/zt-mcp-demo
+      ZT_OIDC_JWK_SET_URI: http://keycloak:8080/realms/zt-mcp-demo/protocol/openid-connect/certs
+      ZT_MCP_REQUIRE_OIDC_APPROVAL: "true"
+    depends_on:
+      keycloak:
+        condition: service_started
+  dashboard:
+    build:
+      args:
+        VITE_OIDC_ISSUER: http://localhost:8089/realms/zt-mcp-demo
+        VITE_OIDC_CLIENT_ID: zt-dashboard

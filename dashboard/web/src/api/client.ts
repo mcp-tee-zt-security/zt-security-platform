@@ -51,7 +51,7 @@ export async function apiDelete(path: string) {
   return parse(await fetch(`${API}${path}`, {method: 'DELETE', headers: headers()}));
 }
 
-export type McpCredentials = {mode:'default'|'service'|'bearer'; clientId?:string; secret?:string};
+export type McpCredentials = {mode:'default'|'service'|'bearer'|'oidc'; clientId?:string; secret?:string};
 
 // MCP workspace credentials are explicit and memory-only; other pages keep their configured authentication.
 export async function mcpRequest(path:string, method='GET', body?:unknown, credentials:McpCredentials={mode:'default'}, extraHeaders:Record<string,string>={}) {
@@ -63,8 +63,12 @@ export async function mcpRequest(path:string, method='GET', body?:unknown, crede
   }
   if(credentials.mode!=='default'){
     delete requestHeaders['X-API-Key'];
-    if(!credentials.secret?.trim())throw new Error('A credential is required');
-    if(credentials.mode==='bearer')requestHeaders.Authorization=`Bearer ${credentials.secret.trim()}`;
+    if(credentials.mode==='oidc'){
+      const {oidcToken}=await import('./oidc');
+      requestHeaders.Authorization=`Bearer ${await oidcToken()}`;
+    }
+    else if(!credentials.secret?.trim())throw new Error('A credential is required');
+    else if(credentials.mode==='bearer')requestHeaders.Authorization=`Bearer ${credentials.secret.trim()}`;
     else{
       if(!credentials.clientId?.trim())throw new Error('Service client ID is required');
       requestHeaders['X-Client-Id']=credentials.clientId.trim();

@@ -3,6 +3,7 @@ import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import {mcpRequest} from '../api/client';
 import type {McpCredentials} from '../api/client';
+import {initializeOidc,loginOidc,logoutOidc,oidcUser} from '../api/oidc';
 
 type ServerForm={serverId:string;displayName:string;endpoint:string;bearerTokenEnv:string;enabled:boolean;developmentHttp:boolean};
 type ToolForm={toolId:string;name:string;description:string;riskLevel:string;serverId:string;upstreamTool:string;subjects:string;schema:string;paths:string;literals:string;requireApproval:boolean};
@@ -16,7 +17,8 @@ const Field=({label,children}:{label:string;children:React.ReactNode})=><label c
 const Panel=({title,children}:{title:string;children:React.ReactNode})=><section className="panel"><h3>{title}</h3>{children}</section>;
 
 export default function McpGateway(){
- const [auth,setAuth]=React.useState<McpCredentials>({mode:'default'}),[credentialDraft,setCredentialDraft]=React.useState<McpCredentials>({mode:'default'});
+ const [auth,setAuth]=React.useState<McpCredentials>(()=>({mode:new URLSearchParams(window.location.search).get('zt_login')==='mcp'?'oidc':'default'})),[credentialDraft,setCredentialDraft]=React.useState<McpCredentials>({mode:'default'});
+ const [loginName,setLoginName]=React.useState('');
  const [agentSelection,setAgentSelection]=React.useState(''),[agentOptions,setAgentOptions]=React.useState<any[]>([]);
  const [context,setContext]=React.useState<any>(null),[tab,setTab]=React.useState('execute');
  const [tools,setTools]=React.useState<any[]>([]),[servers,setServers]=React.useState<any[]>([]),[catalog,setCatalog]=React.useState<any[]>([]),[bindings,setBindings]=React.useState<any[]>([]);
@@ -50,6 +52,7 @@ export default function McpGateway(){
    finally{if(current===ticket.current)setBusy(false)}
  };
  React.useEffect(()=>{setContext(null);setSelected('');setArgumentsText('{}');setCallId('');setTools([]);setServers([]);setCatalog([]);setBindings([]);setApprovals([]);setHistory([]);setDiscovered([]);setApprovalDetail(null);setResult(null);setLastRequest(null);setMessage('');void load(auth);return()=>{ticket.current++}},[auth,agentSelection]);
+ React.useEffect(()=>{let alive=true;initializeOidc().then(loggedIn=>{if(alive&&loggedIn){setLoginName(oidcUser());setAgentSelection('');setAuth({mode:'oidc'});setCredentialDraft({mode:'oidc'});setTab('approvals')}}).catch(e=>{if(alive)setError('Keycloak login failed: '+e.message)});return()=>{alive=false}},[]);
  usePageRefresh(()=>load(auth));
  const act=async(job:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await job()}catch(e:any){setError(e.message)}finally{setBusy(false)}};
  const saveServer=()=>act(async()=>{
@@ -115,13 +118,16 @@ export default function McpGateway(){
    <p className="muted">Selection is checked against this service's registered connections. Approval resume requires the original service and Agent.</p>
   </section>
   <RecordLinks mcp/><details className="panel mcp-auth"><summary>Caller identity: <strong>{context?.subject||'not authenticated'}</strong></summary>
+   <div className="button-row"><button disabled={busy} onClick={()=>act(loginOidc)}>Sign in with Keycloak</button>{loginName&&<button disabled={busy} onClick={()=>act(logoutOidc)}>Sign out of Keycloak</button>}</div>
+   <p>{auth.mode==='oidc'?`Keycloak user: ${loginName||'checking session'} · JWT authentication`:'Sign in as an independent human approver. AI clients keep their service credentials.'}</p>
    <p>Credentials apply only to this MCP workspace and stay in page memory. Switching the navigation role does not change authentication.</p>
    <div className="mcp-form-grid">
-    <Field label="Authentication"><select disabled={busy} value={credentialDraft.mode} onChange={e=>setCredentialDraft({mode:e.target.value as McpCredentials['mode']})}><option value="default">Configured dashboard credential</option><option value="service">Registered service client</option><option value="bearer">OIDC bearer token</option></select></Field>
+    <Field label="Authentication"><select disabled={busy} value={credentialDraft.mode} onChange={e=>setCredentialDraft({mode:e.target.value as McpCredentials['mode']})}><option value="default">Configured dashboard credential</option><option value="service">Registered service client</option><option value="bearer">OIDC bearer token</option><option value="oidc">Keycloak signed-in user</option></select></Field>
     {credentialDraft.mode==='service'&&<Field label="Client ID"><input disabled={busy} autoComplete="off" value={credentialDraft.clientId||''} onChange={e=>setCredentialDraft({...credentialDraft,clientId:e.target.value})}/></Field>}
-    {credentialDraft.mode!=='default'&&<Field label={credentialDraft.mode==='bearer'?'Bearer token':'Client secret'}><input type="password" autoComplete="off" disabled={busy} value={credentialDraft.secret||''} onChange={e=>setCredentialDraft({...credentialDraft,secret:e.target.value})}/></Field>}
-   </div><button disabled={busy} onClick={()=>{if(credentialDraft.mode!=='default'&&(!credentialDraft.secret||credentialDraft.mode==='service'&&!credentialDraft.clientId)){setError('Provide the credential and client ID when required');return}setAgentSelection('');setAuth({...credentialDraft});setCredentialDraft({...credentialDraft,secret:''})}}>Apply identity</button>
-   <p className="muted">For approvals, request as a registered service client, switch to an independent authorized approver, then switch back to resume. Service clients do not receive approval rights.</p>
+    {(credentialDraft.mode==='service'||credentialDraft.mode==='bearer')&&<Field label={credentialDraft.mode==='bearer'?'Bearer token':'Client secret'}><input type="password" autoComplete="off" disabled={busy} value={credentialDraft.secret||''} onChange={e=>setCredentialDraft({...credentialDraft,secret:e.target.value})}/></Field>}
+   </div><button disabled={busy} onClick={()=>{if((credentialDraft.mode==='service'||credentialDraft.mode==='bearer')&&(!credentialDraft.secret||credentialDraft.mode==='service'&&!credentialDraft.clientId)){setError('Provide the credential and client ID when required');return}setAgentSelection('');setAuth({...credentialDraft});setCredentialDraft({...credentialDraft,secret:''})}}>Apply identity</button>
+   <p className="muted">For approvals, request as a registered service client, sign in as an independent human approver, then resume from the original AI client. Service clients do not receive approval rights.</p>
+   {context?.requiresOidcApproval&&<p>Human Keycloak JWT required for MCP approval. A development API key cannot approve these requests.</p>}
   </details>
   {error&&<div className="error-banner" role="alert">{error}</div>}{message&&<p className="mcp-message" role="status">{message}</p>}
   <div className="workflow-tabs" role="tablist">{renderTabs.map(([id,label])=><button key={id} disabled={busy||!context} className={tab===id?'active':''} role="tab" aria-selected={tab===id} onClick={()=>setTab(id)}>{label}{id==='approvals'?` (${approvals.filter(x=>x.status==='PENDING').length})`:''}</button>)}</div>
@@ -173,7 +179,7 @@ export default function McpGateway(){
    <p className="muted">Gateway records do not measure upstream method invocations. Prove zero calls with an upstream counter, and confirm successful business changes in the order server.</p>
   </Panel></div>}
   {context?.canApprove&&tab==='approvals'&&<><Panel title="MCP request approvals"><p>Approve only after reviewing the saved arguments. Self-approval is blocked by the server. Approval does not execute the tool.</p>
-   <div className="table-scroll"><table><thead><tr><th>Tool / requester</th><th>State</th><th>Expires</th><th>Call ID</th><th/></tr></thead><tbody>{approvals.map(x=><tr key={x.approvalId}><td>{x.toolName}<small className="mcp-block">{x.requestedBy} · Agent: {x.policySubject||x.requestedBy}</small></td><td><Status value={x.status}/></td><td>{stamp(x.expiresAt)}</td><td><code>{x.callId}</code></td><td><button disabled={busy} onClick={()=>inspectApproval(x)}>Review request</button></td></tr>)}</tbody></table></div>
+   <div className="table-scroll"><table><thead><tr><th>Tool / requester</th><th>State / approver</th><th>Expires</th><th>Call ID</th><th/></tr></thead><tbody>{approvals.map(x=><tr key={x.approvalId}><td>{x.toolName}<small className="mcp-block">{x.requestedBy} · Agent: {x.policySubject||x.requestedBy}</small></td><td><Status value={x.status}/>{x.decidedBy&&<small className="mcp-block">Decided by: {x.decidedBy}</small>}</td><td>{stamp(x.expiresAt)}</td><td><code>{x.callId}</code></td><td><button disabled={busy} onClick={()=>inspectApproval(x)}>Review request</button></td></tr>)}</tbody></table></div>
    {!approvals.length&&<p>No MCP approvals in this workspace.</p>}</Panel>
    {approvalDetail&&<Panel title="Review saved execution request"><p>{approvalDetail.toolName} requested by <strong>{approvalDetail.requestedBy}</strong> · Agent: <strong>{approvalDetail.policySubject||approvalDetail.requestedBy}</strong></p><pre className="json">{JSON.stringify(approvalDetail.arguments,null,2)}</pre><p>{approvalDetail.reason}</p>
     <div className="button-row"><button disabled={busy||approvalDetail.status!=='PENDING'||approvalDetail.requestedBy===context.subject} onClick={()=>decide(approvalDetail,'APPROVED')}>Approve</button><button disabled={busy||approvalDetail.status!=='PENDING'||approvalDetail.requestedBy===context.subject} onClick={()=>decide(approvalDetail,'REJECTED')}>Reject</button></div>

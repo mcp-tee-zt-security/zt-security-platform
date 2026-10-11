@@ -19,7 +19,8 @@ String master;
     }
     @Override protected void doFilterInternal(HttpServletRequest r,HttpServletResponse s,
 FilterChain c)throws ServletException,IOException {
-    if(SecurityContextHolder.getContext().getAuthentication()==null){
+    // A bearer request must never inherit privileges from a simultaneously supplied API key.
+    if(SecurityContextHolder.getContext().getAuthentication()==null&&r.getHeader("Authorization")==null){
         String k=r.getHeader("X-API-Key");
         if(k!=null && k.equals(master)) SecurityContextHolder.getContext().
         setAuthentication(new UsernamePasswordAuthenticationToken("api-key",

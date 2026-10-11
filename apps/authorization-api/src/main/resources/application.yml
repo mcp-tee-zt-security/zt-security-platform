@@ -52,6 +52,7 @@ zt:
       s3-enabled: ${ZT_AUDIT_S3_ENABLED:false}
       bucket: ${ZT_AUDIT_BUCKET:}
     mcp:
+      require-oidc-approval: ${ZT_MCP_REQUIRE_OIDC_APPROVAL:false}
       audience: ${ZT_MCP_AUDIENCE:zt-mcp-gateway}
       timeout-seconds: ${ZT_MCP_TIMEOUT_SECONDS:15}
       max-request-bytes: ${ZT_MCP_MAX_REQUEST_BYTES:65536}

@@ -148,7 +148,7 @@ function App(){
    window.addEventListener('keydown',escape);
    return()=>window.removeEventListener('keydown',escape);
  },[menuOpen,mobile]);
- const [tab,setTab]=React.useState('Overview');
+ const [tab,setTab]=React.useState(()=>new URLSearchParams(window.location.search).get('zt_login')==='mcp'?'MCP Gateway':'Overview');
  const activePage=['Simulator','Policy What-if','Shadow Replay'].includes(tab)?'Policy Tests':tab;
  const [contextSubject,setContextSubject]=React.useState('');
  const [copilotOpen,setCopilotOpen]=React.useState(false);

@@ -43,6 +43,8 @@ Evaluate policy only는 Upstream을 호출하지 않습니다. ALLOW는 정책 �
 
 ## 5. 승인 시나리오
 
+Keycloak 사람 로그인과 JWT 승인 설정은 [AI 주문 요청과 Keycloak 사용자 승인](../demo/MCP_KEYCLOAK_APPROVAL.ko.md)을 참고하세요. 해당 Compose overlay에서는 개발 키로 MCP 승인할 수 없습니다.
+
 취소 DENY 정책은 STEP_UP 정책보다 우선합니다. DENY 정책을 비활성화/대체한 뒤 승인 시나리오를 준비해야 합니다. Approve order cancellation 템플릿을 사용하거나, 취소 ALLOW 정책과 binding의 Require independent approval을 함께 설정하세요.
 
 서비스 호출자의 취소 요청 → 독립 관리자 Caller identity로 전환 → MCP approvals에서 승인 → 원래 서비스 호출자로 전환 → 저장된 callId 재개.
