@@ -1,3 +1,4 @@
+import MetricLink from '../components/MetricLink';
 import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import { AlertTriangle, RefreshCw, TrendingUp } from 'lucide-react';
@@ -29,37 +30,37 @@ const inspect=async(id:string)=>{setSelected(null);setErr('');try{setSelected(aw
 </div>}
  {data&&<>
 <div className="metric-grid">
-<div className="metric">
+<MetricLink label="Agents" records={data?.forecasts||[]}>
 <div>
 <small>Agents</small>
 <b>{
          data.agentCount}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Forecast window" records={data?.forecasts||[]}>
 <div>
 <small>Forecast window</small>
 <b>{
          data.forecastHours}h</b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="High probability" records={data?.forecasts||[]}>
 <div>
 <small>High probability</small>
 <b>{
          data.highProbabilityAgents}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Events" records={data?.forecasts||[]}>
 <div>
 <small>Events</small>
 <b>{
          data.eventCount}
 </b>
 </div>
-</div>
+</MetricLink>
 </div>
  <section className="panel">
 <div className="panel-head">
@@ -118,36 +119,36 @@ const inspect=async(id:string)=>{setSelected(null);setErr('');try{setSelected(aw
 </span>
 </div>
 <div className="metric-grid">
-<div className="metric">
+<MetricLink label="Current" records={selected?[selected]:[]}>
 <div>
 <small>Current</small>
 <b>{
          selected.currentScore}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Forecast" records={selected?[selected]:[]}>
 <div>
 <small>Forecast</small>
 <b>{
          selected.forecastScore}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="High-risk probability" records={selected?[selected]:[]}>
 <div>
 <small>High-risk probability</small>
 <b>{
          Math.round(selected.highProbability*100)}%</b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Confidence" records={selected?[selected]:[]}>
 <div>
 <small>Confidence</small>
 <b>{
          Math.round(selected.confidence*100)}%</b>
 </div>
-</div>
+</MetricLink>
 </div>
 <div className="grid-2">
 <div>

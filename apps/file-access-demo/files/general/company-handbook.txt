@@ -1,0 +1,8 @@
+Company handbook — synthetic demonstration document
+
+Finance and IT employees can read this shared folder.
+Support hours: Monday to Friday, 09:00–17:00.
+Expense reports are submitted before the last business day of each month.
+ZT_FILE_DEMO_GENERAL_2026 is the demonstration reference code.
+
+This file contains no real employee or payroll information.

@@ -1,3 +1,4 @@
+import MetricLink from '../components/MetricLink';
 import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import { AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
@@ -35,35 +36,35 @@ setMsg(r.length?'Preventive control proposed. Approval is still required.':'An e
 </div>}
  {data&&<>
 <div className="metric-grid">
-<div className="metric">
+<MetricLink label="Agents" records={data?.forecasts||[]}>
 <div>
 <small>Agents</small>
 <b>{
          data.agentCount}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="High probability" records={data?.forecasts||[]}>
 <div>
 <small>High probability</small>
 <b>{
          data.highProbabilityAgents}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Forecast horizon" records={data?.forecasts||[]}>
 <div>
 <small>Forecast horizon</small>
 <b>{
          data.forecastHours}h</b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Control mode" records={data?.forecasts||[]}>
 <div>
 <small>Control mode</small>
 <b>Approval</b>
 </div>
-</div>
+</MetricLink>
 </div>
  <section className="panel">
 <div className="panel-head">

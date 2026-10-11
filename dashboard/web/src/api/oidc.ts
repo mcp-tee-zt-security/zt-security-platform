@@ -40,3 +40,8 @@ export async function oidcToken():Promise<string> {
 }
 export function oidcUser() { return keycloak.tokenParsed?.preferred_username || ''; }
 export function oidcSubject(){return keycloak.tokenParsed?.sub||'';}
+export function oidcRoles():string[]{
+  const token=keycloak.tokenParsed;
+  const direct=token?.roles;
+  return [...(Array.isArray(direct)?direct:[]),...(token?.realm_access?.roles||[])].map(role=>String(role).toUpperCase());
+}

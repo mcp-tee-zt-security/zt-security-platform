@@ -1,3 +1,4 @@
+import MetricLink from '../components/MetricLink';
 import React from 'react';
 import { GitCompareArrows, ShieldAlert, Play, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { apiPost } from '../api/client';
@@ -76,37 +77,37 @@ export default function PolicyWhatIf({policyText,onPolicyTextChange}:{policyText
 <small>Before/after enforcement impact will appear here.</small>
 </div>:<>
     <div className="metric-grid">
-<div className="metric">
+<MetricLink label="Changed decisions" records={data?.results||[]}>
 <div>
 <small>Changed decisions</small>
 <b>{
         data.changedDecisions}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="New DENY" records={data?.results||[]}>
 <div>
 <small>New DENY</small>
 <b>{
         data.newlyDenied}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="New STEP_UP" records={data?.results||[]}>
 <div>
 <small>New STEP_UP</small>
 <b>{
         data.newlyStepUp}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Risk reduction" records={data?.results||[]}>
 <div>
 <small>Risk reduction</small>
 <b>{
         data.estimatedRiskReductionPct}%</b>
 </div>
-</div>
+</MetricLink>
 </div>
     <div className="feature-grid">
 <span>

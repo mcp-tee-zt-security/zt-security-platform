@@ -61,6 +61,16 @@ public class RuntimeIntelligenceService {
         return Map.of("total",a.size(),"byType",by,"highOrCritical",
         a.stream().filter(x->"HIGH".equals(x.getSeverity())||"CRITICAL".equals(x.getSeverity())).count());
     }
+    public Object records(UUID t,String view,String severity){
+        tenant.set(t);
+        if(!Set.of("SESSIONS","AGENTS","ANOMALIES").contains(view)||!Set.of("ALL","HIGH_CRITICAL").contains(severity))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,"Invalid runtime record filter");
+        var ss=sessions.findTop50ByTenantIdOrderByLastSeenAtDesc(t);
+        List<?> rows;
+        if("SESSIONS".equals(view))rows=ss.stream().filter(s->"ACTIVE".equals(s.getStatus())).map(this::session).toList();
+        else if("AGENTS".equals(view))rows=ss.stream().map(AgentRuntimeSession::getAgentExternalId).filter(Objects::nonNull).distinct().map(agent->Map.of("agent",agent,"activeSessions",ss.stream().filter(s->agent.equals(s.getAgentExternalId())&&"ACTIVE".equals(s.getStatus())).count())).toList();
+        else rows=behavior.anomalies(t,null).stream().filter(a->"ALL".equals(severity)||"HIGH".equals(a.getSeverity())||"CRITICAL".equals(a.getSeverity())).limit(500).toList();
+        return Map.of("items",rows,"scope","TENANT","limit","ANOMALIES".equals(view)?500:50);
+    }
     private Map<String,Object> session(AgentRuntimeSession s){
         return Map.of("id",
         s.getId(),"agent",s.getAgentExternalId(),"task",String.valueOf(s.getTaskExternalId()),

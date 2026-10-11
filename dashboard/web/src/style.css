@@ -2429,3 +2429,19 @@ button.primary:hover:not(:disabled){background:#dde5ee;border-color:#94a3b8;}
 
 .dot{background:#94a3b8;}
 button.primary:disabled{color:#64748b;background:#f1f5f9;border-color:var(--border);font-weight:400;}
+/* Metric drill-down links and combined audit records */
+button.metric-link{position:relative;width:100%;text-align:left;font:inherit;color:var(--text);cursor:pointer;padding-right:32px;transition:background .15s,border-color .15s,box-shadow .15s;}
+button.metric-link:hover{background:var(--surface-soft);border-color:var(--border-strong);box-shadow:0 2px 8px rgba(15,23,42,.08);}
+button.metric-link:focus-visible{outline:2px solid #2563eb;outline-offset:3px;}
+.runtime-stat-link{display:flex;flex:1;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;}
+.metric-link-arrow{position:absolute;right:12px;top:12px;color:var(--muted);font-size:15px;}
+.audit-filters{display:flex;flex-wrap:wrap;gap:14px;align-items:end;margin:18px 0;}
+.audit-filters>label{display:flex;flex-direction:column;gap:7px;min-width:150px;}
+.audit-filters>label:nth-child(3){flex:1;min-width:240px;}
+.audit-filters .audit-auto{flex-direction:row;align-items:center;gap:8px;min-width:0;}
+.audit-auto input{width:auto;}
+.unified-audit table{min-width:1000px;}
+.unified-audit td{max-width:340px;overflow-wrap:anywhere;}
+.unified-audit td small{display:block;margin-top:6px;color:var(--muted);}
+.audit-detail .workflow-facts{grid-template-columns:160px minmax(0,1fr);}
+@media(max-width:700px){.audit-detail .workflow-facts{grid-template-columns:1fr;}.audit-filters>label{width:100%;}.audit-filters .audit-auto{width:auto;}}

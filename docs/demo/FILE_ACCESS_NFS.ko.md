@@ -68,6 +68,8 @@ docker compose --env-file .local/file-access-demo/demo.env -f docker/docker-comp
 | finance | demo-finance | finance | ALLOW | DENY |
 | it-user | demo-it | it | DENY | ALLOW |
 
+공통 `general` 폴더는 finance와 IT 모두 읽을 수 있습니다. 기존 주문 AI 클라이언트로 **Payroll AI 차단 + general 허용**을 함께 시험하려면 [주문 클라이언트 파일 테스트](ORDER_CLIENT_FILE_ACCESS.ko.md)를 따르세요. 이 별도 파일용 AI subject의 DENY 정책은 위 표의 기존 Workflow AI 정책을 자동 변경하지 않습니다.
+
 기존 계정의 비밀번호를 이전에 바꿨다면 기존 값을 사용하세요. 화면에서 **Sign out / switch user**를 눌러 계정을 바꿉니다.
 
 finance 로그인 후 Workflow Chat:
@@ -104,7 +106,7 @@ finance에만 허용됩니다. CSV/텍스트는 모두 가상의 데이터이며
 ## 기록과 운영
 
 - Workflow Chat의 5단계 평가에서 JWT 요청자·AI 위임·리스크·행동·정책·감사 ID를 확인합니다.
-- 파일 감사 기록은 **Retrieval Access**의 현재 workspace 감사 기록에 `workflow.list` 또는 `workflow.retrieve`로 남습니다. 일반 채팅 게이트와 실제 파일 ACL 결정은 구분해서 표시합니다.
+- 파일 감사 기록은 **Audit Logs → FILE**에서 `workflow.list` 또는 `workflow.retrieve`로 확인합니다. 일반 채팅 게이트와 실제 파일 ACL 결정은 구분해서 표시합니다. Retrieval Access의 전용 감사 조회도 유지합니다.
 - ALLOW여도 동작·위협 통제가 강화되거나 매칭 DENY 정책이 있으면 결과가 달라집니다. source ACL이 차단한 접근은 ALLOW 정책 추가만으로 풀리지 않습니다.
 - 파일 결과는 모델 문맥이나 서버 채팅 기록에 저장하지 않으며 화면 미리보기는 약 1분 후 사라집니다. 다시 조회하면 다시 인가합니다.
 - seed는 기존 볼륨 파일을 덮어쓰지 않고 누락된 fixture 파일만 복사합니다. fixture에 새 파일을 추가한 후 seed 서비스를 다시 실행하면 새 파일을 복사합니다. NFS/connector 재시작은 파일을 복구하지 않지만, seed까지 다시 실행하면 삭제했던 기본 fixture 파일이 재생성됩니다. fixture에서 지운 파일이 볼륨에서도 자동 삭제되지는 않습니다.

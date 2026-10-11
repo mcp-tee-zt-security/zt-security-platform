@@ -1,3 +1,4 @@
+import MetricLink from '../components/MetricLink';
 import usePageRefresh from '../components/usePageRefresh';
 import { RISK_THRESHOLDS } from '../config/risk';
 import React from 'react';
@@ -14,8 +15,8 @@ const riskClass=(n:number)=>n >= RISK_THRESHOLDS.critical
 const Status=({value}:{value:any})=>
 <span className={`status ${String(value).toLowerCase()}`}>{value}
 </span>;
-const Metric=({label,value}:{label:string,value:any})=>
-<div className="metric">
+const Metric=({label,value,records}:{label:string,value:any;records?:any[]})=>
+<MetricLink label={label} records={records}>
 <div className="metric-icon">
 <ShieldCheck size={
     17}/>
@@ -26,7 +27,7 @@ const Metric=({label,value}:{label:string,value:any})=>
 <b>{value}
 </b>
 </div>
-</div>;
+</MetricLink>;
 
 export default function SecurityCopilot({contextLabel,initialScenario}:{contextLabel?:string;initialScenario?:string}={}){
 const [data,setData]=React.useState<any>(null),[scenario,

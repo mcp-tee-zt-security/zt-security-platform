@@ -11,6 +11,7 @@ import com.zt.security.common.TenantSession;
         repo=r;
         session=s;
     }
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('PLATFORM','ADMIN','AUDITOR','POLICY_MANAGER','SOC_ANALYST')")
     @GetMapping @Transactional(readOnly=true) List<AuditLog>
 list(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader(value="X-Workspace-Id",required=false) UUID workspace){
         session.set(t);

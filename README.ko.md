@@ -286,6 +286,10 @@ cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 
 ## 공통 Retrieval 연동
 
+[통합 감사 조회와 숫자 카드 상세](docs/demo/AUDIT_AND_METRIC_DETAILS.ko.md): Audit Logs에서 선택한 공간의 주문·파일·Workflow·정책 기록을 함께 조회하고 필터·상세·이전 기록을 확인합니다. 여러 페이지의 숫자 카드는 관련 상세 목록으로 이동합니다.
+
+[주문 AI 클라이언트 파일 접근 데모](docs/demo/ORDER_CLIENT_FILE_ACCESS.ko.md)는 기존 ai-agent-client에 파일 도구를 추가합니다. finance의 실제 사용자 위임으로 Payroll은 AI 정책으로 차단하고 general 폴더는 읽으며, 주문 연결은 기존 범위를 유지합니다. 정책은 DRAFT로 준비하고 수동 Publish합니다.
+
 **Retrieval Access / Policy Studio**에서 AI 정책을 관리하고 등록된 source connector는 원본 사용자 ACL과 자료를 동기화합니다. [공통 계약](docs/api/RETRIEVAL_CONTROL_PLANE_V2.md), `/v1/integrations/retrieval` API, `client.retrieval` SDK는 OIDC 사용자 위임, 파일 조회, 권한을 적용한 검색, 캐시 무효화와 삭제 요청을 지원합니다. 원본 사용자 권한과 ACTIVE ALLOW가 모두 필요하며 매칭 DENY가 우선합니다. 로컬 사용은 [실제 파일 접근 데모](docs/demo/FILE_ACCESS_NFS.ko.md)를 참고하세요.
 
 Stitch 전용 대시보드 화면과 시뮬레이터는 제거했습니다. 기존 백엔드 API 별칭·DB 스키마·선택적 계약 fixture는 호환성을 위해 유지하며 별도 PoC 백엔드는 기본 비활성화입니다.

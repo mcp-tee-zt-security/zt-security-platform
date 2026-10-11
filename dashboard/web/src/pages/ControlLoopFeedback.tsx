@@ -1,3 +1,4 @@
+import MetricLink from '../components/MetricLink';
 import usePageRefresh from '../components/usePageRefresh';
 import React from 'react';
 import { RefreshCw, CheckCircle2, AlertTriangle, Activity } from 'lucide-react';
@@ -34,28 +35,28 @@ const load=async()=>{try{const [r,p]=await Promise.all([apiGet('/v1/security/con
 <AlertTriangle size={17}/>{err}
 </div>}
 <div className="metric-grid">
-<div className="metric">
+<MetricLink label="Executed controls" records={rows}>
 <small>Executed controls</small>
 <b>{
      rows.length}
 </b>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Effective" records={rows}>
 <small>Effective</small>
 <b>{
      effective}
 </b>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Pending observation" records={rows}>
 <small>Pending observation</small>
 <b>{
      pending}
 </b>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Learning mode" records={rows}>
 <small>Learning mode</small>
 <b>Evidence</b>
-</div>
+</MetricLink>
 </div>
  <section className="panel">
 <div className="panel-head">

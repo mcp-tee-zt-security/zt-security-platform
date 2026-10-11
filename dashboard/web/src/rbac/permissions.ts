@@ -6,6 +6,7 @@ export const ROLE_PERMISSIONS:Record<DashboardRole,string[]>= {
 };
 export const MENU_PERMISSION:Record<string,string>={Overview:'overview',
     'Workflow Chat':'overview',
+    'Metric Details':'overview',
     Enterprise:'enterprise',Governance:'governance','Runtime Intelligence':'runtime',
     'Agents':'agents',Approvals:'approvals','Audit Logs':'audit',SIEM:'siem',
     'Incident Response':'incident','Response Center':'response','Compliance Evidence':'evidence',

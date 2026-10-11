@@ -14,4 +14,5 @@ public class RuntimeIntelligenceController {
  @PathVariable String agent){
      return service.agent(t,agent);
  }
+ @GetMapping("/records") public Object records(@RequestHeader("X-Tenant-Id") UUID t,@RequestParam(defaultValue="ANOMALIES") String view,@RequestParam(defaultValue="ALL") String severity){return service.records(t,view,severity);}
 }

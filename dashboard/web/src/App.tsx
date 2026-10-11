@@ -28,6 +28,9 @@ import McpGateway from './pages/McpGateway';
 import RetrievalAccess from './pages/RetrievalAccess';
 import ActionToastHost from './components/ActionFeedback';
 import ScopeBanner from './components/ScopeBanner';
+import UnifiedAudit from './pages/UnifiedAudit';
+import MetricDetails from './pages/MetricDetails';
+import MetricLink,{MetricSelection} from './components/MetricLink';
 import SubjectSelect from './components/SubjectSelect';
 import ProductOperationsPage from './pages/ProductOperations';
 import AgentDetails from './pages/AgentDetails';
@@ -59,7 +62,7 @@ const nav=[
  ['Attack Paths',Route],['Blast Radius',Crosshair],['Response Center',Siren],
  ['Incident Response',FolderOpen],['Command Center',Siren],['Decision Engine',
  Gauge],
- ['Kubernetes Policies',Database],['Setup Guide',BookOpen]
+ ['Kubernetes Policies',Database],['Setup Guide',BookOpen],['Metric Details',FileSearch]
 ] as const;
 
 // Legacy test page IDs resolve to tabs in the consolidated workspace.
@@ -152,16 +155,19 @@ function App(){
  React.useEffect(()=>{const url=new URL(window.location.href);url.searchParams.set('zt_page',tab);window.history.replaceState(null,'',url)},[tab]);
  const activePage=['Simulator','Policy What-if','Shadow Replay'].includes(tab)?'Policy Tests':tab;
  const [contextSubject,setContextSubject]=React.useState('');
+ const [contextFilter,setContextFilter]=React.useState<Record<string,string>>({});
+ const [metricSelection,setMetricSelection]=React.useState<MetricSelection|null>(null);
  const [copilotOpen,setCopilotOpen]=React.useState(false);
  const copilotToggle=React.useRef<HTMLButtonElement>(null);
- const navigate=(page:string,subject='')=>{if(page==='AI Security Copilot'){setCopilotOpen(true);return}setContextSubject(subject);setTab(page)};
+ const navigate=(page:string,subject='',filter:Record<string,string>={})=>{if(page==='AI Security Copilot'){setCopilotOpen(true);return}setContextSubject(subject);setContextFilter(filter);setMetricSelection(null);setTab(page)};
+ React.useEffect(()=>{const open=(event:Event)=>{const detail=(event as CustomEvent<MetricSelection>).detail;if(!detail||!nav.some(([name])=>name===detail.sourcePage))return;setMetricSelection(detail);setCopilotOpen(false);setTab('Metric Details')};const blocked=(event:Event)=>setToast((event as CustomEvent).detail?.message||'Navigation is unavailable');window.addEventListener('zt-metric-open',open);window.addEventListener('zt-navigation-blocked',blocked);return()=>{window.removeEventListener('zt-metric-open',open);window.removeEventListener('zt-navigation-blocked',blocked)}},[]);
  const [openGroups,setOpenGroups]=React.useState<string[]>(['overview']);
  React.useEffect(()=>{
    const group=navigationGroups.find(item=>item.pages.includes(activePage));
    if(group)setOpenGroups(current=>current.includes(group.id)?current:[...current,group.id]);
  },[activePage]);
  const [role,setRole]=React.useState<DashboardRole>('CISO');
- React.useEffect(()=>{const open=(e:Event)=>{const page=(e as CustomEvent).detail?.page;if(can(role,page))navigate(page);else setToast('Choose a navigation view that includes '+page)};window.addEventListener('zt-navigate',open);return()=>window.removeEventListener('zt-navigate',open)},[role]);
+ React.useEffect(()=>{const open=(e:Event)=>{const detail=(e as CustomEvent).detail;const page=detail?.page;if(can(role,page))navigate(page,detail.subject||'',detail.filter||{});else setToast('Choose a navigation view that includes '+page)};window.addEventListener('zt-navigate',open);return()=>window.removeEventListener('zt-navigate',open)},[role]);
  React.useEffect(()=>{if(!can(role,'AI Security Copilot'))setCopilotOpen(false)},[role]);
  React.useEffect(()=>{if(!copilotOpen)return;const close=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.stopImmediatePropagation();setCopilotOpen(false);copilotToggle.current?.focus()}};window.addEventListener('keydown',close,true);return()=>window.removeEventListener('keydown',close,true)},[copilotOpen]);
  const [boot,setBoot]=React.useState(true);
@@ -312,7 +318,8 @@ function App(){
     {tab==='Runtime Gateway'&&<RuntimeGateway/>} {tab==='Agents'&&<AgentDetails subject={contextSubject} role={role} onNavigate={navigate}/>}
     {tab==='Agent Behavior'&&<AgentBehavior subject={contextSubject}/>}
     {(tab==='Approvals'||tab==='Execution Records')&&<ApprovalExecution subject={contextSubject} initialView={tab==='Execution Records'?'executions':'pending'} onAgent={can(role,'Agents')?subject=>navigate('Agents',subject):undefined}/>}
-    {tab==='Audit Logs'&&<AuditLogs subject={contextSubject}/>}
+    {tab==='Audit Logs'&&<UnifiedAudit subject={contextSubject} initialFilter={contextFilter}/>}
+    {tab==='Metric Details'&&(metricSelection?<MetricDetails selection={metricSelection} onBack={()=>navigate(metricSelection.sourcePage,metricSelection.subject)} onAgent={subject=>{if(!can(role,'Agents'))setRole('SOC_ANALYST');navigate('Agents',subject)}}/>:<div className="panel"><p>Open a metric card to see its related records.</p><button onClick={()=>navigate('Overview')}>Open overview</button></div>)}
     {tab==='SIEM'&&<SIEM/>} {tab==='Compliance Evidence'&&<ComplianceEvidence/>}
     {tab==='Security Graph'&&<SecurityGraph/>} {tab==='Attack Paths'&&<AttackPaths/>}
     {tab==='Blast Radius'&&<BlastRadius go={navigate}/>} {tab==='Response Center'&&<ResponseCenter/>}
@@ -362,36 +369,36 @@ fetch(`${DATA_PLANE_URL}/v1/fast/identity`).then(r=>r.json()),
          err}/>}
 <div className="metric-grid">
 <Metric icon={Zap} label="Engine" value={
-     health?.engine||'—'}/>
+     health?.engine||'—'} records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={Activity} label="Status" value={health?.status||'—'}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={Database} label="Bundle policies" value={health?.policies??'—'}
- />
+  records={[{name:"Bundle summary",...health},...(Array.isArray(bundle?.policies)?bundle.policies:[])]}/>
 <Metric icon={GitBranch} label="Bundle version" value={health?.bundleVersion||'—'}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 </div>
  <div className="metric-grid compact">
 <Metric icon={Lock} label="Workload identity" value={
      identity?.workloadIdentity?String(identity.workloadIdentity).slice(0,28)+"…":"NOT PRESENT"}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={ShieldCheck} label="Evidence signing" value={stats?.bundle_version?"ED25519 READY":"—"}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={GitBranch} label="Bundle hash" value={health?.bundleHash?String(health.bundleHash).slice(0,
-     12)+"…":'—'}/>
+     12)+"…":'—'} records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={Lock} label="Bundle pin" value={health?.bundlePin||'NONE'}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={Gauge} label="P50" value={stats?stats.p50_us+' µs':'—'}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={Gauge} label="P95" value={stats?stats.p95_us+' µs':'—'}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={Gauge} label="P99" value={stats?stats.p99_us+' µs':'—'}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={Gauge} label="P99.9" value={stats?stats.p999_us+' µs':'—'}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={Activity} label="Max" value={stats?stats.max_us+' µs':'—'}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 <Metric icon={ShieldCheck} label="Bundle signature" value={stats?.bundle_signature_valid?'VALID':'—'}
- />
+  records={[{name:"Data plane snapshot",...health,...stats}]}/>
 </div>
  <div className="grid-2">
 <Panel title="3.2 Enterprise HA architecture">
@@ -541,23 +548,23 @@ function RuntimeIntelligence(){
 </Field>
 </div>
     <div className="stats">
-<div>
+<MetricLink label="Active sessions" records={(data?.sessions||[]).filter((row:any)=>row.status==='ACTIVE')} subject={agent} className="runtime-stat-link">
 <b>{data?.activeSessions??0}
 </b>
 <small>active sessions</small>
-</div>
-<div>
+</MetricLink>
+<MetricLink label="Recent anomalies" records={data?.anomalies||[]} subject={agent} className="runtime-stat-link">
 <b>{
         data?.anomalies?.length??0}
 </b>
 <small>anomalies</small>
-</div>
-<div>
+</MetricLink>
+<MetricLink label="Adaptive decisions" records={data?.adaptiveDecisions||[]} subject={agent} className="runtime-stat-link">
 <b>{
         data?.adaptiveDecisions?.length??0}
 </b>
 <small>adaptive decisions</small>
-</div>
+</MetricLink>
 </div>
    </Panel>
    <Panel title="Threat signal distribution">
@@ -685,13 +692,13 @@ setLlmEndpoint]=React.useState(PRIVATE_LLM_DEFAULT_URL),
  return <>{err&&<ErrorBanner text={err}/>}
 <div className="metric-grid">
 <Metric icon={
-     Users} label="Directory users" value={users.length}/>
+     Users} label="Directory users" value={users.length} records={users}/>
 <Metric icon={Lock}
- label="Enterprise roles" value={roles.length}/>
+ label="Enterprise roles" value={roles.length} records={roles}/>
 <Metric icon={ShieldCheck}
- label="SSO connections" value={sso.length}/>
+ label="SSO connections" value={sso.length} records={sso}/>
 <Metric icon={CheckCircle2}
- label="My permissions" value={perms.length}/>
+ label="My permissions" value={perms.length} records={perms}/>
 </div>
  <div className="grid-2">
 <Panel title="SSO connections">
@@ -882,12 +889,12 @@ function Overview({go}:any){
 </div>
   <div className="metric-grid">
 <Metric icon={Activity} label="Security decisions" value={
-      dec.length}/>
-<Metric icon={XCircle} label="Denied" value={denied} tone="danger"/>
+      dec.length} records={dec}/>
+<Metric icon={XCircle} label="Denied" value={denied} tone="danger" records={dec}/>
 <Metric icon={
-      AlertTriangle} label="Step-up" value={step} tone="warn"/>
+      AlertTriangle} label="Step-up" value={step} tone="warn" records={dec}/>
 <Metric icon={
-      Siren} label="Critical risk" value={critical} tone="danger"/>
+      Siren} label="Critical risk" value={critical} tone="danger" records={dec}/>
 </div>
   <div className="grid-2">
 <Panel title="Decision timeline" action={<button className="link-btn" onClick={
@@ -1388,13 +1395,13 @@ function AgentBehavior({subject=''}:{subject?:string}){const [profiles,setProfil
         return <>
 <div className="metric-grid">
 <Metric label="Profiles" value={
-        profiles.length} icon={Bot}/>
+        profiles.length} icon={Bot} records={profiles} subject={agent}/>
 <Metric label="Anomalies" value={anoms.length}
-    icon={AlertTriangle} tone="warn"/>
+    icon={AlertTriangle} tone="warn" records={anoms} subject={agent}/>
 <Metric label="Adaptive decisions" value={
-        dec.length} icon={Gauge}/>
+        dec.length} icon={Gauge} records={dec} subject={agent}/>
 <Metric label="Selected agent" value={agent}
-    icon={Users}/>
+    icon={Users} records={profiles} subject={agent}/>
 </div>
 <div className="grid-2">
 {behaviorError&&<ErrorBanner text={behaviorError}/>}<Panel title="Behavior profiles">
@@ -1411,19 +1418,6 @@ function AgentBehavior({subject=''}:{subject?:string}){const [profiles,setProfil
 </div>
 </>}
 
-function AuditLogs({subject=''}:{subject?:string}){
- const [revision,setRevision]=React.useState(0);usePageRefresh(()=>setRevision(x=>x+1));
- const [rows,setRows]=React.useState<any[]>([]),[verify,setVerify]=React.useState<any>(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
- React.useEffect(()=>{let current=true;setRows([]);setError('');setLoading(true);setVerify(null);
- (async()=>{try{const audit=await apiGet('/v1/audit');let filtered=audit;
- if(subject){const identities=await apiGet('/v1/identities');const identity=identities.find((row:any)=>row.externalId===subject&&row.identityType==='AI_AGENT');filtered=identity?audit.filter((row:any)=>{let metadata:any={};try{metadata=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}}catch{}return row.identityId===identity.id||metadata.principal===subject}):[]}
- if(current)setRows(filtered)}catch(e:any){if(current)setError(e.message)}finally{if(current)setLoading(false)}})();return()=>{current=false};},[subject,revision]);
- return <Panel title="Immutable audit trail" action={<button onClick={()=>apiGet('/v1/audit/verify').then(setVerify).catch((e:any)=>setError(e.message))}><CheckCircle2 size={15}/> Verify tenant chain</button>}>
- {subject&&<p className="workflow-context">Agent: <strong>{subject}</strong>. Filtered from the 100 newest tenant audit records; this is not the complete agent history.</p>}
- {error&&<ErrorBanner text={error}/>} {loading?<p role="status">Loading audit records…</p>:<AuditTable rows={rows}/>}
- {verify&&<pre className="json">{JSON.stringify(verify,null,2)}</pre>}
- </Panel>;
-}
 function SIEM(){const [rows,setRows]=React.useState<any[]>([]),[name,setName]=React.useState('Demo SIEM'),
     [endpoint,setEndpoint]=React.useState('http://host.docker.internal:9999/zt-audit'),
     [msg,setMsg]=React.useState('');
@@ -1487,16 +1481,16 @@ function SecurityGraph(){const [g,setG]=React.useState<any>(null),[err,
         return <>
 <div className="metric-grid">
 <Metric label="Graph nodes" value={
-        g?.metrics?.nodeCount??'—'} icon={Network}/>
+        g?.metrics?.nodeCount??'—'} icon={Network} records={g?.nodes||[]}/>
 <Metric label="Edges" value={
-        g?.metrics?.edgeCount??'—'} icon={GitBranch}/>
+        g?.metrics?.edgeCount??'—'} icon={GitBranch} records={g?.edges||[]}/>
 <Metric label="Max risk" value={
-        g?.metrics?.maxRisk??'—'} icon={AlertTriangle} tone="danger"/>
+        g?.metrics?.maxRisk??'—'} icon={AlertTriangle} tone="danger" records={g?.nodes||[]}/>
 <Metric label="Anomalies" value={
-        g?.metrics?.anomalies??'—'} icon={Siren} tone="warn"/>
+        g?.metrics?.anomalies??'—'} icon={Siren} tone="warn" records={(g?.nodes||[]).filter((row:any)=>row.type==="ANOMALY")}/>
 <Metric label="MCP gateways" value={
         (g?.nodes||[]).filter((x:any)=>x.type==='MCP_GATEWAY').length} icon={ShieldCheck}
-    />
+     records={g?.nodes||[]}/>
 </div>
 <GraphCanvas graph={g}/>
 </>}
@@ -1521,13 +1515,13 @@ function AttackPaths(){const [agent,setAgent]=React.useState(''),
 <Panel title="Assessment">
 <div className="metric-grid compact">
 <Metric label="Risk" value={
-            out.riskScore??out.risk??'—'} icon={AlertTriangle} tone="danger"/>
+            out.riskScore??out.risk??'—'} icon={AlertTriangle} tone="danger" records={[{name:"Attack path assessment",...out}]} subject={agent}/>
 <Metric label="Reachable" value={
-            out.reachableResources??'—'} icon={Zap}/>
+            out.reachableResources??'—'} icon={Zap} records={[{name:"Attack path assessment",...out}]} subject={agent}/>
 <Metric label="Critical paths" value={
-            out.criticalPaths??'—'} icon={Siren}/>
+            out.criticalPaths??'—'} icon={Siren} records={[{name:"Attack path assessment",...out}]} subject={agent}/>
 <Metric label="Blocked" value={out.blockedPaths??'—'}
-        icon={Lock}/>
+        icon={Lock} records={[{name:"Attack path assessment",...out}]} subject={agent}/>
 </div>
 <pre className="json">{JSON.stringify(out,null,2)}
 </pre>
@@ -1609,13 +1603,13 @@ function DecisionEngine(){const [rows,setRows]=React.useState<any[]>([]),
         return <>
 <div className="metric-grid">
 <Metric label="Evaluations" value={
-        rows.length} icon={Gauge}/>
+        rows.length} icon={Gauge} records={rows}/>
 <Metric label="ALLOW" value={rows.filter(x=>x.decision==='ALLOW').length}
-    icon={Check} tone="success"/>
+    icon={Check} tone="success" records={rows}/>
 <Metric label="STEP_UP" value={rows.filter(x=>x.decision==='STEP_UP').length}
-    icon={AlertTriangle} tone="warn"/>
+    icon={AlertTriangle} tone="warn" records={rows}/>
 <Metric label="DENY" value={rows.filter(x=>x.decision==='DENY').length}
-    icon={XCircle} tone="danger"/>
+    icon={XCircle} tone="danger" records={rows}/>
 </div>
 <div className="grid-2">
 <Panel title="Continuous decisions">
@@ -1677,15 +1671,15 @@ const run=async()=>{if(!agent)return;const ticket=++requestTicket.current;setOut
 <div className="metric-grid">
 <Metric label="Blast score" value={
  out.blastRadiusScore??'—'} icon={Crosshair} tone={out.severity==='CRITICAL'?'danger':'warn'}
- />
+  records={out.assets||[]} subject={agent}/>
 <Metric label="Impacted assets" value={out.impactedAssets??'—'} icon={
-     Database}/>
+     Database} records={out.assets||[]} subject={agent}/>
 <Metric label="Critical assets" value={out.criticalAssets??'—'}
- icon={Siren} tone="danger"/>
+ icon={Siren} tone="danger" records={out.assets||[]} subject={agent}/>
 <Metric label="Restricted / Confidential" value={
-     out.restrictedAssets??'—'} icon={Lock} tone="warn"/>
+     out.restrictedAssets??'—'} icon={Lock} tone="warn" records={out.assets||[]} subject={agent}/>
 <Metric label="Potential payment" value={
-     out.potentialPaymentImpact??'—'} icon={Zap}/>
+     out.potentialPaymentImpact??'—'} icon={Zap} records={out.assets||[]} subject={agent}/>
 </div>
 <div className="grid-2">
 <Panel title="Impact summary">
@@ -1871,13 +1865,13 @@ setStatus(r.handoff?.externalRef||'SOAR handoff created');
 <div className="metric-grid">
 <Metric icon={FolderOpen} label="Open cases" value={
       rows.filter(x=>['OPEN','INVESTIGATING','CONTAINED'].includes(x.status)).length}
-  />
+   records={rows}/>
 <Metric icon={Siren} label="Critical" value={rows.filter(x=>x.severity==='CRITICAL').length}
-  tone="danger"/>
+  tone="danger" records={rows}/>
 <Metric icon={FileSearch} label="Evidence" value={rows.reduce((n,
-      x)=>n+(x.evidenceCount||0),0)}/>
+      x)=>n+(x.evidenceCount||0),0)} records={rows}/>
 <Metric icon={Send} label="SOAR handoffs" value={
-      rows.filter(x=>x.externalRef&&x.externalRef!=='null').length}/>
+      rows.filter(x=>x.externalRef&&x.externalRef!=='null').length} records={rows}/>
 </div>
   <div className="grid-2">
 <Panel title="Security cases">
@@ -2023,12 +2017,12 @@ try{const q=kind==='approve'?'/approve?approver=security-approver':kind==='execu
          err}/>}
 <div className="metric-grid">
 <Metric icon={Clock} label="Awaiting approval" value={
-     pending} tone={pending?'warn':''}/>
+     pending} tone={pending?'warn':''} records={rows}/>
 <Metric icon={CheckCircle2} label="Approved" value={
-     approved}/>
+     approved} records={rows}/>
 <Metric icon={ShieldCheck} label="Executed" value={executed}
- />
-<Metric icon={Siren} label="Control model" value="HUMAN-IN-THE-LOOP"/>
+  records={rows}/>
+<Metric icon={Siren} label="Control model" value="HUMAN-IN-THE-LOOP" records={rows}/>
 </div>
 <Panel title="Response queue">
 <div className="table-scroll">
@@ -2196,14 +2190,14 @@ function ComplianceEvidence(){
      report&&<Panel title="Generated report">
 <div className="metric-grid compact">
 <Metric icon={
-         ShieldCheck} label="Status" value={report.status}/>
+         ShieldCheck} label="Status" value={report.status} records={report.controls||[]}/>
 <Metric icon={Gauge}
-     label="Score" value={Number(report.score).toFixed(1)+'%'}/>
+     label="Score" value={Number(report.score).toFixed(1)+'%'} records={report.controls||[]}/>
 <Metric icon={
-         Database} label="Evidence" value={report.evidenceCount}/>
+         Database} label="Evidence" value={report.evidenceCount} records={report.controls||[]}/>
 <Metric icon={
          Lock} label="Report hash" value={String(report.reportHash||'').slice(0,
-         18)+'…'}/>
+         18)+'…'} records={report.controls||[]}/>
 </div>
 <table>
 <thead>
@@ -2779,7 +2773,7 @@ function IncidentTable({rows}:any){return <table>
 </tr>)}
 </tbody>
 </table>}
-function Metric({label,value,icon:Icon,tone=''}:any){return <div className={
+function Metric({label,value,icon:Icon=Activity,tone='',records,subject}:any){return <MetricLink label={label} records={records} subject={subject} className={
         `metric ${tone}`}>
 <div className="metric-icon">
 <Icon size={17}/>
@@ -2791,7 +2785,7 @@ function Metric({label,value,icon:Icon,tone=''}:any){return <div className={
 <b>{typeof value==='number'?value.toLocaleString():value}
 </b>
 </div>
-</div>}
+</MetricLink>}
 function Risk({value}:any){const n=Number(value)||0;
     return <span className={
         `risk ${riskClass(n)}`}>{n.toFixed(0)}

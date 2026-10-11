@@ -1,3 +1,4 @@
+import MetricLink from '../components/MetricLink';
 import usePageRefresh from '../components/usePageRefresh';
 import { RISK_THRESHOLDS } from '../config/risk';
 import React from 'react';
@@ -39,7 +40,7 @@ const loadAgent=async(id:string)=>{setAgent(id);setDetail(null);setErr('');
 </div>}
   {data&&<>
    <div className="metric-grid">
-<div className="metric">
+<MetricLink label="Average risk" records={data?.agents||[]} subject={agent}>
 <div className="metric-icon">
 <ShieldCheck/>
 </div>
@@ -49,8 +50,8 @@ const loadAgent=async(id:string)=>{setAgent(id);setDetail(null);setErr('');
        Number(data.averageRisk).toFixed(1)}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Agents" records={data?.agents||[]} subject={agent}>
 <div className="metric-icon">
 <Activity/>
 </div>
@@ -60,8 +61,8 @@ const loadAgent=async(id:string)=>{setAgent(id);setDetail(null);setErr('');
        data.agentCount}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="High risk" records={data?.agents||[]} subject={agent}>
 <div className="metric-icon">
 <AlertTriangle/>
 </div>
@@ -71,8 +72,8 @@ const loadAgent=async(id:string)=>{setAgent(id);setDetail(null);setErr('');
        data.highRiskAgents}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Critical" records={data?.agents||[]} subject={agent}>
 <div className="metric-icon">
 <AlertTriangle/>
 </div>
@@ -82,7 +83,7 @@ const loadAgent=async(id:string)=>{setAgent(id);setDetail(null);setErr('');
        data.criticalAgents}
 </b>
 </div>
-</div>
+</MetricLink>
 </div>
    <div className="grid-2">
     <section className="panel">
@@ -165,38 +166,38 @@ const loadAgent=async(id:string)=>{setAgent(id);setDetail(null);setErr('');
 </span>
 </div>
 <div className="metric-grid">
-<div className="metric">
+<MetricLink label="Current score" records={detail?.timeline||[]} subject={agent}>
 <div>
 <small>Current score</small>
 <b>{
           detail.riskScore}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Drift" records={detail?.timeline||[]} subject={agent}>
 <div>
 <small>Drift</small>
 <b>{
           detail.riskDrift}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="DENY" records={detail?.timeline||[]} subject={agent}>
 <div>
 <small>DENY</small>
 <b>{
           detail.denyCount}
 </b>
 </div>
-</div>
-<div className="metric">
+</MetricLink>
+<MetricLink label="Recommended action" records={detail?.timeline||[]} subject={agent}>
 <div>
 <small>Recommended action</small>
 <b>{
           detail.recommendedAction}
 </b>
 </div>
-</div>
+</MetricLink>
 </div>
 <h4>Risk drivers</h4>
 <ul>{

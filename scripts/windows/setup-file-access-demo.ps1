@@ -2,7 +2,10 @@ param(
     [ValidateSet('http://localhost:8089','http://127.0.0.1:8089')][string]$KeycloakUrl='http://localhost:8089',
     [ValidateSet('http://localhost:8080','http://127.0.0.1:8080')][string]$ApiUrl='http://localhost:8080',
     [string]$AdminUsername='admin',
-    [string]$AdminPassword='admin'
+    [string]$AdminPassword='admin',
+    [switch]$EnableOrderFileClient,
+    [ValidatePattern('^[A-Za-z0-9_.:-]{1,128}$')][string]$OrderFileClientId='order-file-client-demo',
+    [string]$OrderFileClientSecret=''
 )
 # Explicit local provisioning only. Creates an isolated workspace and a DRAFT policy;
 # never publishes policies, resets user passwords, or changes the existing Stitch connection.
@@ -17,7 +20,8 @@ $login=Invoke-RestMethod -Method Post -Uri "$KeycloakUrl/realms/master/protocol/
 $kcHeaders=@{Authorization=('Bearer '+$login.access_token)}
 function KcCall([string]$Path,[string]$Method='GET',$Body=$null){
     if($null -eq $Body){return Invoke-RestMethod -Method $Method -Uri "$realmUrl$Path" -Headers $kcHeaders}
-    return Invoke-RestMethod -Method $Method -Uri "$realmUrl$Path" -Headers $kcHeaders -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $Body -Depth 24)
+    $jsonBytes=[Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $Body -Depth 24))
+    return Invoke-RestMethod -Method $Method -Uri "$realmUrl$Path" -Headers $kcHeaders -ContentType 'application/json; charset=utf-8' -Body $jsonBytes
 }
 function KcList([string]$Path){$reply=KcCall $Path;foreach($item in $reply){Write-Output $item}}
 function ClaimMapper([string]$Name,[string]$Value){
@@ -57,8 +61,25 @@ function ServiceToken([string]$ClientId,[string]$Secret){
 }
 function ZtCall([string]$Path,[string]$Method='GET',$Body=$null){
     $h=@{Authorization=('Bearer '+$ztToken);'X-Tenant-Id'=$tenantId;'X-Workspace-Id'=$workspaceId}
-    if($null -eq $Body){return Invoke-RestMethod -Method $Method -Uri "$ApiUrl$Path" -Headers $h}
-    return Invoke-RestMethod -Method $Method -Uri "$ApiUrl$Path" -Headers $h -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $Body -Depth 24)
+    try{
+        if($null -eq $Body){return Invoke-RestMethod -Method $Method -Uri "$ApiUrl$Path" -Headers $h}
+        $jsonBytes=[Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $Body -Depth 24))
+        return Invoke-RestMethod -Method $Method -Uri "$ApiUrl$Path" -Headers $h -ContentType 'application/json; charset=utf-8' -Body $jsonBytes
+    }catch{
+        $detail=$_.ErrorDetails.Message
+        $status='unavailable'
+        if($_.Exception.Response){
+            $status=[int]$_.Exception.Response.StatusCode
+            if(-not $detail){
+                try{
+                    $reader=New-Object IO.StreamReader($_.Exception.Response.GetResponseStream())
+                    try{$detail=$reader.ReadToEnd()}finally{$reader.Dispose()}
+                }catch{$detail='Response body unavailable'}
+            }
+        }
+        if(-not $detail){$detail=$_.Exception.Message}
+        throw "ZT API failed: $Method $Path (HTTP $status). $detail"
+    }
 }
 function ZtList([string]$Path){$reply=ZtCall $Path;foreach($item in $reply){Write-Output $item}}
 
@@ -134,6 +155,58 @@ policy "$policyName" {
     [IO.File]::WriteAllText($configPath,(ConvertTo-Json -InputObject $config -Depth 12),$utf8)
     [IO.File]::WriteAllText((Join-Path $localDir 'demo.env'),("ZT_FILE_WORKSPACE_ID=$workspaceId`nZT_FILE_CONFIG_PATH="+$configPath.Replace([char]92,[char]47)+"`n"),$utf8)
     [IO.File]::WriteAllText((Join-Path $localDir 'allow-file-demo.policy'),$dsl,$utf8)
+    if($EnableOrderFileClient){
+        # Distinct service binding preserves the existing order client's fixed workspace.
+        $clientConfigPath=Join-Path $localDir 'order-client.json'
+        $savedClient=$null
+        if(Test-Path -LiteralPath $clientConfigPath){$savedClient=Get-Content -LiteralPath $clientConfigPath -Raw | ConvertFrom-Json}
+        $knownClients=@(ZtList '/v1/clients' | Where-Object { $_.clientId -eq $OrderFileClientId })
+        if($knownClients.Count -gt 1){throw 'Duplicate file client registration'}
+        if($knownClients.Count -eq 0){
+            $registration=ZtCall '/v1/clients' 'POST' @{clientId=$OrderFileClientId;name='Order AI client - file tools';workspaceId=$workspaceId;scopes=@('retrieval')}
+            $OrderFileClientSecret=$registration.secret
+            # Save immediately: issuing a secret is not repeated after a later setup error.
+            [IO.File]::WriteAllText($clientConfigPath,(ConvertTo-Json -InputObject @{clientId=$OrderFileClientId;workspaceId=$workspaceId;secret=$OrderFileClientSecret} -Depth 5),$utf8)
+        }else{
+            if($knownClients[0].workspaceId -ne $workspaceId -or $knownClients[0].status -ne 'ACTIVE'){throw 'Existing file service client has a different workspace or is inactive; use a new ID'}
+            if(-not $OrderFileClientSecret -and $savedClient -and $savedClient.clientId -eq $OrderFileClientId -and $savedClient.workspaceId -eq $workspaceId){$OrderFileClientSecret=$savedClient.secret}
+            if(-not $OrderFileClientSecret){throw 'Existing file client secret is unavailable. Supply -OrderFileClientSecret or choose a new -OrderFileClientId; secrets are not reset automatically.'}
+        }
+        # Local demo login only: the reusable client accepts a Bearer token from any proper OIDC flow.
+        # A dedicated password-grant client makes the PowerShell demo possible; the dashboard keeps PKCE.
+        $loginClient=@{clientId='zt-order-file-demo-login';enabled=$true;protocol='openid-connect';publicClient=$true;standardFlowEnabled=$false;directAccessGrantsEnabled=$true;implicitFlowEnabled=$false;serviceAccountsEnabled=$false;fullScopeAllowed=$true;defaultClientScopes=@('basic','profile','email','roles');protocolMappers=@($seed.clients[0].protocolMappers)}
+        SetClient $loginClient | Out-Null
+        $fileSubject="client:$OrderFileClientId"
+        $filePolicies=@(
+            @{name="deny_order_payroll_${OrderFileClientId}_$workspaceId";effect='deny';priority=10;extra=' and resource.ancestors contains "file-demo-payroll"'},
+            @{name="allow_order_files_${OrderFileClientId}_$workspaceId";effect='allow';priority=100;extra=''}
+        )
+        foreach($definition in $filePolicies){
+            $fileDsl=@"
+policy "$($definition.name)" {
+  priority $($definition.priority)
+  effect $($definition.effect)
+  principal.type == "AI_AGENT"
+  action in ["retrieval.read", "retrieval.list", "retrieval.search", "retrieval.download"]
+  resource.type == "retrieval_resource"
+  condition {
+    principal.id == "$fileSubject" and
+    context.connectionId == "file-demo"$($definition.extra)
+  }
+}
+"@
+            $validation=ZtCall '/v1/policies/validate' 'POST' @{policyText=$fileDsl}
+            if(-not $validation.valid){throw "Invalid file policy: $($definition.name)"}
+            $existing=@(ZtList '/v1/policies/all' | Where-Object { $_.name -eq $definition.name })
+            if($existing.Count -eq 0){ZtCall '/v1/policies' 'POST' @{name=$definition.name;version=1;status='DRAFT';policyText=$fileDsl} | Out-Null}
+            elseif(-not ($existing | Where-Object { $_.policyText.Trim() -eq $fileDsl.Trim() })){throw "Existing policy differs: $($definition.name). Review it in Policy Studio; no policy is overwritten."}
+            [IO.File]::WriteAllText((Join-Path $localDir ($definition.name+'.policy')),$fileDsl,$utf8)
+            Write-Output "Review and publish both file policies: $($definition.name)"
+        }
+        [IO.File]::WriteAllText($clientConfigPath,(ConvertTo-Json -InputObject @{clientId=$OrderFileClientId;workspaceId=$workspaceId;secret=$OrderFileClientSecret} -Depth 5),$utf8)
+        [IO.File]::WriteAllText((Join-Path $localDir 'order-client.env'),("ZT_FILE_TOOLS_ENABLED=true`nZT_FILE_WORKSPACE_ID=$workspaceId`nZT_FILE_AGENT_CLIENT_ID=$OrderFileClientId`nZT_FILE_AGENT_SECRET=$OrderFileClientSecret`n"),$utf8)
+        Write-Output 'File client environment saved locally to .local/file-access-demo/order-client.env. Keep the order credential and order workspace unchanged.'
+    }
     # The common 3000 client replaces the old file-only login; keep users and source credentials.
     $retiredClients=@(KcList '/clients?clientId=zt-file-dashboard')
     foreach($retired in $retiredClients){KcCall "/clients/$($retired.id)" 'DELETE' | Out-Null}

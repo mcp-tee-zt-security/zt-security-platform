@@ -1,3 +1,4 @@
+import MetricLink from '../components/MetricLink';
 import React from 'react';
 import { History, Play, ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { apiPost } from '../api/client';
@@ -94,16 +95,16 @@ export default function ShadowReplay({policyText,onPolicyTextChange}:{policyText
 </div>:<>
 <div className="metric-grid">
 <Metric label="Events" value={
-         data.eventCount}/>
+         data.eventCount} records={data.rows||[]}/>
 <Metric label="Changed" value={data.changedDecisions}
-     />
-<Metric label="New DENY" value={data.newDenies}/>
+      records={data.rows||[]}/>
+<Metric label="New DENY" value={data.newDenies} records={data.rows||[]}/>
 <Metric label="New STEP_UP" value={
-         data.newStepUps}/>
+         data.newStepUps} records={data.rows||[]}/>
 <Metric label="False-positive candidates" value={data.falsePositiveCandidates}
-     />
+      records={data.rows||[]}/>
 <Metric label="Security improvement" value={`${data.securityImprovementPct}
-         %`}/>
+         %`} records={data.rows||[]}/>
 </div>
 <div className="feature-grid">
 <span>
@@ -195,7 +196,7 @@ export default function ShadowReplay({policyText,onPolicyTextChange}:{policyText
 </section>
  </div>
 }
-function Metric({label,value}:{label:string,value:any}){return <div className="metric">
+function Metric({label,value,records}:{label:string,value:any;records?:any[]}){return <MetricLink label={label} records={records}>
 <div>
 <small>{
         label}
@@ -203,4 +204,4 @@ function Metric({label,value}:{label:string,value:any}){return <div className="m
 <b>{value}
 </b>
 </div>
-</div>}
+</MetricLink>}

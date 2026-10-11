@@ -85,7 +85,7 @@ class Worker:
 
     @staticmethod
     def resource_id(path):
-        return 'file-demo-' + (path if path in ('payroll', 'it') else hashlib.sha256(path.encode()).hexdigest()[:24])
+        return 'file-demo-' + (path if path in ('payroll', 'it', 'general') else hashlib.sha256(path.encode()).hexdigest()[:24])
 
     def sync(self):
         self.config = json.loads(Path('/config/config.json').read_text())
@@ -110,14 +110,15 @@ class Worker:
                 raise RuntimeError('Symlinks and paths outside the file root are not supported')
             rel = path.relative_to(root).as_posix()
             parts = path.relative_to(root).parts
-            if parts[0] not in ('payroll', 'it'):
-                raise RuntimeError('Only payroll/it demo folders are registered')
+            if parts[0] not in ('payroll', 'it', 'general'):
+                raise RuntimeError('Only payroll/it/general demo folders are registered')
             if not path.is_dir() and (not path.is_file() or path.stat().st_size > 64000):
                 raise RuntimeError('Only regular text files of at most 64000 bytes are supported')
             raw = b'' if path.is_dir() else path.read_bytes()
             text = raw.decode('utf-8')
             parent = None if len(parts) == 1 else self.resource_id(path.parent.relative_to(root).as_posix())
-            acl = [{'principalKind': 'GROUP', 'principalId': parts[0] if parts[0] != 'payroll' else 'finance', 'permission': permission, 'effect': 'ALLOW'} for permission in ('READ', 'SEARCH')]
+            groups = ('finance', 'it') if parts[0] == 'general' else (('finance',) if parts[0] == 'payroll' else ('it',))
+            acl = [{'principalKind': 'GROUP', 'principalId': group, 'permission': permission, 'effect': 'ALLOW'} for group in groups for permission in ('READ', 'SEARCH')]
             payload = {'resourceId': self.resource_id(rel), 'parentId': parent, 'kind': 'FOLDER' if path.is_dir() else 'FILE', 'title': path.name,
                        'ownerSubject': 'file-demo-source-owner', 'aiAccess': 'ALLOW', 'purgeAfter': None, 'content': text, 'acl': acl,
                        'chunks': [{'content': text[n:n + 16000]} for n in range(0, len(text), 16000)],

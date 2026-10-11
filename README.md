@@ -281,6 +281,10 @@ Repository-wide distribution license terms are not currently specified. No publi
 
 ## Workflow Chat simulation
 
+The [combined audit and metric detail guide](docs/demo/AUDIT_AND_METRIC_DETAILS.ko.md) describes workspace-scoped order, file, Workflow and policy records in Audit Logs, with filters, detail views and pagination. Metric cards open related read-only record views.
+
+The [order AI client file access demo](docs/demo/ORDER_CLIENT_FILE_ACCESS.ko.md) connects the existing ai-agent-client to ZT retrieval tools. Human delegation and AI policies deny Payroll access while allowing authorized general documents, alongside the existing order connection. Policies are prepared as DRAFT for manual publication.
+
 The dashboard provides Keycloak login, general conversation, simulated transfer requests, authorized file reads/listings and a unified Workflow/MCP approval inbox. New messages show the recorded security checks before the answer. Transfers are evaluated on submission; independent approvers decide STEP_UP requests and authorized executors run saved contracts. The simulated executor writes EUR transactions to a local ledger and verifies their recorded values. It does not connect to a bank or move money. Ollama is the currently implemented planner provider. See the [Workflow Chat demo guide](docs/demo/WORKFLOW_CHAT.ko.md) for setup, roles and limitations.
 
 The optional [file access demo](docs/demo/FILE_ACCESS_NFS.ko.md) provides actual Payroll/IT fixture files, an NFSv4 export and an authenticated connector. Use the shared dashboard at port 3000 and select **File Access Demo** in the common workspace selector. The server checks workspace access; chat, policies, approvals and audit views use the selected scope. Keycloak finance/IT users exercise source ACLs intersected with ZT AI policies. The connector reads the same real volume directly; the chat test does not exercise NFS mounting or the NFS wire protocol. Its policy starts as DRAFT for manual review and publication. See [workspace authorization](docs/security/WORKSPACE_SCOPE.ko.md) for scope and compatibility rules.

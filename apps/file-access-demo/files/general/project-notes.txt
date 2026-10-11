@@ -1,0 +1,5 @@
+Project notes — synthetic demonstration document
+
+The order AI client may read authorized documents from this shared folder.
+Payroll access must be evaluated separately and denied by the active AI policy.
+A blocked Payroll request does not authorize another path to the same content.
