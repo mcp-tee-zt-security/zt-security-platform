@@ -12,9 +12,11 @@ import java.util.*;
 /** Read-only navigation across existing records; never executes or verifies an action. */
 @RestController
 @RequestMapping("/v1/workflows")
-@PreAuthorize("hasAnyRole('PLATFORM','ADMIN','APPROVER','AUDITOR','SOC_ANALYST')")
+@PreAuthorize("hasAnyRole('PLATFORM','ADMIN','APPROVER','AUDITOR','SOC_ANALYST','EXECUTOR')")
 @Transactional(readOnly=true)
 public class WorkflowQueryController {
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.workflow.WorkflowAccess workflowAccess=new com.zt.security.workflow.WorkflowAccess();
+    private void authorize(UUID tenant,UUID workspace){workflowAccess.scoped(org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication(),tenant,workspace);}
     private final GovernanceStore records;
     private final ApprovalRepository approvals;
     public WorkflowQueryController(GovernanceStore records, ApprovalRepository approvals) {
@@ -25,6 +27,7 @@ public class WorkflowQueryController {
     public List<Map<String,Object>> contracts(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value="X-Workspace-Id",required=false) UUID workspace,
             @RequestParam(required=false) String subject,@RequestParam(required=false) UUID requestId) {
+        authorize(tenant,workspace);
         return records.workflowContracts(tenant,workspace,subject,requestId).stream().map(this::contractSummary).toList();
     }
 
@@ -32,6 +35,7 @@ public class WorkflowQueryController {
     public List<Map<String,Object>> approvals(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value="X-Workspace-Id",required=false) UUID workspace,
             @RequestParam(required=false) String subject) {
+        authorize(tenant,workspace);
         return records.workflowApprovalIds(tenant,workspace,subject).stream()
             .map(id->approvals.findByIdAndTenantId(id,tenant).orElseThrow()).map(this::approvalSummary).toList();
     }
@@ -39,6 +43,7 @@ public class WorkflowQueryController {
     @GetMapping("/requests/{requestId}")
     public Map<String,Object> request(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value="X-Workspace-Id",required=false) UUID workspace,@PathVariable UUID requestId) {
+        authorize(tenant,workspace);
         return Map.of("decision",decisionSummary(records.workflowDecision(tenant,workspace,requestId)),
             "contracts",records.workflowContracts(tenant,workspace,null,requestId).stream().map(this::contractSummary).toList());
     }
@@ -46,6 +51,7 @@ public class WorkflowQueryController {
     @GetMapping("/contracts/{id}")
     public Map<String,Object> detail(@RequestHeader("X-Tenant-Id") UUID tenant,
             @RequestHeader(value="X-Workspace-Id",required=false) UUID workspace,@PathVariable UUID id) {
+        authorize(tenant,workspace);
         var contract=records.get(tenant,workspace,"CONTRACT",id.toString(),false);
         var decision=records.get(tenant,workspace,"DECISION",String.valueOf(contract.get("decisionId")),false);
         Map<String,Object> out=new LinkedHashMap<>();
@@ -62,7 +68,7 @@ public class WorkflowQueryController {
             var execution=records.get(tenant,workspace,"EXECUTION",executionId,false);
             if(!id.toString().equals(String.valueOf(execution.get("contractId"))))
                 throw new AccessDeniedException("Linked execution belongs to another contract");
-            out.put("execution",select(execution,"id","status","startedAt","completedAt","traceId"));
+            out.put("execution",select(execution,"id","status","startedAt","completedAt","traceId","result","executedBy"));
             out.put("verifications",records.workflowVerifications(tenant,workspace,executionId).stream()
                 .map(value->select(value,"id","executionId","verified","reason","createdAt")).toList());
         }else out.put("verifications",List.of());
@@ -78,6 +84,7 @@ public class WorkflowQueryController {
     private Map<String,Object> decisionSummary(Map<String,Object> value) {
         var out=select(value,"id","requestId","decision","reason","matchedPolicies","traceId","decidedAt");
         if(value.get("request") instanceof Map<?,?> request){
+            out.put("context",request.get("context"));
             if(request.get("principal") instanceof Map<?,?> principal)out.put("subject",principal.get("id"));
             if(request.get("action") instanceof Map<?,?> action)out.put("action",action.get("name"));
             if(request.get("resource") instanceof Map<?,?> resource)out.put("resource",resource.get("type")+"/"+resource.get("id"));

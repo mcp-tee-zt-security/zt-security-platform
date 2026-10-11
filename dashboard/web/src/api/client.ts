@@ -9,8 +9,11 @@ const baseHeaders: Record<string,string> = {
   'Content-Type': 'application/json'
 };
 
-function headers(extra: Record<string,string> = {}): Record<string,string> {
-  return {...baseHeaders, 'X-Workspace-Id': WORKSPACE, ...extra};
+async function headers(extra: Record<string,string> = {}, useSession=true): Promise<Record<string,string>> {
+  const result:Record<string,string>={...baseHeaders, 'X-Workspace-Id': WORKSPACE, ...extra};
+  const {COMMON_OIDC,oidcToken}=await import('./oidc');
+  if(useSession&&COMMON_OIDC){delete result['X-API-Key'];result.Authorization=`Bearer ${await oidcToken()}`;}
+  return result;
 }
 
 async function parse(r: Response) {
@@ -28,13 +31,13 @@ async function parse(r: Response) {
 }
 
 export async function apiGet(path: string, extra: Record<string,string> = {}) {
-  return parse(await fetch(`${API}${path}`, {headers: headers(extra)}));
+  return parse(await fetch(`${API}${path}`, {headers: await headers(extra)}));
 }
 
 export async function apiPost(path: string, body: unknown = {}, extra: Record<string,string> = {}) {
   return parse(await fetch(`${API}${path}`, {
     method: 'POST',
-    headers: headers(extra),
+    headers: await headers(extra),
     body: JSON.stringify(body)
   }));
 }
@@ -42,20 +45,20 @@ export async function apiPost(path: string, body: unknown = {}, extra: Record<st
 export async function apiPut(path: string, body: unknown = {}) {
   return parse(await fetch(`${API}${path}`, {
     method: 'PUT',
-    headers: headers(),
+    headers: await headers(),
     body: JSON.stringify(body)
   }));
 }
 
 export async function apiDelete(path: string) {
-  return parse(await fetch(`${API}${path}`, {method: 'DELETE', headers: headers()}));
+  return parse(await fetch(`${API}${path}`, {method: 'DELETE', headers: await headers()}));
 }
 
 export type McpCredentials = {mode:'default'|'service'|'bearer'|'oidc'; clientId?:string; secret?:string};
 
 // MCP workspace credentials are explicit and memory-only; other pages keep their configured authentication.
 export async function mcpRequest(path:string, method='GET', body?:unknown, credentials:McpCredentials={mode:'default'}, extraHeaders:Record<string,string>={}) {
-  const requestHeaders=headers();
+  const requestHeaders=await headers({},credentials.mode==='default');
   for(const [key,value] of Object.entries(extraHeaders)){
     if(!['X-ZT-Delegation','X-ZT-Agent-Id','MCP-Protocol-Version','X-Workspace-Id'].includes(key))throw new Error('Unsupported protocol header');
     if(key==='X-Workspace-Id'&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value))throw new Error('A valid workspace ID is required');

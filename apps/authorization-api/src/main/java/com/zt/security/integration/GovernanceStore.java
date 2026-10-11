@@ -44,6 +44,7 @@ public class GovernanceStore {
         UUID id=UUID.randomUUID();
         Map<String,Object> record=new LinkedHashMap<>(body);
         record.put("id",id.toString()); record.put("tenantId",tenant.toString());
+        record.put("workspaceId",workspace==null?null:workspace.toString());
         record.put("createdAt",Instant.now().toString());
         if("EVENT".equals(kind)){
             record.put("eventId",id.toString());record.put("occurredAt",record.get("createdAt"));

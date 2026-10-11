@@ -5,7 +5,8 @@ COPY index.html ./
 COPY src ./src
 ARG VITE_OIDC_ISSUER=http://localhost:8089/realms/zt-mcp-demo
 ARG VITE_OIDC_CLIENT_ID=zt-dashboard
-ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
+ARG VITE_AUTH_MODE=development
+ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID VITE_AUTH_MODE=$VITE_AUTH_MODE
 RUN npm ci && npm run build
 FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf

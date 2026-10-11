@@ -5,6 +5,7 @@ export const ROLE_PERMISSIONS:Record<DashboardRole,string[]>= {
  DEVOPS:['copilot','overview','operations','policy','lifecycle','runtime','dataplane','k8s','agents','audit']
 };
 export const MENU_PERMISSION:Record<string,string>={Overview:'overview',
+    'Workflow Chat':'overview',
     Enterprise:'enterprise',Governance:'governance','Runtime Intelligence':'runtime',
     'Agents':'agents',Approvals:'approvals','Audit Logs':'audit',SIEM:'siem',
     'Incident Response':'incident','Response Center':'response','Compliance Evidence':'evidence',

@@ -20,6 +20,7 @@ public class GovernedExecutionService {
     private final ActionEvaluationService evaluations;
     private final ObjectMapper mapper;
     private final List<GovernedActionExecutor> executors;
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.workflow.WorkflowAccess workflowAccess;
     public GovernedExecutionService(GovernanceStore records,ApprovalRepository approvals,
             ActionEvaluationService evaluations,ObjectMapper mapper,org.springframework.beans.factory.ObjectProvider<GovernedActionExecutor> executors) {
         this.records=records;this.approvals=approvals;this.evaluations=evaluations;this.mapper=mapper;this.executors=executors.orderedStream().toList();
@@ -49,6 +50,15 @@ public class GovernedExecutionService {
         if(!(body.get("policyDecision") instanceof Map<?,?> supplied))throw new IllegalArgumentException("policyDecision is required");
         var decision=records.get(tenant,workspace,"DECISION",String.valueOf(supplied.get("id")),false);
         var request=mapper.convertValue(decision.get("request"),EvaluateModels.EvaluateRequest.class);
+        if("simulation.transfer".equals(request.action().name())){
+            var auth=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            String human=workflowAccess.human(auth,tenant,workspace);
+            if(!human.equals(request.context().get("requestedBy")))throw new AccessDeniedException("Only the authenticated requester can create this simulation contract");
+            if(!workspace.toString().equals(request.context().get("_workflowWorkspace")))throw new AccessDeniedException("Simulation workspace mismatch");
+            var proposal=records.get(tenant,workspace,"WORKFLOW_PROPOSAL",String.valueOf(request.context().get("_workflowProposal")),true);
+            if(!human.equals(proposal.get("requestedBy"))||!String.valueOf(decision.get("id")).equals(proposal.get("decisionId")))throw new AccessDeniedException("Contract must reference the confirmed workflow proposal decision");
+            if(proposal.get("contractId")!=null)return records.get(tenant,workspace,"CONTRACT",String.valueOf(proposal.get("contractId")),false);
+        }
         if("DENY".equals(decision.get("decision")))throw new AccessDeniedException("Cannot create a contract from a denied decision");
         if(Instant.parse(String.valueOf(decision.get("decidedAt"))).plusSeconds(900).isBefore(Instant.now()))
             throw new IllegalStateException("Decision expired; evaluate again");
@@ -85,10 +95,16 @@ public class GovernedExecutionService {
         var decision=records.get(tenant,workspace,"DECISION",String.valueOf(contract.get("decisionId")),false);
         if("STEP_UP".equals(decision.get("decision")))approval(tenant,decision,String.valueOf(contract.get("approvalId")),true);
         var request=mapper.convertValue(contract.get("request"),EvaluateModels.EvaluateRequest.class);
+        if("simulation.transfer".equals(request.action().name())){
+            var proposal=records.get(tenant,workspace,"WORKFLOW_PROPOSAL",String.valueOf(request.context().get("_workflowProposal")),false);
+            if(!id.equals(String.valueOf(proposal.get("contractId"))))throw new AccessDeniedException("Execution must use the original workflow proposal contract");
+        }
         // Recheck the authoritative pipeline immediately before external execution.
-        var current=evaluations.evaluate(tenant,request);
+        var current=evaluations.evaluate(tenant,workspace,request,false);
         records.decision(tenant,workspace,request,current);
         if("DENY".equals(current.decision()))throw new AccessDeniedException(current.reason());
+        if("STEP_UP".equals(decision.get("decision"))&&!policyMatches(decision.get("matchedPolicies")).equals(policyMatches(current.matchedPolicies())))
+            throw new AccessDeniedException("Policy matches changed; create a new request and obtain independent approval again");
         if("STEP_UP".equals(current.decision())){
             if(!"STEP_UP".equals(decision.get("decision")))throw new AccessDeniedException("Risk now requires approval; evaluate again and obtain a new approval");
             approval(tenant,decision,String.valueOf(contract.get("approvalId")),true);
@@ -102,6 +118,8 @@ public class GovernedExecutionService {
         Map<String,Object> result=new LinkedHashMap<>();
         result.put("contractId",id);result.put("traceId",contract.get("traceId"));
         result.put("subject",request.principal().id());result.put("evidenceIds",contract.get("evidenceIds"));
+        var authenticated=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        result.put("executedBy",authenticated==null?"unknown":authenticated.getName());
         result.put("startedAt",Instant.now().toString());
         if(candidates.isEmpty()){
             result.put("status","UNSUPPORTED");result.put("result",Map.of("executed",false,"reason","No external action connector installed"));
@@ -149,6 +167,7 @@ public class GovernedExecutionService {
             (requireApproved&&!"APPROVED".equals(value.getStatus())))throw new AccessDeniedException("Approval is not approved");
     }
     public void event(UUID tenant,UUID workspace,String type,Map<String,Object> value) {
+        records.scope(tenant,workspace);
         records.create(tenant,workspace,"EVENT",Map.of("eventType",type,
             "traceId",String.valueOf(value.getOrDefault("traceId",value.get("id"))),"payload",value));
     }
@@ -156,9 +175,15 @@ public class GovernedExecutionService {
         if(body.get("tenantId")!=null&&!tenant.toString().equalsIgnoreCase(String.valueOf(body.get("tenantId"))))throw new AccessDeniedException("tenant mismatch");
     }
     private String digest(Object value) {
+        // Used only for evidence integrity, never as proof of model authorization.
         try{
             var canonical=mapper.copy().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS).writeValueAsBytes(value);
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical));
         }catch(Exception e){throw new IllegalArgumentException("Cannot hash evidence",e);}
+    }
+    private List<String> policyMatches(Object value){
+        var rows=mapper.valueToTree(value);List<String> matches=new ArrayList<>();
+        if(rows.isArray())for(var row:rows)matches.add(row.path("id").asText()+":"+row.path("version").asText()+":"+row.path("effect").asText());
+        Collections.sort(matches);return matches;
     }
 }

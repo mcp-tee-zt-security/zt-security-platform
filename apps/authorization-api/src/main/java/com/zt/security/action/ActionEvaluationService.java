@@ -167,6 +167,7 @@ import java.util.*;
      var task=tasks.findByTenantIdAndExternalTaskId(tenant,
 String.valueOf(taskId)).orElseThrow(()->new org.springframework.security.access.AccessDeniedException("unknown agent task"));
      var owner=tasksIdentity(tenant, task.getAgentIdentityId());
+     if(!"ACTIVE".equals(task.getStatus())||owner!=null&&!"ACTIVE".equals(owner.getStatus()))throw new org.springframework.security.access.AccessDeniedException("Agent task or identity is inactive");
      if(owner==null ||
      !(owner.getId().toString().equals(req.principal().id()) || String.valueOf(owner.getExternalId()).equals(req.
 principal().id())))throw new org.springframework.security.access.AccessDeniedException("agent task owner mismatch");

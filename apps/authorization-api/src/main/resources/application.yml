@@ -30,6 +30,15 @@ spring:
         jwt:
           issuer-uri: ${ZT_OIDC_ISSUER_URI:http://localhost:8089/realms/zt}
 zt:
+  workflow:
+    require-oidc: ${ZT_WORKFLOW_REQUIRE_OIDC:false}
+    simulation:
+      enabled: ${ZT_WORKFLOW_SIMULATION_ENABLED:false}
+    chat:
+      enabled: ${ZT_WORKFLOW_CHAT_ENABLED:false}
+      provider: ${ZT_WORKFLOW_CHAT_PROVIDER:ollama}
+      model: ${ZT_WORKFLOW_CHAT_MODEL:qwen3:8b}
+      ollama-url: ${ZT_WORKFLOW_OLLAMA_URL:http://host.docker.internal:11434}
   stitch:
     enabled: ${ZT_RETRIEVAL_ENABLED:${ZT_STITCH_INTEGRATION_ENABLED:false}}
     audience: ${ZT_STITCH_INTEGRATION_AUDIENCE:zt-stitch-integration}
@@ -47,6 +56,10 @@ zt:
       issuer-uri: ${ZT_OIDC_ISSUER_URI:http://localhost:8089/realms/zt}
       jwk-set-uri: ${ZT_OIDC_JWK_SET_URI:}
     api-key: ${ZT_API_KEY:dev-master-key}
+    allow-development-api-key: ${ZT_ALLOW_DEVELOPMENT_API_KEY:true}
+    policy-bundle-key: ${ZT_POLICY_BUNDLE_API_KEY:}
+    policy-bundle-tenant: ${ZT_POLICY_BUNDLE_TENANT_ID:11111111-1111-1111-1111-111111111111}
+    policy-bundle-workspace: ${ZT_WORKSPACE_ID:88888888-8888-8888-8888-888888888801}
     audit:
       local-archive: ${ZT_AUDIT_LOCAL_ARCHIVE:./data/audit-archive}
       s3-enabled: ${ZT_AUDIT_S3_ENABLED:false}

@@ -13,6 +13,10 @@ import java.io.IOException;
 @Component public class ApiKeyFilter extends OncePerRequestFilter {
     @Value("${zt.security.api-key:dev-master-key}")
 String master;
+    @Value("${zt.security.allow-development-api-key:true}") boolean allowDevelopmentKey=true;
+    @Value("${zt.security.policy-bundle-key:}") String policyBundleKey="";
+    @Value("${zt.security.policy-bundle-tenant:11111111-1111-1111-1111-111111111111}") String policyBundleTenant="11111111-1111-1111-1111-111111111111";
+    @Value("${zt.security.policy-bundle-workspace:88888888-8888-8888-8888-888888888801}") String policyBundleWorkspace="88888888-8888-8888-8888-888888888801";
     final ApiClientService clients;
     ApiKeyFilter(ApiClientService c){
         clients=c;
@@ -22,7 +26,11 @@ FilterChain c)throws ServletException,IOException {
     // A bearer request must never inherit privileges from a simultaneously supplied API key.
     if(SecurityContextHolder.getContext().getAuthentication()==null&&r.getHeader("Authorization")==null){
         String k=r.getHeader("X-API-Key");
-        if(k!=null && k.equals(master)) SecurityContextHolder.getContext().
+        if(k!=null&&!policyBundleKey.isBlank()&&k.equals(policyBundleKey)&&"GET".equals(r.getMethod())&&"/v1/policy-bundles/fast".equals(r.getRequestURI())
+            &&policyBundleTenant.equalsIgnoreCase(r.getHeader("X-Tenant-Id"))&&policyBundleWorkspace.equalsIgnoreCase(r.getHeader("X-Workspace-Id"))){
+            SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("policy-bundle-reader",null,AuthorityUtils.createAuthorityList("ROLE_POLICY_READER")));
+        }
+        else if(allowDevelopmentKey && k!=null && k.equals(master)) SecurityContextHolder.getContext().
         setAuthentication(new UsernamePasswordAuthenticationToken("api-key",
         null,AuthorityUtils.createAuthorityList("ROLE_PLATFORM")));
         else if(k!=null){

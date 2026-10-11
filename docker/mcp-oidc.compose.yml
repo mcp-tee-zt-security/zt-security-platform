@@ -7,9 +7,15 @@ services:
   authorization-api:
     environment:
       ZT_OIDC_ENABLED: "true"
+      ZT_ALLOW_DEVELOPMENT_API_KEY: "false"
+      ZT_POLICY_BUNDLE_API_KEY: ${ZT_POLICY_BUNDLE_API_KEY:-local-demo-policy-reader}
       ZT_OIDC_ISSUER_URI: http://localhost:8089/realms/zt-mcp-demo
       ZT_OIDC_JWK_SET_URI: http://keycloak:8080/realms/zt-mcp-demo/protocol/openid-connect/certs
       ZT_MCP_REQUIRE_OIDC_APPROVAL: "true"
+      ZT_WORKFLOW_REQUIRE_OIDC: "true"
+      ZT_WORKFLOW_SIMULATION_ENABLED: "true"
+      ZT_WORKFLOW_CHAT_ENABLED: "true"
+      ZT_RETRIEVAL_ENABLED: ${ZT_RETRIEVAL_ENABLED:-true}
     depends_on:
       keycloak:
         condition: service_started
@@ -18,3 +24,10 @@ services:
       args:
         VITE_OIDC_ISSUER: http://localhost:8089/realms/zt-mcp-demo
         VITE_OIDC_CLIENT_ID: zt-dashboard
+        VITE_AUTH_MODE: oidc
+  policy-data-plane-1:
+    environment:
+      ZT_API_KEY: ${ZT_POLICY_BUNDLE_API_KEY:-local-demo-policy-reader}
+  policy-data-plane-2:
+    environment:
+      ZT_API_KEY: ${ZT_POLICY_BUNDLE_API_KEY:-local-demo-policy-reader}

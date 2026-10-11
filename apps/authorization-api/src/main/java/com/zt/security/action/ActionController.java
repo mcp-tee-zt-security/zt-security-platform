@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  @RequestHeader(value="Idempotency-Key",required=false) String key,@RequestBody Map<String,Object> body){
    records.scope(tenant,workspace);
    var req=adapter.request(tenant,body);
+   if("simulation.transfer".equals(req.action().name()))throw new org.springframework.security.access.AccessDeniedException("Simulated transfers must be requested through Workflow Chat with authenticated delegation");
    String scopedKey=key==null||key.isBlank()?null:(workspace==null?"tenant":workspace.toString())+":"+key;
    var old=idem.existing(tenant,scopedKey,req);
    EvaluateModels.EvaluateResponse out;

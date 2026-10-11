@@ -284,6 +284,10 @@ cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 
 로컬 Compose는 `ZT_STITCH_POC_ENABLED=true`를 기본 사용합니다. 운영 배포에서는 비활성화하세요. 실제 Stitch 사용자 ACL·LLM·MCP·벡터 검색·TEE 연동은 포함하지 않습니다. [데모 진행 안내](docs/api/STITCH_ACCESS_POC.ko.md)와 [Postman Collection](docs/postman/Stitch-Access-PoC.postman_collection.json)을 참고하세요.
 
+## Workflow Chat 시뮬레이션
+
+대시보드의 공통 Keycloak 로그인, AI 송금 제안 화면, Workflow/MCP 통합 승인함을 제공합니다. 사용자가 제안 인자를 확인한 뒤 ZT가 평가하며, STEP_UP 요청은 독립 승인자가 결정하고 실행 권한자가 저장된 계약을 실행합니다. 선택적으로 설치하는 커넥터는 로컬 원장에 가상 EUR 거래를 기록하고 값을 대조합니다. 실제 은행이나 결제에는 연결하지 않습니다. 현재 모델 공급자는 Ollama이며 공급자 처리는 인가·실행 코드와 분리되어 있습니다. 구성·역할·제한은 [Workflow Chat 데모 안내](docs/demo/WORKFLOW_CHAT.ko.md)를 참고하세요.
+
 ## Stitch 표준 연동 계약
 
 별도의 **Stitch Integration** 표준 연동 API는 OIDC 사용자·AI 위임, 소스 ACL/그룹 동기화, 파일·첨부파일, PostgreSQL 검색/RAG, 권한 버전 캐시, 보존·삭제 요청/확인 계약을 제공합니다. 실제 Stitch와 외부 저장소에 연결하거나 네트워크 제한을 적용한 상태는 아닙니다. [연동 계약](docs/api/STITCH_INTEGRATION_V1.md)과 [로컬 OIDC 개발 절차](docs/api/STITCH_INTEGRATION_LOCAL.ko.md)를 확인하세요. 기본 설정은 비활성화입니다.

@@ -16,10 +16,16 @@ public class IntegratedPlatformController {
     private final GovernanceStore records;
     private final GovernedExecutionService governance;
     private final PlatformIntegrationService platform;
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.workflow.WorkflowAccess workflowAccess;
     public IntegratedPlatformController(GovernanceStore records,GovernedExecutionService governance,PlatformIntegrationService platform) {
         this.records=records;this.governance=governance;this.platform=platform;
     }
-    private UUID tenant(HttpServletRequest request){return GovernanceStore.uuid(request.getHeader("X-Tenant-Id"));}
+    private UUID tenant(HttpServletRequest request){
+        UUID tenant=GovernanceStore.uuid(request.getHeader("X-Tenant-Id"));
+        if(request.getRequestURI().startsWith("/v1/execution"))
+            workflowAccess.scoped(org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication(),tenant,workspace(request));
+        return tenant;
+    }
     private UUID workspace(HttpServletRequest request){String value=request.getHeader("X-Workspace-Id");return value==null?null:GovernanceStore.uuid(value);}
 
     @PostMapping("/evidence")
@@ -32,6 +38,7 @@ public class IntegratedPlatformController {
     @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','EXECUTOR')")
     public Map<String,Object> execute(HttpServletRequest r,@PathVariable String id){return governance.execute(tenant(r),workspace(r),id);}
     @PostMapping("/execution/{id}/verify")
+    @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','EXECUTOR','SERVICE_CLIENT')")
     public Map<String,Object> verify(HttpServletRequest r,@PathVariable String id){return governance.verify(tenant(r),workspace(r),id);}
     @GetMapping("/execution/contracts/{id}")
     public Map<String,Object> contract(HttpServletRequest r,@PathVariable String id){return records.get(tenant(r),workspace(r),"CONTRACT",id,false);}

@@ -7,9 +7,18 @@ if (!realmPath) throw new Error('OIDC issuer must be a Keycloak realm URL');
 const keycloak = new Keycloak({url:issuer.origin + realmPath[1],realm:realmPath[2],
   clientId:import.meta.env.VITE_OIDC_CLIENT_ID || 'zt-dashboard'});
 let initialization:Promise<boolean>|undefined;
-const redirectUri = () => window.location.origin + window.location.pathname + '?zt_login=mcp';
+export const COMMON_OIDC = import.meta.env.VITE_AUTH_MODE === 'oidc';
+const redirectUri = () => {
+  const page=new URLSearchParams(window.location.search).get('zt_page') || (COMMON_OIDC?'Workflow Chat':'MCP Gateway');
+  return window.location.origin + window.location.pathname + '?zt_login=dashboard&zt_page='+encodeURIComponent(page);
+};
 export function initializeOidc() {
+  const query = new URLSearchParams(window.location.search);
+  // Restore a memory-only token after reload through the existing Keycloak SSO cookie.
+  // Do not trigger automatic SSO immediately after an explicit logout.
+  const restoreSession = (COMMON_OIDC || query.has('zt_login')) && query.get('zt_logout') !== '1';
   return initialization ??= keycloak.init({pkceMethod:'S256',responseMode:'query',
+    ...(restoreSession ? {onLoad:'check-sso' as const} : {}),
     checkLoginIframe:false,redirectUri:redirectUri()});
 }
 export async function loginOidc() {
@@ -18,7 +27,7 @@ export async function loginOidc() {
 }
 export async function logoutOidc() {
   await initializeOidc();
-  try { await keycloak.logout({redirectUri:redirectUri()}); }
+  try { await keycloak.logout({redirectUri:redirectUri() + '&zt_logout=1'}); }
   finally { keycloak.clearToken(); }
 }
 export async function oidcToken():Promise<string> {

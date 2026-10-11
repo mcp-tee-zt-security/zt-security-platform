@@ -23,9 +23,10 @@ public class StitchIntegrationService {
     private static final String SCOPE="tenant_id=:tenant AND workspace_id=:workspace";
     private final NamedParameterJdbcTemplate jdbc;private final TenantSession tenants;private final WorkspaceSession workspaces;
     private final StitchIdentity identities;private final ObjectMapper mapper;private final RetrievalPolicyGate policyGate;
+    private final com.zt.security.workflow.WorkflowAccess workflowAccess;
     @Value("${zt.stitch.session-ttl-seconds:300}") private int sessionTtl;
     @Value("${zt.stitch.max-source-age-seconds:120}") private int maxSourceAge;
-    public StitchIntegrationService(NamedParameterJdbcTemplate jdbc,TenantSession tenants,WorkspaceSession workspaces,StitchIdentity identities,ObjectMapper mapper,RetrievalPolicyGate policyGate){this.jdbc=jdbc;this.tenants=tenants;this.workspaces=workspaces;this.identities=identities;this.mapper=mapper;this.policyGate=policyGate;}
+    public StitchIntegrationService(NamedParameterJdbcTemplate jdbc,TenantSession tenants,WorkspaceSession workspaces,StitchIdentity identities,ObjectMapper mapper,RetrievalPolicyGate policyGate,com.zt.security.workflow.WorkflowAccess workflowAccess){this.jdbc=jdbc;this.tenants=tenants;this.workspaces=workspaces;this.identities=identities;this.mapper=mapper;this.policyGate=policyGate;this.workflowAccess=workflowAccess;}
     private MapSqlParameterSource scope(UUID t,UUID w){return scope(t,w,true);}
     private MapSqlParameterSource scope(UUID t,UUID w,boolean requireEnabled){
         tenants.set(t);workspaces.set(w);var p=new MapSqlParameterSource().addValue("tenant",t).addValue("workspace",w);
@@ -82,6 +83,45 @@ public class StitchIntegrationService {
         if(rows.size()!=1)throw new AccessDeniedException("Session unavailable");var r=rows.get(0);
         if(!a.subject().equals(r.get("ai_subject"))||Boolean.TRUE.equals(r.get("revoked"))||!((Timestamp)r.get("expires_at")).toInstant().isAfter(Instant.now()))throw new AccessDeniedException("Expired, revoked or mismatched session");
         p.addValue("_ztPolicies",policyGate.prepare(t,w));try{String human=(String)r.get("human_subject");Set<String> asserted=mapper.readValue(r.get("groups_json").toString(),new TypeReference<Set<String>>(){});return new Caller(a.subject(),human,liveGroups(p,human,asserted),a.subject(),session);}catch(com.fasterxml.jackson.core.JsonProcessingException ex){throw new AccessDeniedException("Invalid delegated claims");}
+    }
+    /** Internal, confirmed dashboard delegation. Never accepts an AI identity from the model/browser. */
+    public Object workflowFile(UUID t,UUID w,String target,Authentication auth){
+        workflowAccess.request(auth,t,w);
+        var token=((org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken)auth).getToken();
+        if(token.getId()==null||token.getId().isBlank()||token.getExpiresAt()==null||!token.getExpiresAt().isAfter(Instant.now()))throw new AccessDeniedException("An unexpired human token with jti is required for file retrieval");
+        var p=scope(t,w);sourceFresh(p);
+        if(jdbc.queryForObject("SELECT count(*) FROM stitch_revoked_tokens WHERE "+SCOPE+" AND jti=:jti AND expires_at>now()",new MapSqlParameterSource(p.getValues()).addValue("jti",token.getId()),Integer.class)>0)throw new AccessDeniedException("Human token has been revoked");
+        String human=token.getSubject(),ai="workflow-chat-"+w;
+        if(jdbc.queryForObject("SELECT count(*) FROM identities WHERE tenant_id=:tenant AND external_id=:ai AND identity_type='AI_AGENT' AND status='ACTIVE'",new MapSqlParameterSource(p.getValues()).addValue("ai",ai),Integer.class)!=1)throw new AccessDeniedException("Register the active Workflow Chat AI identity before file retrieval");
+        var claims=token.getClaimAsStringList("groups");Set<String> groups=liveGroups(p,human,claims==null?Set.of():Set.copyOf(claims));
+        UUID session=UUID.randomUUID();Instant expires=Instant.now().plusSeconds(60);if(token.getExpiresAt().isBefore(expires))expires=token.getExpiresAt();
+        jdbc.update("INSERT INTO stitch_ai_sessions(id,tenant_id,workspace_id,human_subject,human_jti,groups_json,ai_subject,expires_at) VALUES(:id,:tenant,:workspace,:human,:jti,CAST(:groups AS jsonb),:ai,:expires)",new MapSqlParameterSource(p.getValues()).addValue("id",session).addValue("human",human).addValue("jti",token.getId()).addValue("groups",json(groups)).addValue("ai",ai).addValue("expires",Timestamp.from(expires)));
+        Caller c=new Caller(ai,human,groups,ai,session);p.addValue("_ztPolicies",policyGate.prepare(t,w));
+        var matches=jdbc.queryForList("SELECT resource_id,kind FROM stitch_resources WHERE "+SCOPE+" AND deleted=false AND (resource_id=:target OR lower(title)=lower(:target)) ORDER BY resource_id LIMIT 2",new MapSqlParameterSource(p.getValues()).addValue("target",target));
+        String decision="DENY",id=null;List<Map<String,Object>> rows=List.of();String detail="No unique accessible resource was selected; specify the exact registered folder/file ID.";
+        if(matches.size()==1){
+            id=(String)matches.get(0).get("resource_id");var all=resources(p);var acl=grants(p);
+            boolean container=List.of("FOLDER","CHANNEL").contains(matches.get(0).get("kind"));
+            if((container||List.of("FILE","ATTACHMENT").contains(matches.get(0).get("kind")))&&permits(t,w,c,p,id,container?"LIST":"READ",human,groups,ai,all,acl)){
+                String root=id;
+                List<String> candidates=container?all.values().stream().filter(r->List.of("FILE","ATTACHMENT").contains(r.get("kind"))).map(r->(String)r.get("resource_id")).filter(child->descendant(child,root,all)).sorted().toList():List.of(id);
+                for(String candidate:candidates)if(permits(t,w,c,p,candidate,"READ",human,groups,ai,all,acl)){
+                    rows=jdbc.queryForList("SELECT resource_id,kind,title,content,source_version FROM stitch_resources WHERE "+SCOPE+" AND resource_id=:id AND deleted=false",new MapSqlParameterSource(p.getValues()).addValue("id",candidate));
+                    if(!rows.isEmpty()){id=candidate;decision="ALLOW";detail="One registered file returned after source ACL and ZT AI policy evaluation.";break;}
+                }
+                if(rows.isEmpty())detail="No permitted file was returned. "+reason(p);
+            }else detail="File access withheld. "+reason(p);
+        }
+        workflowAccess.request(auth,t,w);sourceFresh(p);
+        if(!expires.isAfter(Instant.now()))throw new AccessDeniedException("File delegation expired; confirm a new read");
+        disclose(p,c,rows.stream().map(r->(String)r.get("resource_id")).toList());audit(p,ai,"workflow.retrieve",id,decision,rows.size());
+        // Single-use delegation; disclosures still reference it for deletion delivery.
+        jdbc.update("UPDATE stitch_ai_sessions SET revoked=true WHERE "+SCOPE+" AND id=:id",new MapSqlParameterSource(p.getValues()).addValue("id",session));
+        return Map.of("decision",decision,"results",rows,"aclVersion",version(p),"reason",detail,"aiSubject",ai,"humanSubject",human);
+    }
+    private boolean descendant(String child,String root,Map<String,Map<String,Object>> all){
+        Set<String> seen=new HashSet<>();String id=child;
+        while(id!=null&&seen.add(id)&&seen.size()<=64){if(root.equals(id))return true;var row=all.get(id);if(row==null)return false;id=(String)row.get("parent_id");}return false;
     }
     public Object delegate(UUID t,UUID w,String ai,Authentication auth){var a=identities.resolve(auth,t,w);if(!"HUMAN".equals(a.type()))throw new AccessDeniedException("Only an authenticated human can delegate");var p=scope(t,w);sourceFresh(p);Set<String> delegatedGroups=liveGroups(p,a.subject(),a.groups());if(jdbc.queryForObject("SELECT count(*) FROM stitch_ai_sessions WHERE "+SCOPE+" AND human_subject=:human AND revoked=false AND expires_at>now()",new MapSqlParameterSource(p.getValues()).addValue("human",a.subject()),Integer.class)>=20)throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,"Maximum active delegations reached");UUID id=UUID.randomUUID();Instant expires=Instant.now().plusSeconds(Math.max(30,Math.min(900,sessionTtl)));if(a.expiresAt().isBefore(expires))expires=a.expiresAt();jdbc.update("INSERT INTO stitch_ai_sessions(id,tenant_id,workspace_id,human_subject,human_jti,groups_json,ai_subject,expires_at) VALUES(:id,:tenant,:workspace,:human,:jti,CAST(:groups AS jsonb),:ai,:expires)",new MapSqlParameterSource(p.getValues()).addValue("id",id).addValue("human",a.subject()).addValue("jti",a.jti()).addValue("groups",json(delegatedGroups)).addValue("ai",ai).addValue("expires",Timestamp.from(expires)));audit(p,a.subject(),"delegate",null,"ALLOW",0);return Map.of("sessionId",id,"humanSubject",a.subject(),"aiSubject",ai,"expiresAt",expires);}
     public Object revoke(UUID t,UUID w,UUID id,Authentication auth){var a=actor(auth,t,w);var p=scope(t,w).addValue("session",id).addValue("human",a.subject());if(!a.sync()&&!"HUMAN".equals(a.type()))throw new AccessDeniedException("Human owner or connector required");int changed=jdbc.update("UPDATE stitch_ai_sessions SET revoked=true WHERE "+SCOPE+" AND id=:session"+(a.sync()?"":" AND human_subject=:human"),p);if(changed==0)throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Session unavailable");invalidate(p);revokeDisclosures(p,"SESSION_REVOKED");audit(p,a.subject(),"revokeSession",null,"ALLOW",0);return Map.of("revoked",id);}

@@ -21,7 +21,9 @@ import { DashboardRole, can } from './rbac/permissions';
 import PolicyStudio from './pages/PolicyStudio';
 import SecurityCopilot from './pages/SecurityCopilot';
 import PolicyTests from './pages/PolicyTests';
-import ApprovalExecution from './pages/ApprovalExecution';
+import ApprovalExecution from './pages/ApprovalInbox';
+import WorkflowChat from './pages/WorkflowChat';
+import {COMMON_OIDC} from './api/oidc';
 import McpGateway from './pages/McpGateway';
 import StitchAccessPoc from './pages/StitchAccessPoc';
 import StitchIntegration from './pages/StitchIntegration';
@@ -53,7 +55,7 @@ const nav=[
  ['Preventive Control Loop',ShieldCheck],['Control Loop Verification',ShieldCheck],
  ['Policy Auto-Tuning',Zap],['Policy Tests',Play],['Execution Records',History],['MCP Gateway',ShieldCheck],['Stitch Access PoC',FolderOpen],['Stitch Integration',Lock],['Retrieval Access',Lock],
  ['Data Plane',Database],['Governance',ScanSearch],
- ['Runtime Gateway',Zap],['Agents',Bot],['Agent Behavior',
+ ['Workflow Chat',Send],['Runtime Gateway',Zap],['Agents',Bot],['Agent Behavior',
  Activity],['Approvals',CheckCircle2],['Audit Logs',ScrollText],
  ['SIEM',Radio],['Compliance Evidence',FileSearch],['Security Graph',Network],
  ['Attack Paths',Route],['Blast Radius',Crosshair],['Response Center',Siren],
@@ -67,7 +69,7 @@ const navigationGroups = [
  {id:'overview',label:'Overview',icon:LayoutDashboard,pages:['Overview','Command Center']},
  {id:'connections',label:'Agents & Connections',icon:Bot,pages:['Agents','MCP Gateway','Stitch Access PoC','Retrieval Access','Stitch Integration','Runtime Gateway','Data Plane','Kubernetes Policies']},
  {id:'policies',label:'Policies',icon:FileLock2,pages:['Policy Studio','Lifecycle','Policy Tests','Policy Auto-Tuning']},
- {id:'approvals',label:'Approvals & Execution',icon:CheckCircle2,pages:['Approvals','Execution Records']},
+ {id:'approvals',label:'Approvals & Execution',icon:CheckCircle2,pages:['Workflow Chat','Approvals','Execution Records']},
  {id:'analysis',label:'Audit & Analysis',icon:ScanSearch,pages:['Audit Logs','Runtime Intelligence','Continuous Agent Risk','Agent Risk Forecast','Agent Behavior','Preventive Control Loop','Control Loop Verification','Security Graph','Attack Paths','Blast Radius','Response Center','Incident Response','Compliance Evidence','SIEM','Governance','Decision Engine']},
  {id:'settings',label:'Settings',icon:Settings,pages:['Enterprise','Product Operations','Setup Guide']},
 ];
@@ -148,7 +150,8 @@ function App(){
    window.addEventListener('keydown',escape);
    return()=>window.removeEventListener('keydown',escape);
  },[menuOpen,mobile]);
- const [tab,setTab]=React.useState(()=>new URLSearchParams(window.location.search).get('zt_login')==='mcp'?'MCP Gateway':'Overview');
+ const [tab,setTab]=React.useState(()=>{const query=new URLSearchParams(window.location.search);const page=query.get('zt_page');return page&&nav.some(([name])=>name===page)?page:query.get('zt_login')==='mcp'?'MCP Gateway':COMMON_OIDC?'Workflow Chat':'Overview'});
+ React.useEffect(()=>{const url=new URL(window.location.href);url.searchParams.set('zt_page',tab);window.history.replaceState(null,'',url)},[tab]);
  const activePage=['Simulator','Policy What-if','Shadow Replay'].includes(tab)?'Policy Tests':tab;
  const [contextSubject,setContextSubject]=React.useState('');
  const [copilotOpen,setCopilotOpen]=React.useState(false);
@@ -299,6 +302,7 @@ function App(){
 </header>
    <div className="content">
     {tab==='Overview'&&<Overview go={navigate} refresh={refresh}/>}
+    {tab==='Workflow Chat'&&<WorkflowChat/>}
     {activePage==='Policy Tests'&&<PolicyTests initialMode={tab==='Shadow Replay'?'replay':tab==='Simulator'?'live':'impact'} renderLive={<Simulator/>}/>}
     {tab==='Data Plane'&&<DataPlane/>} {tab==='Runtime Intelligence'&&<RuntimeIntelligence/>}
     {tab==='Continuous Agent Risk'&&<AgentRisk/>} {tab==='Agent Risk Forecast'&&<RiskForecast/>}

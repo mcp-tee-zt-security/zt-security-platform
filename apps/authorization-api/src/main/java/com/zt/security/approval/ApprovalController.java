@@ -10,6 +10,8 @@ import java.util.*;
     boolean requireOidcApproval;
     @org.springframework.beans.factory.annotation.Value("${zt.security.mcp.audience:zt-mcp-gateway}")
     String mcpAudience;
+    @org.springframework.beans.factory.annotation.Autowired
+    com.zt.security.workflow.WorkflowAccess workflowAccess;
     final org.springframework.jdbc.core.JdbcTemplate jdbc;
     final ApprovalRepository repo;
     final TenantSession tenantSession;
@@ -74,7 +76,15 @@ Approval decision(@RequestHeader("X-Tenant-Id") UUID t,
      tenantSession.set(t);
      if(!Set.of("APPROVED","REJECTED").contains(status))throw new
 IllegalArgumentException("status must be APPROVED or REJECTED");
-     Approval a=repo.findByIdAndTenantId(id,t).orElseThrow();
+     Approval a=repo.lockByIdAndTenantId(id,t).orElseThrow();
+     if(!"MCP_EXECUTION".equals(a.getApprovalType())){
+         workflowAccess.scoped(actor,t,workspace);
+         var stored=records.workflowDecision(t,workspace,a.getRequestId());
+         var request=mapper.valueToTree(stored.get("request"));
+         String requester=request.path("context").path("requestedBy").asText("");
+         if(requester.isBlank()&&"HUMAN".equals(request.path("principal").path("type").asText()))requester=request.path("principal").path("id").asText();
+         if(actor!=null&&actor.getName().equals(requester))throw new org.springframework.security.access.AccessDeniedException("A requester cannot approve their own workflow");
+     }
      if("MCP_EXECUTION".equals(a.getApprovalType())&&requireOidcApproval){
          if(!(actor instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken jwt)
              ||!jwt.getToken().getAudience().contains(mcpAudience)
@@ -114,6 +124,14 @@ IllegalStateException("self-approval is not allowed");
      a.setStatus(status);
      a.setDecidedBy(subject);
      a.setDecidedAt(Instant.now());
+     if(!"MCP_EXECUTION".equals(a.getApprovalType())){
+         for(var contract:records.workflowContracts(t,workspace,null,a.getRequestId())){
+             if(a.getId().toString().equals(String.valueOf(contract.get("approvalId")))&&contract.get("executionId")==null&&"PENDING_APPROVAL".equals(contract.get("status"))){
+                 contract.put("status","APPROVED".equals(status)?"READY":"REJECTED");
+                 records.update(t,workspace,"CONTRACT",contract);
+             }
+         }
+     }
      return repo.save(a);
      }
 }
