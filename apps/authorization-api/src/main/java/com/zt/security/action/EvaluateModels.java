@@ -16,7 +16,8 @@ public record EvaluateRequest(@NotNull Principal principal,
 public record MatchedPolicy(UUID id,String name,int version,String effect){
 }
 public record EvaluateResponse(UUID requestId,String decision,String reason,
-List<MatchedPolicy> matchedPolicies,Risk risk,Audit audit,long latencyMs){
+List<MatchedPolicy> matchedPolicies,Risk risk,Audit audit,long latencyMs,Map<String,Object> checks){
+    public EvaluateResponse(UUID requestId,String decision,String reason,List<MatchedPolicy> matchedPolicies,Risk risk,Audit audit,long latencyMs){this(requestId,decision,reason,matchedPolicies,risk,audit,latencyMs,Map.of());}
 }
 public record Risk(double score,String level){
 }

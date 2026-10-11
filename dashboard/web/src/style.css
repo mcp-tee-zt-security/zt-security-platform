@@ -88,6 +88,12 @@ button:disabled
 .workflow-chat .chat-agent {align-self:flex-start;width:100%;box-sizing:border-box;padding:4px 0;line-height:1.65;overflow-wrap:anywhere;}
 .workflow-chat .chat-agent>small {display:block;margin-top:14px;color:var(--muted);font-size:11px;}
 .workflow-chat-answer {white-space:pre-wrap;}
+.workflow-security-report {padding:18px 20px;margin-bottom:22px;border:1px solid var(--border);border-radius:14px;background:var(--surface-soft);}
+.workflow-security-report ol {padding-left:22px;margin:14px 0 0;}
+.workflow-security-report li {margin-bottom:16px;}
+.workflow-security-report li:last-child {margin-bottom:0;}
+.workflow-security-report p {margin:6px 0;font-size:13px;overflow-wrap:anywhere;}
+.workflow-security-note {color:var(--muted);font-size:13px;}
 .workflow-file-response {margin-top:16px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft);}
 .workflow-file-response pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font:inherit;}
 .workflow-chat-empty {margin:auto;text-align:center;color:var(--muted);}

@@ -39,17 +39,43 @@ public class WorkflowChatService {
     }
     @Transactional(readOnly=true) public List<Map<String,String>> history(UUID t,UUID w,Authentication auth){
         access.request(auth,t,w);records.scope(t,w);
-        var rows=jdbc.queryForList("SELECT payload::text AS payload FROM governance_records WHERE tenant_id=? AND workspace_id=? AND kind='WORKFLOW_PROPOSAL' AND payload->>'requestedBy'=? ORDER BY created_at DESC LIMIT 8",t,w,auth.getName());
+        var rows=jdbc.queryForList("SELECT payload::text AS payload FROM governance_records WHERE tenant_id=? AND workspace_id=? AND kind='WORKFLOW_PROPOSAL' AND payload->>'requestedBy'=? AND payload->>'type'='CHAT' ORDER BY created_at DESC LIMIT 8",t,w,auth.getName());
         Collections.reverse(rows);List<Map<String,String>> messages=new ArrayList<>();
         for(var row:rows)try{var p=mapper.readTree(String.valueOf(row.get("payload")));messages.add(Map.of("role","user","content",p.path("message").asText()));if(p.path("answer").isTextual())messages.add(Map.of("role","assistant","content",p.path("answer").asText()));}catch(java.io.IOException ex){throw new IllegalStateException("Stored chat is invalid",ex);}
         return messages;
     }
-    @Transactional public Object saveReply(UUID t,UUID w,Authentication auth,String message,WorkflowReply reply){
+    @Transactional public Map<String,Object> saveReply(UUID t,UUID w,Authentication auth,String message,WorkflowReply reply){
         access.request(auth,t,w);
         var body=new LinkedHashMap<String,Object>();body.put("requestedBy",auth.getName());body.put("message",message);body.put("type",reply.type());body.put("answer",reply.answer());body.put("aiSubject",agent(w));body.put("provider",provider);body.put("expiresAt",Instant.now().plusSeconds(900).toString());
         if(reply.transfer()!=null){body.put("proposal",reply.transfer());body.put("simulation",true);}
         if("RETRIEVAL".equals(reply.type()))body.put("target",reply.target());
-        return records.create(t,w,"WORKFLOW_PROPOSAL",body);
+        var saved=records.create(t,w,"WORKFLOW_PROPOSAL",body);
+        UUID id=UUID.fromString(String.valueOf(saved.get("id")));
+        if("TRANSFER".equals(reply.type())){
+            submit(t,w,id,auth);
+            saved=records.get(t,w,"WORKFLOW_PROPOSAL",id.toString(),false);
+        }else{
+            var identities=jdbc.queryForList("SELECT id FROM identities WHERE tenant_id=? AND external_id=? AND identity_type='AI_AGENT' AND status='ACTIVE'",t,agent(w));
+            if(identities.size()!=1)throw new IllegalStateException("Register the active Workflow Chat AI identity before evaluating messages");
+            String task="workflow-chat-message-"+id;
+            jdbc.update("INSERT INTO agent_tasks(id,tenant_id,agent_identity_id,external_task_id,purpose,expires_at,metadata) VALUES(?,?,?,?,?,?,CAST(? AS jsonb))",UUID.randomUUID(),t,identities.get(0).get("id"),task,"Respond to authenticated user; no external tool authority",java.sql.Timestamp.from(Instant.now().plusSeconds(900)),json(Map.of("requestedBy",auth.getName(),"workspaceId",w.toString(),"capability","public_response_only")));
+            var context=new LinkedHashMap<String,Object>();context.put("task_id",task);context.put("requestedBy",auth.getName());context.put("message",message);context.put("_workflowWorkspace",w.toString());context.put("operationType",reply.type());
+            var request=new EvaluateModels.EvaluateRequest(new EvaluateModels.Principal(agent(w),"AI_AGENT",Map.of()),new EvaluateModels.Action("chat.respond"),new EvaluateModels.Resource("public_answer",id.toString(),Map.of()),context);
+            var result=evaluations.evaluateConversation(t,w,request);
+            var decision=records.decision(t,w,request,result);saved.put("decisionId",decision.get("id"));records.update(t,w,"WORKFLOW_PROPOSAL",saved);
+        }
+        var decision=records.get(t,w,"DECISION",String.valueOf(saved.get("decisionId")),false);
+        saved.put("securityDecision",decision.get("decision"));
+        if(!"ALLOW".equals(decision.get("decision")))saved.put("answer","ZT 결정: "+decision.get("decision")+". "+decision.get("reason")+". "+("STEP_UP".equals(decision.get("decision"))?"추가 승인이 필요합니다. 일반 답변·파일 내용은 반환하지 않았고 작업은 실행되지 않았습니다.":"요청이 차단되었습니다. 일반 답변·파일 내용은 반환하지 않았고 작업은 실행되지 않았습니다."));
+        records.update(t,w,"WORKFLOW_PROPOSAL",saved);
+        return saved;
+    }
+    @Transactional public Object recordFileOutcome(UUID t,UUID w,UUID id,Authentication auth,Map<String,Object> result){
+        access.request(auth,t,w);var saved=records.get(t,w,"WORKFLOW_PROPOSAL",id.toString(),true);
+        if(!auth.getName().equals(saved.get("requestedBy"))||!"RETRIEVAL".equals(saved.get("type")))throw new AccessDeniedException("File proposal owner required");
+        var outcome=new LinkedHashMap<String,Object>();for(String key:List.of("decision","reason","auditEventId","aclVersion"))if(result.get(key)!=null)outcome.put(key,result.get(key));
+        saved.put("fileOutcome",outcome);saved.put("answer","ALLOW".equals(result.get("decision"))?"ZT가 사용자 ACL과 AI 정책을 확인했습니다. 허용된 파일 결과를 아래에 표시합니다.":"파일 내용을 반환하지 않았습니다: "+result.get("reason"));
+        records.update(t,w,"WORKFLOW_PROPOSAL",saved);return saved;
     }
     @Transactional public Map<String,Object> saveProposal(UUID tenant,UUID workspace,Authentication auth,String message,TransferProposal proposal){
         access.request(auth,tenant,workspace);
@@ -95,7 +121,7 @@ public class WorkflowChatService {
         var proposal=mapper.convertValue(saved.get("proposal"),TransferProposal.class);
         var identities=jdbc.queryForList("SELECT id FROM identities WHERE tenant_id=? AND external_id=? AND identity_type='AI_AGENT' AND status='ACTIVE'",tenant,agent(workspace));
         if(identities.size()!=1)throw new IllegalStateException("An administrator must prepare the simulation first");
-        UUID tool=jdbc.queryForObject("SELECT id FROM agent_tools WHERE tenant_id=? AND name='workflow.simulatedTransfer'",UUID.class,tenant);
+        UUID tool=jdbc.queryForObject("SELECT id FROM agent_tools WHERE tenant_id=? AND name='workflow.simulatedTransfer' AND enabled=true",UUID.class,tenant);
         String task="workflow-chat-"+proposalId;
         UUID taskId=UUID.randomUUID();
         jdbc.update("INSERT INTO agent_tasks(id,tenant_id,agent_identity_id,external_task_id,purpose,expires_at,metadata) VALUES(?,?,?,?,?, ?,CAST(? AS jsonb))",taskId,tenant,identities.get(0).get("id"),task,"Simulated transfer requested by authenticated user",java.sql.Timestamp.from(Instant.now().plusSeconds(900)),json(Map.of("requestedBy",auth.getName(),"workspaceId",workspace.toString())));
@@ -120,10 +146,11 @@ public class WorkflowChatService {
         records.update(tenant,workspace,"WORKFLOW_PROPOSAL",saved);
         return snapshot(tenant,workspace,saved);
     }
-    @Transactional public Object readFile(UUID t,UUID w,UUID id,Authentication auth){
+    @Transactional public Map<String,Object> readFile(UUID t,UUID w,UUID id,Authentication auth){
         access.request(auth,t,w);
         var saved=records.get(t,w,"WORKFLOW_PROPOSAL",id.toString(),true);
         if(!auth.getName().equals(saved.get("requestedBy"))||!"RETRIEVAL".equals(saved.get("type")))throw new AccessDeniedException("Only the requester can confirm this file proposal");
+        if(saved.get("decisionId")==null||!"ALLOW".equals(records.get(t,w,"DECISION",String.valueOf(saved.get("decisionId")),false).get("decision")))throw new AccessDeniedException("The chat security gate must allow this request before any file access");
         if(Instant.parse(String.valueOf(saved.get("expiresAt"))).isBefore(Instant.now()))throw new IllegalStateException("Proposal expired; send a new request");
         var adapter=retrieval.getIfAvailable();
         if(adapter==null)return Map.of("decision","UNAVAILABLE","results",List.of(),"reason","Enable the registered Retrieval connector before reading files. Nothing was accessed.");

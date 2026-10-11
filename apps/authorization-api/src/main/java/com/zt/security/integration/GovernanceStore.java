@@ -75,6 +75,7 @@ public class GovernanceStore {
         value.put("requestId",response.requestId().toString());value.put("decision",response.decision());
         value.put("reason",response.reason());value.put("risk",response.risk());value.put("audit",response.audit());
         value.put("matchedPolicies",response.matchedPolicies());value.put("request",request);
+        value.put("checks",response.checks());
         value.put("traceId",response.requestId().toString());value.put("decidedAt",Instant.now().toString());
         var result=create(tenant,workspace,"DECISION",value);
         create(tenant,workspace,"EVENT",Map.of("eventType","GOVERNANCE_POLICY_DECISION",

@@ -31,7 +31,9 @@ import java.util.*;
         a.setDecision(d.decision());
         a.setReason(d.reason());
         a.setRiskScore(risk.score());
-        if(!d.matched().isEmpty())a.setPolicyId(d.matched().get(0).id());
+        // The built-in public-response rule is reported in metadata, not a persisted policy FK.
+        UUID publicResponseRule=UUID.nameUUIDFromBytes("zt-builtin-public-conversation-v1".getBytes(StandardCharsets.UTF_8));
+        d.matched().stream().filter(p->p.id()!=null&&!publicResponseRule.equals(p.id())).findFirst().ifPresent(p->a.setPolicyId(p.id()));
         a.setMetadata(Jsons.string(mapper,
         Map.of("principal",r.principal().id(),"context",r.context()==null?Map.of():r.context(),
         "matchedPolicies",d.matched())));

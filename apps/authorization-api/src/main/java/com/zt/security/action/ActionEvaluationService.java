@@ -58,14 +58,19 @@ import java.util.*;
  }
  @Transactional public EvaluateModels.EvaluateResponse evaluate(UUID tenant,
  EvaluateModels.EvaluateRequest req,boolean createApproval){
-     return evaluateScoped(tenant,req,createApproval,null,false);
+     return evaluateScoped(tenant,req,createApproval,null,false,false);
  }
  @Transactional public EvaluateModels.EvaluateResponse evaluate(UUID tenant,UUID workspace,
  EvaluateModels.EvaluateRequest req,boolean createApproval){
-     return evaluateScoped(tenant,req,createApproval,workspace,true);
+     return evaluateScoped(tenant,req,createApproval,workspace,true,false);
+ }
+ /** Built-in allowance covers a public conversation only; external access stays separately governed. */
+ @Transactional public EvaluateModels.EvaluateResponse evaluateConversation(UUID tenant,UUID workspace,EvaluateModels.EvaluateRequest req){
+     if(!"chat.respond".equals(req.action().name())||!"public_answer".equals(req.resource().type()))throw new IllegalArgumentException("Public conversation evaluation only");
+     return evaluateScoped(tenant,req,false,workspace,true,true);
  }
  private EvaluateModels.EvaluateResponse evaluateScoped(UUID tenant,EvaluateModels.EvaluateRequest req,
- boolean createApproval,UUID workspace,boolean scoped){
+ boolean createApproval,UUID workspace,boolean scoped,boolean publicConversation){
      tenantSession.set(tenant);
      long st=System.nanoTime();
      UUID rid=UUID.randomUUID();
@@ -78,6 +83,7 @@ import java.util.*;
      EvaluateModels.EvaluateRequest policyReq=withBehaviorContext(req,
      bd,td);
      PolicyEvaluator.Result d;
+     boolean policyEvaluated=false;
      if(td.blocked()) d=new PolicyEvaluator.Result("DENY",
      String.join("; ",td.signals().stream().map(RuntimeThreatDetectionService.Signal::reason).toList()),
      List.of());
@@ -87,11 +93,18 @@ import java.util.*;
      new PolicyEvaluator.Result("STEP_UP",
      td.signals().isEmpty()?bd.reason():td.signals().get(0).reason(),List.of());
      else {
+         policyEvaluated=true;
          var applicable=policies.forEvaluation(tenant,rid);
          if(scoped)applicable=applicable.stream().filter(p->p.getWorkspaceId()==null||
              p.getWorkspaceId().equals(workspace)).toList();
+         if(publicConversation){
+             var baseline=new Policy();baseline.setId(UUID.nameUUIDFromBytes("zt-builtin-public-conversation-v1".getBytes(java.nio.charset.StandardCharsets.UTF_8)));baseline.setName("builtin_public_conversation");baseline.setVersion(1);baseline.setEffect("allow");baseline.setWorkspaceId(workspace);
+             baseline.setPolicyText("policy \"builtin_public_conversation\" { effect allow principal.type == \"AI_AGENT\" action == \"chat.respond\" resource.type == \"public_answer\" }");
+             applicable=new ArrayList<>(applicable);applicable.add(baseline);
+         }
          d=evaluator.evaluate(applicable,policyReq);
      }
+     var policyResult=d;
      var cd=continuous.decide(tenant,rid,req,d,rr,bd);
      d=new PolicyEvaluator.Result(cd.decision(),
      cd.reason(),d.matched());
@@ -114,7 +127,9 @@ import java.util.*;
      }
      return new EvaluateModels.EvaluateResponse(rid,d.decision(),d.reason(),
  d.matched(),new EvaluateModels.Risk(finalRisk.score(),finalRisk.level()),
- new EvaluateModels.Audit(al.getId()),(System.nanoTime()-st)/1_000_000);
+ new EvaluateModels.Audit(al.getId()),(System.nanoTime()-st)/1_000_000,Map.of(
+     "delegation",Map.of("taskVerified","AI_AGENT".equals(req.principal().type())&&req.context()!=null&&req.context().containsKey("task_id"),"toolVerified","AI_AGENT".equals(req.principal().type())&&req.context()!=null&&req.context().containsKey("task_id")&&req.context().containsKey("tool_id"),"taskId",String.valueOf((req.context()==null?Map.<String,Object>of():req.context()).getOrDefault("task_id","")),"toolId",String.valueOf((req.context()==null?Map.<String,Object>of():req.context()).getOrDefault("tool_id",""))),
+     "baseRisk",rr,"behavior",bd,"threat",td,"policy",Map.of("evaluated",policyEvaluated,"decision",policyResult.decision(),"reason",policyResult.reason(),"matched",d.matched()),"scope",Map.of("tenantId",tenant.toString(),"workspaceId",workspace==null?"tenant-wide":workspace.toString())));
  }
  private EvaluateModels.EvaluateRequest withBehaviorContext(EvaluateModels.EvaluateRequest req,
  AgentBehaviorService.Result bd, RuntimeThreatDetectionService.Result td){
