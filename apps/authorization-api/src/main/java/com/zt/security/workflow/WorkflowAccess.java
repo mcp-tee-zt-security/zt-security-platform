@@ -16,14 +16,15 @@ public class WorkflowAccess {
         return auth!=null&&auth.getAuthorities().stream().anyMatch(a->Arrays.asList(roles).contains(a.getAuthority()));
     }
     public String human(Authentication auth,UUID tenant,UUID workspace){
-        if(!(auth instanceof JwtAuthenticationToken jwt)||!auth.isAuthenticated()
-            ||jwt.getToken().getSubject()==null||jwt.getToken().getSubject().isBlank()
+        if(!(auth instanceof JwtAuthenticationToken jwt)||!auth.isAuthenticated())
+            throw new AccessDeniedException("Workflow Chat requires Keycloak human login; a development API key or service-client credential cannot be used");
+        if(jwt.getToken().getSubject()==null||jwt.getToken().getSubject().isBlank()
             ||jwt.getToken().getExpiresAt()==null||!jwt.getToken().getExpiresAt().isAfter(java.time.Instant.now())
-            ||!jwt.getToken().getAudience().contains(audience)
-            ||!tenant.toString().equalsIgnoreCase(jwt.getToken().getClaimAsString("tenant_id"))
-            ||workspace==null
-            ||!"HUMAN".equals(jwt.getToken().getClaimAsString("actor_type")))
-            throw new AccessDeniedException("Human OIDC authentication with matching audience, tenant and workspace required");
+            )throw new AccessDeniedException("Keycloak human session is missing or expired; sign in again");
+        if(!jwt.getToken().getAudience().contains(audience))throw new AccessDeniedException("Keycloak token audience must include "+audience);
+        if(!tenant.toString().equalsIgnoreCase(jwt.getToken().getClaimAsString("tenant_id")))throw new AccessDeniedException("Keycloak token tenant does not match the selected tenant");
+        if(workspace==null)throw new AccessDeniedException("Select an authorized workspace before using Workflow Chat");
+        if(!"HUMAN".equals(jwt.getToken().getClaimAsString("actor_type")))throw new AccessDeniedException("Workflow Chat requires a HUMAN Keycloak identity");
         if(workspaceAccess!=null)workspaceAccess.require(auth,tenant,workspace);
         else if(!workspace.toString().equalsIgnoreCase(jwt.getToken().getClaimAsString("workspace_id")))throw new AccessDeniedException("Workspace mismatch");
         return jwt.getToken().getSubject();

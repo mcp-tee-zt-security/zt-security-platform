@@ -1,5 +1,5 @@
-import CommonActivity from './components/CommonActivity';
 import usePageRefresh from './components/usePageRefresh';
+import {pageDocument} from './config/pageDocs';
 import React from 'react';
 import {
   ShieldCheck, LayoutDashboard, FileLock2, GitBranch, ScanSearch, Play, Bot,
@@ -295,6 +295,7 @@ function App(){
 </div>
 </div>
 <div className="header-actions">
+<a className="page-doc-link" href={pageDocument(activePage).url} target="_blank" rel="noopener noreferrer" title={pageDocument(activePage).title} aria-label={`${pageLabels[activePage]||activePage}: ${pageDocument(activePage).title} (opens in a new tab)`}><BookOpen size={16}/> Docs <ExternalLink size={13}/></a>
 {can(role,'AI Security Copilot')&&<button ref={copilotToggle} aria-expanded={copilotOpen} aria-controls="security-copilot-panel" onClick={()=>setCopilotOpen(open=>!open)}><Sparkles size={16}/> Copilot</button>}
 <span className="last">Last API response {
        time(lastRefresh)}
@@ -327,7 +328,6 @@ function App(){
     {tab==='Incident Response'&&<IncidentResponse/>}
     {tab==='Command Center'&&<CommandCenter/>} {tab==='Decision Engine'&&<DecisionEngine/>}
     {tab==='Setup Guide'&&<SetupGuide/>} {tab==='Kubernetes Policies'&&<KubernetesPolicies/>}
-    {['Runtime Intelligence','Continuous Agent Risk','Agent Risk Forecast','Preventive Control Loop','Control Loop Verification','Security Graph','Compliance Evidence','Governance','Agent Behavior'].includes(tab)&&<CommonActivity onAudit={()=>navigate('Audit Logs')}/>}
 </div>
   </main>
   {copilotOpen&&<aside className="copilot-panel" id="security-copilot-panel" aria-label="AI Security Copilot"><div className="copilot-panel-heading"><h2>AI Security Copilot</h2><button autoFocus aria-label="Close Copilot" onClick={()=>{setCopilotOpen(false);copilotToggle.current?.focus()}}>Close</button></div><SecurityCopilot contextLabel={`${pageLabels[activePage]||activePage}${contextSubject?' · Agent: '+contextSubject:''}`} initialScenario={`Review security risks for ${contextSubject?'agent '+contextSubject:pageLabels[activePage]||activePage} and suggest policy changes for human review.`}/></aside>}

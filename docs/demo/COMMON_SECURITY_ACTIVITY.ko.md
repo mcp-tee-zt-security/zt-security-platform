@@ -6,21 +6,21 @@ Workflow Chat, 주문 MCP, 파일 접근을 같은 계약과 공통 원장에 �
 
 1. 공통 대시보드에서 테스트한 **워크스페이스**를 선택합니다. 주문과 파일이 다른 공간을 사용하면 각각 전환해서 확인합니다.
 2. **Audit Logs**에서 전체 이력을 확인합니다. FILE은 파일 접근 결정, AUTH는 위임·승인·해제, MCP는 주문 정책 결정과 실행 단계입니다. Source event ID는 원본 기록, Event ID는 공통 원장 기록입니다.
-3. **Current Agent Risk / Risk Forecast / Preventive Controls / Control Effectiveness / Security Graph / Compliance Evidence / Governance Review**의 **Common security activity**에서 최근 활동을 확인합니다. 최근 표는 50개, 요약 숫자는 최근 24시간 전체 집계입니다. 15초마다 갱신하며 숫자를 클릭하면 전체 감사 화면으로 이동합니다.
-4. **Inspect**에서 호출자·위임한 사용자·AI·결정·단계·원본 참조를 봅니다. Correlation ID가 같은 단계는 연결됩니다. 패널의 관련 단계는 최근 50개 안에서만 표시되므로 더 오래된 기록은 감사 화면에서 확인합니다.
+3. **Audit Logs → Inspect**에서 호출자·위임한 사용자·AI·결정·단계·원본 참조와 Correlation ID를 확인합니다. 이전 기록은 **Load older records**로 조회합니다.
+4. 현재 위험·예측·그래프는 각 전용 분석 화면에서 확인합니다. 공통 이벤트 목록은 Audit Logs에서 조회합니다.
 
 ## 두 번의 Payroll 조회 예시
 
 두 번 각각 사용자 위임 → AI 조회 DENY → 세션 해제를 수행하면 총 이벤트 6개, AI 정책 결정 2개, DENY 2개입니다. 위임·해제가 ALLOW여도 Payroll 접근을 허용했다는 뜻이 아닙니다. 인증 및 세션 수명 관리 단계입니다.
 
-파일 조회에는 현재 별도 런타임 위험 계산이 없으므로 **Not measured**로 표시합니다. 이 결정을 현재 위험 분석의 정책 결과 집계에 포함하지만 위협이나 이상 행동을 가짜로 생성하지 않습니다. 일반 DENY 두 번을 테스트했다고 모든 분석 페이지에 위협·예측·통제 성과가 만들어지는 것은 아닙니다. 실제 기록은 공통 패널에서 확인하고, 예측 표본이 부족하면 **Insufficient data**를 표시합니다.
+파일 조회에는 현재 별도 런타임 위험 계산이 없으므로 **Not measured**로 표시합니다. 이 결정을 현재 위험 분석의 정책 결과 집계에 포함하지만 위협이나 이상 행동을 가짜로 생성하지 않습니다. 일반 DENY 두 번을 테스트했다고 모든 분석 페이지에 위협·예측·통제 성과가 만들어지는 것은 아닙니다. 실제 기록은 Audit Logs에서 확인하고, 예측 표본이 부족하면 **Insufficient data**를 표시합니다.
 
 ## 적용
 
 코드를 반영한 뒤 사용자가 서비스 이미지를 다시 빌드하고 시작합니다.
 
 ```powershell
-docker compose -f docker/docker-compose.yml up -d --build authorization-api dashboard
+docker compose -f docker/docker-compose.yml -f docker/mcp-oidc.compose.yml up -d --build authorization-api dashboard
 ```
 
 API 시작 시 V13 마이그레이션이 기존 기록을 공통 원장으로 가져옵니다. 원본 해시 체인·파일 감사·MCP 기록을 수정하지 않습니다. 예전에 저장하지 않은 사용자 정보나 상태 변화는 추측해서 채우지 않습니다. 워크스페이스가 확인되지 않는 과거 기록은 임의로 현재 공간에 배치하지 않습니다.

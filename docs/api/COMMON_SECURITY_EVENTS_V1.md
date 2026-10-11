@@ -53,7 +53,7 @@ Forecasts require at least five measured decisions across five minutes. Missing 
 
 Security Graph shows recorded actions, identities, policy references and resources in the selected scope. Authorization edges are `EVALUATED`; `EXECUTED` requires an execution-stage success/tool-error record. A denied request cannot become an execution edge. Nodes without measured risk carry `riskMeasured=false`; the visualization fallback is not a zero-risk measurement.
 
-Runtime anomaly records remain real detector outputs and are associated with scoped request IDs. Compliance, control effectiveness and governance records still require their own assessments, executed controls and evidence; common activity alone does not certify those outcomes. Specialized control feedback/profile storage retains its existing tenant-level contract; the new common activity panel is explicitly workspace scoped.
+Runtime anomaly records remain real detector outputs and are associated with scoped request IDs. Compliance, control effectiveness and governance records still require their own assessments, executed controls and evidence; common activity alone does not certify those outcomes. Specialized control feedback/profile storage retains its existing tenant-level contract; common event history in Audit Logs is explicitly workspace scoped.
 
 ## Historical import and limitations
 

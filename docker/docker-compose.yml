@@ -32,6 +32,11 @@ services:
   dashboard:
     build:
       context: ../dashboard/web
+      args:
+        VITE_AUTH_MODE: ${VITE_AUTH_MODE:-${ZT_OIDC_ENABLED:-development}}
+        VITE_OIDC_ISSUER: ${VITE_OIDC_ISSUER:-${ZT_OIDC_ISSUER_URI:-http://localhost:8089/realms/zt-mcp-demo}}
+        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-zt-dashboard}
+        VITE_WORKSPACE_ID: ${ZT_WORKSPACE_ID:-88888888-8888-8888-8888-888888888801}
     ports: ["3000:80"]
     depends_on:
       authorization-api:
@@ -52,7 +57,7 @@ services:
       ZT_POLICY_BUNDLE_TENANT_ID: ${ZT_POLICY_BUNDLE_TENANT_ID:-11111111-1111-1111-1111-111111111111}
       ZT_WORKSPACE_ID: ${ZT_WORKSPACE_ID:-88888888-8888-8888-8888-888888888801}
       ZT_OIDC_ENABLED: ${ZT_OIDC_ENABLED:-false}
-      ZT_OIDC_ISSUER_URI: ${ZT_OIDC_ISSUER_URI:-http://localhost:8089/realms/zt}
+      ZT_OIDC_ISSUER_URI: ${ZT_OIDC_ISSUER_URI:-http://localhost:8089/realms/zt-mcp-demo}
       ZT_OIDC_JWK_SET_URI: ${ZT_OIDC_JWK_SET_URI:-}
       ZT_STITCH_INTEGRATION_ENABLED: ${ZT_STITCH_INTEGRATION_ENABLED:-false}
       ZT_RETRIEVAL_ENABLED: ${ZT_RETRIEVAL_ENABLED:-${ZT_STITCH_INTEGRATION_ENABLED:-false}}
