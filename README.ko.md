@@ -278,24 +278,14 @@ cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 - [과거 빌드·시작 오류 수정 기록](docs/history/BUILD_FIX_4.75.0.md)
 
 저장소 전체에 적용되는 배포·재배포 라이선스 조건은 아직 명시되어 있지 않습니다. 이 README는 공개 SDK 패키지 배포나 운영 인증을 주장하지 않습니다.
-## Stitch AI 접근 통제 PoC
-
-대시보드 **Agents & Connections → Stitch Access PoC**에서 합성 폴더·채널 데이터를 준비하고, 관리자와 인증된 AI 서비스 클라이언트의 문서 조회·검색 결과를 비교할 수 있습니다. 상위 폴더의 AI 접근 금지 설정을 상속하며 검색 응답에서도 금지된 자료를 제외합니다.
-
-로컬 Compose는 `ZT_STITCH_POC_ENABLED=true`를 기본 사용합니다. 운영 배포에서는 비활성화하세요. 실제 Stitch 사용자 ACL·LLM·MCP·벡터 검색·TEE 연동은 포함하지 않습니다. [데모 진행 안내](docs/api/STITCH_ACCESS_POC.ko.md)와 [Postman Collection](docs/postman/Stitch-Access-PoC.postman_collection.json)을 참고하세요.
-
 ## Workflow Chat 시뮬레이션
 
-대시보드의 공통 Keycloak 로그인, AI 송금 제안 화면, Workflow/MCP 통합 승인함을 제공합니다. 사용자가 제안 인자를 확인한 뒤 ZT가 평가하며, STEP_UP 요청은 독립 승인자가 결정하고 실행 권한자가 저장된 계약을 실행합니다. 선택적으로 설치하는 커넥터는 로컬 원장에 가상 EUR 거래를 기록하고 값을 대조합니다. 실제 은행이나 결제에는 연결하지 않습니다. 현재 모델 공급자는 Ollama이며 공급자 처리는 인가·실행 코드와 분리되어 있습니다. 구성·역할·제한은 [Workflow Chat 데모 안내](docs/demo/WORKFLOW_CHAT.ko.md)를 참고하세요.
+대시보드의 공통 Keycloak 로그인, 일반 대화·가상 이체·파일 읽기/목록 조회, Workflow/MCP 통합 승인함을 제공합니다. 새 메시지는 실제 보안 평가 기록을 먼저 표시한 뒤 답변을 표시합니다. 이체는 전송 시 평가하고 STEP_UP 요청은 독립 승인자가 결정하며 실행 권한자가 저장된 계약을 실행합니다. 가상 실행기는 로컬 원장에 EUR 거래를 기록하고 값을 대조합니다. 실제 은행이나 결제에는 연결하지 않습니다. 현재 모델 공급자는 Ollama입니다. 구성·역할·제한은 [Workflow Chat 데모 안내](docs/demo/WORKFLOW_CHAT.ko.md)를 참고하세요.
 
-## Stitch 표준 연동 계약
+[실제 파일 접근 데모](docs/demo/FILE_ACCESS_NFS.ko.md)는 Payroll/IT 파일, NFSv4 export, 인증된 connector와 별도 3001 대시보드를 제공합니다. Keycloak의 finance/IT 계정으로 원본 ACL과 ZT AI 정책의 교집합을 테스트합니다. connector는 NFS가 내보내는 실제 볼륨을 직접 읽으며 채팅 테스트는 NFS 마운트/프로토콜 테스트가 아닙니다. AI 정책은 DRAFT로 생성하고 직접 검토·Publish합니다.
 
-별도의 **Stitch Integration** 표준 연동 API는 OIDC 사용자·AI 위임, 소스 ACL/그룹 동기화, 파일·첨부파일, PostgreSQL 검색/RAG, 권한 버전 캐시, 보존·삭제 요청/확인 계약을 제공합니다. 실제 Stitch와 외부 저장소에 연결하거나 네트워크 제한을 적용한 상태는 아닙니다. [연동 계약](docs/api/STITCH_INTEGRATION_V1.md)과 [로컬 OIDC 개발 절차](docs/api/STITCH_INTEGRATION_LOCAL.ko.md)를 확인하세요. 기본 설정은 비활성화입니다.
+## 공통 Retrieval 연동
 
-### 가상 Stitch + Stitchy 시뮬레이션
+**Retrieval Access / Policy Studio**에서 AI 정책을 관리하고 등록된 source connector는 원본 사용자 ACL과 자료를 동기화합니다. [공통 계약](docs/api/RETRIEVAL_CONTROL_PLANE_V2.md), `/v1/integrations/retrieval` API, `client.retrieval` SDK는 OIDC 사용자 위임, 파일 조회, 권한을 적용한 검색, 캐시 무효화와 삭제 요청을 지원합니다. 원본 사용자 권한과 ACTIVE ALLOW가 모두 필요하며 매칭 DENY가 우선합니다. 로컬 사용은 [실제 파일 접근 데모](docs/demo/FILE_ACCESS_NFS.ko.md)를 참고하세요.
 
-**AI 정책은 ZT 대시보드의 Retrieval Access / Policy Studio가 관리합니다.** 클라이언트는 사용자 ACL·자료만 동기화합니다. 공통 `/v1/integrations/retrieval` API와 `client.retrieval` SDK를 사용하며, 다음 클라이언트는 새 워크스페이스/연결을 등록하여 같은 판정 경로로 테스트합니다. 등록된 connector만 동기화할 수 있고 AI는 활성 ALLOW 정책이 없으면 기본 차단입니다. [최신 시뮬레이션 순서](docs/demo/STITCH_CLIENT_SIMULATION.ko.md)와 [공통 계약](docs/api/RETRIEVAL_CONTROL_PLANE_V2.md)을 확인하세요.
-
-선택적인 로컬 시뮬레이터는 표준 연동 API에 가상 Teams 자료/ACL 서버와 Stitchy MCP 클라이언트를 연결합니다. Alice/Bob/AI의 Payroll 접근 차이, 검색 결과 필터링, 권한 변경, 세션 취소, 임시 자료 삭제와 수신자 ACK를 전용 화면에서 비교합니다. 외부 Stitch나 LLM 연결 없이 허용된 도구 결과를 인용하여 답변합니다.
-
-[실행 및 시연 안내](docs/demo/STITCH_SIMULATION.ko.md)를 따라 `docker/stitch-simulation.compose.yml` overlay를 시작한 뒤 **http://localhost:8766**을 엽니다. 기존 대시보드 **Stitch Integration**에서도 연결할 수 있습니다. Stitchy는 전용 Docker internal network에서 읽기 gateway만 사용하며 직접 원본/DB 자격 증명을 받지 않습니다. 이 구성은 로컬 시뮬레이션이며 실행 검증을 수행한 상태는 아닙니다.
+Stitch 전용 대시보드 화면과 시뮬레이터는 제거했습니다. 기존 백엔드 API 별칭·DB 스키마·선택적 계약 fixture는 호환성을 위해 유지하며 별도 PoC 백엔드는 기본 비활성화입니다.

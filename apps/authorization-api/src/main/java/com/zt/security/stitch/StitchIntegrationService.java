@@ -85,7 +85,7 @@ public class StitchIntegrationService {
         p.addValue("_ztPolicies",policyGate.prepare(t,w));try{String human=(String)r.get("human_subject");Set<String> asserted=mapper.readValue(r.get("groups_json").toString(),new TypeReference<Set<String>>(){});return new Caller(a.subject(),human,liveGroups(p,human,asserted),a.subject(),session);}catch(com.fasterxml.jackson.core.JsonProcessingException ex){throw new AccessDeniedException("Invalid delegated claims");}
     }
     /** Internal, confirmed dashboard delegation. Never accepts an AI identity from the model/browser. */
-    public Map<String,Object> workflowFile(UUID t,UUID w,String target,Authentication auth){
+    public Map<String,Object> workflowFile(UUID t,UUID w,String target,boolean listOnly,Authentication auth){
         workflowAccess.request(auth,t,w);
         var token=((org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken)auth).getToken();
         if(token.getId()==null||token.getId().isBlank()||token.getExpiresAt()==null||!token.getExpiresAt().isAfter(Instant.now()))throw new AccessDeniedException("An unexpired human token with jti is required for file retrieval");
@@ -104,20 +104,27 @@ public class StitchIntegrationService {
             boolean container=List.of("FOLDER","CHANNEL").contains(matches.get(0).get("kind"));
             if((container||List.of("FILE","ATTACHMENT").contains(matches.get(0).get("kind")))&&permits(t,w,c,p,id,container?"LIST":"READ",human,groups,ai,all,acl)){
                 String root=id;
+                if(listOnly&&container){
+                    var ids=all.values().stream().filter(r->root.equals(r.get("parent_id"))).map(r->(String)r.get("resource_id")).filter(child->permits(t,w,c,p,child,"READ",human,groups,ai,all,acl)).sorted().toList();
+                    rows=ids.isEmpty()?List.of():jdbc.queryForList("SELECT resource_id,kind,title,source_version FROM stitch_resources WHERE "+SCOPE+" AND resource_id IN (:ids) AND deleted=false ORDER BY title,resource_id LIMIT 100",new MapSqlParameterSource(p.getValues()).addValue("ids",ids));
+                    decision="ALLOW";detail="Authorized folder listing; file contents were not read or returned.";
+                }else if(listOnly){detail="Specify a registered folder to list files.";}
+                else{
                 List<String> candidates=container?all.values().stream().filter(r->List.of("FILE","ATTACHMENT").contains(r.get("kind"))).map(r->(String)r.get("resource_id")).filter(child->descendant(child,root,all)).sorted().toList():List.of(id);
                 for(String candidate:candidates)if(permits(t,w,c,p,candidate,"READ",human,groups,ai,all,acl)){
                     rows=jdbc.queryForList("SELECT resource_id,kind,title,content,source_version FROM stitch_resources WHERE "+SCOPE+" AND resource_id=:id AND deleted=false",new MapSqlParameterSource(p.getValues()).addValue("id",candidate));
                     if(!rows.isEmpty()){id=candidate;decision="ALLOW";detail="One registered file returned after source ACL and ZT AI policy evaluation.";break;}
                 }
                 if(rows.isEmpty())detail="No permitted file was returned. "+reason(p);
+                }
             }else detail="File access withheld. "+reason(p);
         }
         workflowAccess.request(auth,t,w);sourceFresh(p);
         if(!expires.isAfter(Instant.now()))throw new AccessDeniedException("File delegation expired; confirm a new read");
-        disclose(p,c,rows.stream().map(r->(String)r.get("resource_id")).toList());UUID auditId=audit(p,ai,"workflow.retrieve",id,decision,rows.size());
+        disclose(p,c,rows.stream().map(r->(String)r.get("resource_id")).toList());UUID auditId=audit(p,ai,listOnly?"workflow.list":"workflow.retrieve",id,decision,rows.size());
         // Single-use delegation; disclosures still reference it for deletion delivery.
         jdbc.update("UPDATE stitch_ai_sessions SET revoked=true WHERE "+SCOPE+" AND id=:id",new MapSqlParameterSource(p.getValues()).addValue("id",session));
-        return Map.of("decision",decision,"results",rows,"aclVersion",version(p),"reason",detail,"aiSubject",ai,"humanSubject",human,"auditEventId",auditId);
+        return Map.of("decision",decision,"results",rows,"aclVersion",version(p),"reason",detail,"aiSubject",ai,"humanSubject",human,"auditEventId",auditId,"operation",listOnly?"LIST":"READ","matchedPolicies",policyGate.matched((RetrievalPolicyGate.Snapshot)p.getValues().get("_ztPolicies")));
     }
     private boolean descendant(String child,String root,Map<String,Map<String,Object>> all){
         Set<String> seen=new HashSet<>();String id=child;

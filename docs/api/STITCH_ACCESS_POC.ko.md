@@ -1,12 +1,14 @@
 # Stitch AI 접근 통제 PoC
 
+> 과거 PoC 기록입니다. Stitch Access PoC 메뉴와 시뮬레이터는 제거했고, PoC 백엔드는 기본 비활성화했습니다. 현재 로컬 테스트는 [실제 파일 접근 데모](../demo/FILE_ACCESS_NFS.ko.md)를 사용하세요. 아래 이전 화면 절차는 현재 대시보드에 적용되지 않습니다.
+
 ## 반영 및 시작
 
 ```powershell
 docker compose -f docker/docker-compose.yml up -d --build authorization-api dashboard
 ```
 
-로컬 Compose는 `ZT_STITCH_POC_ENABLED=true`를 기본값으로 사용합니다. API를 IDE로 실행할 때는 이 환경변수를 직접 설정합니다. 기본 application.yml에서는 비활성화됩니다. Flyway V6가 영역·문서·호출 이력 테이블을 추가하며 데이터는 관리자 Initialize 버튼을 누를 때 생성됩니다.
+현재 로컬 Compose와 application.yml은 모두 `ZT_STITCH_POC_ENABLED=false`가 기본값입니다. Flyway V6와 기존 PoC 데이터는 호환성을 위해 유지합니다.
 
 대시보드 → Agents & Connections → **Stitch Access PoC**. CISO / SOC_ANALYST / DEVOPS 메뉴에서 접근할 수 있습니다. 메뉴 노출은 실제 서버 권한을 바꾸지 않습니다.
 

@@ -25,8 +25,6 @@ import ApprovalExecution from './pages/ApprovalInbox';
 import WorkflowChat from './pages/WorkflowChat';
 import {COMMON_OIDC} from './api/oidc';
 import McpGateway from './pages/McpGateway';
-import StitchAccessPoc from './pages/StitchAccessPoc';
-import StitchIntegration from './pages/StitchIntegration';
 import RetrievalAccess from './pages/RetrievalAccess';
 import ActionToastHost from './components/ActionFeedback';
 import ScopeBanner from './components/ScopeBanner';
@@ -53,7 +51,7 @@ const nav=[
  Settings],['Policy Studio',FileLock2],['Lifecycle',GitBranch],['Runtime Intelligence',
  Brain],['Continuous Agent Risk',Activity],['Agent Risk Forecast',TrendingUp],
  ['Preventive Control Loop',ShieldCheck],['Control Loop Verification',ShieldCheck],
- ['Policy Auto-Tuning',Zap],['Policy Tests',Play],['Execution Records',History],['MCP Gateway',ShieldCheck],['Stitch Access PoC',FolderOpen],['Stitch Integration',Lock],['Retrieval Access',Lock],
+ ['Policy Auto-Tuning',Zap],['Policy Tests',Play],['Execution Records',History],['MCP Gateway',ShieldCheck],['Retrieval Access',Lock],
  ['Data Plane',Database],['Governance',ScanSearch],
  ['Workflow Chat',Send],['Runtime Gateway',Zap],['Agents',Bot],['Agent Behavior',
  Activity],['Approvals',CheckCircle2],['Audit Logs',ScrollText],
@@ -67,7 +65,7 @@ const nav=[
 // Legacy test page IDs resolve to tabs in the consolidated workspace.
 const navigationGroups = [
  {id:'overview',label:'Overview',icon:LayoutDashboard,pages:['Overview','Command Center']},
- {id:'connections',label:'Agents & Connections',icon:Bot,pages:['Agents','MCP Gateway','Stitch Access PoC','Retrieval Access','Stitch Integration','Runtime Gateway','Data Plane','Kubernetes Policies']},
+ {id:'connections',label:'Agents & Connections',icon:Bot,pages:['Agents','MCP Gateway','Retrieval Access','Runtime Gateway','Data Plane','Kubernetes Policies']},
  {id:'policies',label:'Policies',icon:FileLock2,pages:['Policy Studio','Lifecycle','Policy Tests','Policy Auto-Tuning']},
  {id:'approvals',label:'Approvals & Execution',icon:CheckCircle2,pages:['Workflow Chat','Approvals','Execution Records']},
  {id:'analysis',label:'Audit & Analysis',icon:ScanSearch,pages:['Audit Logs','Runtime Intelligence','Continuous Agent Risk','Agent Risk Forecast','Agent Behavior','Preventive Control Loop','Control Loop Verification','Security Graph','Attack Paths','Blast Radius','Response Center','Incident Response','Compliance Evidence','SIEM','Governance','Decision Engine']},
@@ -307,7 +305,7 @@ function App(){
     {tab==='Data Plane'&&<DataPlane/>} {tab==='Runtime Intelligence'&&<RuntimeIntelligence/>}
     {tab==='Continuous Agent Risk'&&<AgentRisk/>} {tab==='Agent Risk Forecast'&&<RiskForecast/>}
     {tab==='Preventive Control Loop'&&<ControlLoop/>} {tab==='Control Loop Verification'&&<ControlLoopFeedback/>}
-    {tab==='Policy Auto-Tuning'&&<PolicyAutoTuning/>} {tab==='MCP Gateway'&&<McpGateway/>} {tab==='Stitch Access PoC'&&<StitchAccessPoc/>} {tab==='Stitch Integration'&&<StitchIntegration/>} {tab==='Retrieval Access'&&<RetrievalAccess/>}
+    {tab==='Policy Auto-Tuning'&&<PolicyAutoTuning/>} {tab==='MCP Gateway'&&<McpGateway/>} {tab==='Retrieval Access'&&<RetrievalAccess/>}
     {tab==='Enterprise'&&<Enterprise/>} {tab==='Product Operations'&&<ProductOperationsPage/>}
     {tab==='Policy Studio'&&<PolicyStudio/>} {tab==='Lifecycle'&&<Lifecycle/>}
     {tab==='Governance'&&<Governance/>}

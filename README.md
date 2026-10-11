@@ -279,24 +279,14 @@ Development emphasizes stabilization, readable code and documentation. Add capab
 
 Repository-wide distribution license terms are not currently specified. No public SDK package publication or production certification is asserted by this README.
 
-## Stitch AI access PoC
-
-A separate synthetic demo provides server-authorized document reads, folder inheritance, channel messages and permission-filtered search. Open **Agents & Connections → Stitch Access PoC** in the dashboard. Initialize sample data explicitly as an administrator; authenticate a registered service client to demonstrate AI restrictions.
-
-The local Compose deployment enables `ZT_STITCH_POC_ENABLED` by default. Disable it outside demo deployments. This PoC does not integrate actual Stitch data, end-user ACLs, LLM retrieval, external MCP, vector indexes or TEE. See the [demo guide](docs/api/STITCH_ACCESS_POC.ko.md) and [Postman collection](docs/postman/Stitch-Access-PoC.postman_collection.json).
-
 ## Workflow Chat simulation
 
-The dashboard provides Keycloak login, an AI-assisted transfer proposal screen and a unified Workflow/MCP approval inbox. Users review proposed parameters before ZT evaluation; independent approvers decide STEP_UP requests and authorized executors run saved contracts. The optional connector writes simulated EUR transactions to a local ledger and verifies their recorded values. It does not connect to a bank or move money. Ollama is the currently implemented planner provider; provider-specific logic is separated from authorization and execution. See the [Workflow Chat demo guide](docs/demo/WORKFLOW_CHAT.ko.md) for setup, roles and limitations.
+The dashboard provides Keycloak login, general conversation, simulated transfer requests, authorized file reads/listings and a unified Workflow/MCP approval inbox. New messages show the recorded security checks before the answer. Transfers are evaluated on submission; independent approvers decide STEP_UP requests and authorized executors run saved contracts. The simulated executor writes EUR transactions to a local ledger and verifies their recorded values. It does not connect to a bank or move money. Ollama is the currently implemented planner provider. See the [Workflow Chat demo guide](docs/demo/WORKFLOW_CHAT.ko.md) for setup, roles and limitations.
 
-## Stitch integration contract
+The optional [file access demo](docs/demo/FILE_ACCESS_NFS.ko.md) provides actual Payroll/IT fixture files, an NFSv4 export, an authenticated connector and an isolated dashboard at port 3001. Keycloak finance/IT users exercise source ACLs intersected with ZT AI policies. The connector reads the same real volume directly; the chat test does not exercise NFS mounting or the NFS wire protocol. Its policy starts as DRAFT for manual review and publication.
 
-The separate [standard integration contract](docs/api/STITCH_INTEGRATION_V1.md) adds OIDC human/AI delegation, live source ACL and membership sync, file/attachment retrieval, PostgreSQL RAG indexes, permission-aware ID caching and recipient deletion workflows. It includes SDK/connector code and unapplied network/DB deployment templates. It is disabled by default; actual Stitch endpoints, provider storage and deployment controls still require customer configuration. See the [local OIDC walkthrough](docs/api/STITCH_INTEGRATION_LOCAL.ko.md).
+## Retrieval integration
 
-### Virtual Stitch and Stitchy simulation
+**Retrieval Access / Policy Studio** manages AI policies; registered source connectors synchronize user ACLs and content. The [generic control-plane contract](docs/api/RETRIEVAL_CONTROL_PLANE_V2.md), `/v1/integrations/retrieval` APIs and `client.retrieval` SDK support OIDC human delegation, file retrieval, permission-filtered search, cache invalidation and deletion workflows. AI access requires both the source user's permissions and a published ALLOW; matching DENY rules override ALLOW. See the [file access demo](docs/demo/FILE_ACCESS_NFS.ko.md) for local use.
 
-AI policy belongs to **ZT Retrieval Access / Policy Studio**; clients sync user ACLs and content only. The generic `/v1/integrations/retrieval` contract and `client.retrieval` SDK support another client through a separate registered workspace/connector. AI content fails closed without published ALLOW. Source re-sync/reset cannot override central policy. See the [updated simulation walkthrough](docs/demo/STITCH_CLIENT_SIMULATION.ko.md) and [control-plane contract](docs/api/RETRIEVAL_CONTROL_PLANE_V2.md).
-
-An optional local simulator connects a synthetic Teams-style content/ACL server and a Stitchy MCP client to the standard ZT contract. Its UI compares human and AI payroll access, filtered retrieval, permission changes, session revocation, temporary storage and recipient erasure acknowledgments. Answers quote freshly authorized tool results; no external Stitch service or LLM is required.
-
-Follow the [local simulation guide](docs/demo/STITCH_SIMULATION.ko.md) using the `docker/stitch-simulation.compose.yml` overlay, then open **http://localhost:8766**, also linked from **Stitch Integration** in the dashboard. The runner uses an isolated Docker internal network and a read-only gateway, with no source/DB credentials. This is local simulation code; builds, runtime behavior and container isolation have not been validated.
+The Stitch-specific dashboard pages and simulator have been retired. Legacy backend aliases, database schemas and optional contract fixtures remain compatible; the legacy standalone PoC is disabled by default.

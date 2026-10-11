@@ -65,6 +65,8 @@ Content-Type: application/json
 
 ## 일반 대화와 파일 요청
 
+점수 공식·행동 비교·위협 신호·자연어 처리의 구체적인 범위는 [리스크·Agent 행동·런타임 위협 계산 상세](../security/RISK_BEHAVIOR_RUNTIME.ko.md)를 참고하세요.
+
 모든 새 메시지는 응답을 화면에 반환하기 전에 실제 평가 기록을 만듭니다. 응답 상단에 다음 순서로 표시하고 마지막에 답변 또는 차단/승인 안내를 표시합니다.
 
 1. 로그인한 요청자와 AI의 위임된 작업·도구 권한 확인
@@ -86,7 +88,7 @@ Content-Type: application/json
 
 파일 조회 준비는 자동으로 하지 않습니다. **Retrieval Access**에 현재 workspace의 연결을 등록하고, 인증된 source connector로 리소스·사용자·그룹·ACL을 동기화하고 최신 checkpoint를 유지해야 합니다. 소스 사용자 ID는 로그인 JWT의 실제 `sub`와 같아야 하며 그룹 권한은 JWT `groups`와 원본 디렉터리 그룹의 교집합입니다. `demo-admin`이라는 이름이나 ADMIN 역할만으로 Alice의 파일 권한이 부여되지 않습니다.
 
-기존 Stitch 시뮬레이터는 `zt-stitch-contract` realm을 사용하고 Workflow 데모는 `zt-mcp-demo`를 사용합니다. 두 overlay를 그대로 합쳐 issuer를 바꾸지 마세요. Workflow와 연결하려는 connector는 현재 API가 신뢰하는 issuer의 credential과 해당 workspace에 등록된 connector subject를 사용해야 합니다. 이번 변경은 기존 realm의 사용자나 source ACL을 자동으로 복사하지 않습니다.
+Stitch 전용 시뮬레이터와 메뉴는 제거했습니다. Workflow와 파일 데모는 `zt-mcp-demo`를 사용합니다. connector는 현재 API가 신뢰하는 issuer의 credential과 해당 workspace에 등록된 connector subject를 사용해야 합니다. 기존 다른 realm의 사용자나 source ACL을 자동으로 복사하지 않습니다. 현재 로컬 구성은 [실제 파일 접근 데모](FILE_ACCESS_NFS.ko.md)를 참고하세요.
 
 Policy Studio에서 ACTIVE ALLOW가 필요하며 Payroll 하위 DENY는 계속 우선합니다. 기존 ALLOW가 `client:stitchy-simulator`에 한정되어 있다면 별도로 Workflow Chat AI subject를 허용하는 정책을 작성해야 합니다. 예를 들어 아래 ALLOW는 기본 workspace의 Workflow Chat만 해당 연결에 허용합니다. `connectionId`는 등록한 값으로 바꾸세요. Payroll DENY는 해제하지 않습니다.
 

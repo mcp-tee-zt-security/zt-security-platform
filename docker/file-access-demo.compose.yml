@@ -1,0 +1,66 @@
+# Apply after docker-compose.yml AND mcp-oidc.compose.yml, with the generated demo.env.
+services:
+  file-demo-seed:
+    image: python:3.13-slim
+    command: ["python", "-c", "import pathlib,shutil; root=pathlib.Path('/fixtures'); dest=pathlib.Path('/export'); [(dest / p.relative_to(root)).mkdir(parents=True,exist_ok=True) if p.is_dir() else shutil.copy2(p,dest / p.relative_to(root)) for p in sorted(root.rglob('*')) if p.is_dir() or not (dest / p.relative_to(root)).exists()]"]
+    volumes:
+      - ../apps/file-access-demo/files:/fixtures:ro
+      - file_demo_files:/export
+    network_mode: none
+  file-nfs:
+    build:
+      context: ..
+      dockerfile: apps/file-access-demo/Nfs.Dockerfile
+    cap_add: [DAC_READ_SEARCH]
+    security_opt: [no-new-privileges:true]
+    volumes: [file_demo_files:/export:ro]
+    networks: [file_storage]
+    depends_on:
+      file-demo-seed:
+        condition: service_completed_successfully
+    restart: unless-stopped
+  file-connector:
+    build:
+      context: ..
+      dockerfile: apps/file-access-demo/Connector.Dockerfile
+    environment:
+      ZT_API_URL: http://authorization-api:8080
+      ZT_TOKEN_URL: http://keycloak:8080/realms/zt-mcp-demo/protocol/openid-connect/token
+    volumes:
+      - file_demo_files:/files:ro
+      - file_demo_cursor:/state
+      - ${ZT_FILE_CONFIG_PATH:?Run setup-file-access-demo.ps1 first}:/config/config.json:ro
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [default, file_storage]
+    depends_on:
+      authorization-api:
+        condition: service_healthy
+      file-demo-seed:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,time,pathlib; assert time.time()-json.loads(pathlib.Path('/state/health.json').read_text())['syncedAt']<90"]
+      interval: 30s
+      timeout: 5s
+      retries: 4
+  file-dashboard:
+    build:
+      context: ../dashboard/web
+      args:
+        VITE_OIDC_ISSUER: http://localhost:8089/realms/zt-mcp-demo
+        VITE_OIDC_CLIENT_ID: zt-file-dashboard
+        VITE_AUTH_MODE: oidc
+        VITE_WORKSPACE_ID: ${ZT_FILE_WORKSPACE_ID:?Run setup-file-access-demo.ps1 first}
+    ports: ["3001:80"]
+    depends_on:
+      authorization-api:
+        condition: service_healthy
+volumes:
+  file_demo_files:
+  file_demo_cursor:
+networks:
+  file_storage:
+    internal: true

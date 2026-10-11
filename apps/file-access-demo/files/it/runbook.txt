@@ -1,0 +1,3 @@
+SYNTHETIC DEMO DATA ONLY
+IT runbook: review service health and apply scheduled updates.
+This folder is restricted to the it group.

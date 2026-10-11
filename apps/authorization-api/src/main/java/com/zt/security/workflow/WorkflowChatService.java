@@ -48,7 +48,7 @@ public class WorkflowChatService {
         access.request(auth,t,w);
         var body=new LinkedHashMap<String,Object>();body.put("requestedBy",auth.getName());body.put("message",message);body.put("type",reply.type());body.put("answer",reply.answer());body.put("aiSubject",agent(w));body.put("provider",provider);body.put("expiresAt",Instant.now().plusSeconds(900).toString());
         if(reply.transfer()!=null){body.put("proposal",reply.transfer());body.put("simulation",true);}
-        if("RETRIEVAL".equals(reply.type()))body.put("target",reply.target());
+        if("RETRIEVAL".equals(reply.type())){body.put("target",reply.target());body.put("operation",reply.operation());}
         var saved=records.create(t,w,"WORKFLOW_PROPOSAL",body);
         UUID id=UUID.fromString(String.valueOf(saved.get("id")));
         if("TRANSFER".equals(reply.type())){
@@ -73,8 +73,8 @@ public class WorkflowChatService {
     @Transactional public Object recordFileOutcome(UUID t,UUID w,UUID id,Authentication auth,Map<String,Object> result){
         access.request(auth,t,w);var saved=records.get(t,w,"WORKFLOW_PROPOSAL",id.toString(),true);
         if(!auth.getName().equals(saved.get("requestedBy"))||!"RETRIEVAL".equals(saved.get("type")))throw new AccessDeniedException("File proposal owner required");
-        var outcome=new LinkedHashMap<String,Object>();for(String key:List.of("decision","reason","auditEventId","aclVersion"))if(result.get(key)!=null)outcome.put(key,result.get(key));
-        saved.put("fileOutcome",outcome);saved.put("answer","ALLOW".equals(result.get("decision"))?"ZT가 사용자 ACL과 AI 정책을 확인했습니다. 허용된 파일 결과를 아래에 표시합니다.":"파일 내용을 반환하지 않았습니다: "+result.get("reason"));
+        var outcome=new LinkedHashMap<String,Object>();for(String key:List.of("decision","reason","auditEventId","aclVersion","operation","matchedPolicies"))if(result.get(key)!=null)outcome.put(key,result.get(key));
+        saved.put("fileOutcome",outcome);saved.put("answer","ALLOW".equals(result.get("decision"))?("LIST".equals(result.get("operation"))?"ZT가 사용자 ACL과 AI 정책을 확인했습니다. 허용된 파일 목록을 아래에 표시합니다. 파일 내용은 읽거나 반환하지 않았습니다.":"ZT가 사용자 ACL과 AI 정책을 확인했습니다. 허용된 파일 결과를 아래에 표시합니다."):"파일 목록·내용을 반환하지 않았습니다: "+result.get("reason"));
         records.update(t,w,"WORKFLOW_PROPOSAL",saved);return saved;
     }
     @Transactional public Map<String,Object> saveProposal(UUID tenant,UUID workspace,Authentication auth,String message,TransferProposal proposal){
@@ -155,7 +155,7 @@ public class WorkflowChatService {
         var adapter=retrieval.getIfAvailable();
         if(adapter==null)return Map.of("decision","UNAVAILABLE","results",List.of(),"reason","Enable the registered Retrieval connector before reading files. Nothing was accessed.");
         // Content is never stored in chat history or fed back to the model. Each read reauthorizes.
-        return adapter.workflowFile(t,w,String.valueOf(saved.get("target")),auth);
+        return adapter.workflowFile(t,w,String.valueOf(saved.get("target")),"LIST".equals(saved.get("operation")),auth);
     }
     @Transactional(readOnly=true) public Object status(UUID tenant,UUID workspace,UUID proposalId,Authentication auth){
         access.human(auth,tenant,workspace);

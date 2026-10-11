@@ -1,8 +1,8 @@
 # 표준 Stitch 연동의 로컬 개발 절차
 
-가상 Stitch 서버와 Stitchy 클라이언트를 함께 사용하려면 [로컬 시뮬레이션 가이드](../demo/STITCH_SIMULATION.ko.md)를 참고하세요. Prepare/위임/권한 변경/검색/삭제를 전용 데모 화면에서 실행할 수 있습니다. 아래 내용은 표준 API를 직접 호출하는 절차입니다.
+Stitch 전용 시뮬레이터와 대시보드 메뉴는 제거했습니다. 현재 화면은 **Retrieval Access**이며 로컬 테스트는 [실제 파일 접근 데모](../demo/FILE_ACCESS_NFS.ko.md)를 사용합니다. 아래 내용은 기존 계약 fixture로 표준 API를 직접 호출하는 호환 절차입니다.
 
-**v2 변경:** 먼저 ZT **Retrieval Access**에서 워크스페이스의 검증된 connector subject를 등록합니다. 사용자 ACL/자료는 클라이언트에서 동기화하지만 AI ALLOW/DENY는 ZT에서 작성·Publish합니다. 정책이 없으면 AI는 기본 차단됩니다. 소스 aiAccess 필드는 이제 무시됩니다. [공통 계약](RETRIEVAL_CONTROL_PLANE_V2.md)과 [최신 시연 순서](../demo/STITCH_CLIENT_SIMULATION.ko.md)가 우선합니다.
+**v2 변경:** 먼저 ZT **Retrieval Access**에서 워크스페이스의 검증된 connector subject를 등록합니다. 사용자 ACL/자료는 클라이언트에서 동기화하지만 AI ALLOW/DENY는 ZT에서 작성·Publish합니다. 정책이 없으면 AI는 기본 차단됩니다. 소스 aiAccess 필드는 이제 무시됩니다. [공통 계약](RETRIEVAL_CONTROL_PLANE_V2.md)이 우선합니다.
 
 실제 Stitch 시스템을 연결한 자료가 아닙니다. 합성 사용자/자료를 사용하지만 인증은 Keycloak이 서명한 실제 OIDC JWT로 진행합니다. 기존 Stitch Access PoC와 별도 API/테이블입니다.
 
@@ -35,7 +35,7 @@ docker compose --env-file docker/stitch-local-oidc.env.example -f docker/docker-
 
 권한 변경 후에는 새 ACL 버전으로 source checkpoint를 다시 완료해야 합니다. 로컬 snapshot 유효기간은 600초이며 운영 기본값은 120초입니다. 기간이 지나면 source를 다시 확인·동기화하고 완료 체크포인트를 보내야 합니다. 토큰/위임 세션도 각각 만료되면 새로 발급합니다. source 중단/미완료를 계속 허용으로 처리하지 않습니다.
 
-Agents & Connections → **Stitch Integration**. 실제 토큰 또는 서비스 자격 증명을 Apply and verify하고 요청 JSON을 실행합니다. 사람은 HUMAN JWT, source 동기화는 CONNECTOR/STITCH_SYNC JWT, AI는 전용 서비스 자격 증명 + 사람이 발급한 세션이 필요합니다. 기존 관리자 API key를 사람 로그인으로 사용하지 않습니다.
+Agents & Connections → **Retrieval Access**의 **Client contract console — any registered source**를 사용합니다. 원하는 작업과 호출자 자신의 토큰 또는 서비스 자격 증명을 선택하여 실행합니다. 사람은 HUMAN JWT, source 동기화는 CONNECTOR/RETRIEVAL_SYNC JWT(기존 STITCH_SYNC 호환), AI는 전용 서비스 자격 증명과 사람이 발급한 세션이 필요합니다. 기존 관리자 API key를 사람 로그인으로 사용하지 않습니다.
 
 이 화면은 표준 API 콘솔입니다. 실제 Stitch 로그인 UI·폴더 설정 화면이 자동으로 연결된 것은 아닙니다. 요청별 schema와 연결 계약은 [STITCH_INTEGRATION_V1.md](STITCH_INTEGRATION_V1.md)를 확인하세요.
 

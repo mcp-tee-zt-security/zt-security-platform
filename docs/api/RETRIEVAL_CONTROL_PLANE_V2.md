@@ -50,6 +50,6 @@ Admin endpoints: `/v1/retrieval/connections`, `/v1/retrieval/connections/resourc
 
 V8 adds registration/metadata and no sample connection or ALLOW policy. Existing V7 data remains. Historical stitch_ table/class names are internal compatibility details. Generic public calls have no hardcoded Stitch-specific authorization rules.
 
-Use `client.retrieval.for_session(session_id)` in Python or generic REST/MCP for the next client. It needs its own workspace-bound source/IdP/AI setup; existing fixed Stitch tokens cannot authorize another workspace. The local Stitch fixture remains one dedicated client. Builds, tests, runtime and external deployment have not been performed for this change.
+Use `client.retrieval.for_session(session_id)` in Python or generic REST/MCP for the next client. It needs its own workspace-bound source/IdP/AI setup; existing fixed legacy tokens cannot authorize another workspace. The Stitch simulator and its dashboard pages have been removed; legacy API aliases and IdP fixtures remain compatible. The current [file access demo](../demo/FILE_ACCESS_NFS.ko.md) uses an isolated registered workspace and real local fixture files.
 
 The ZT Retrieval Access page includes a client contract console. Its explicit actor credentials and selected workspace are separate from the admin policy controls. Verify `context` before sync/delegation/AI reads. Credentials clear on workspace change and are never persisted to browser storage.

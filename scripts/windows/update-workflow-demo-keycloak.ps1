@@ -23,6 +23,17 @@ foreach($role in $seed.roles.realm){
         Invoke-RestMethod -Method Post -Uri "$realmUrl/roles" -Headers $headers -ContentType 'application/json' -Body ($role | ConvertTo-Json) | Out-Null
     }
 }
+$demoGroups=@{}
+foreach($group in $seed.groups){
+    $knownGroups=@(Get-KeycloakList -Uri "$realmUrl/groups")
+    $found=@($knownGroups | Where-Object { $_.name -eq $group.name })
+    if($found.Count -eq 0){
+        Invoke-RestMethod -Method Post -Uri "$realmUrl/groups" -Headers $headers -ContentType 'application/json' -Body ($group | ConvertTo-Json) | Out-Null
+        $found=@(Get-KeycloakList -Uri "$realmUrl/groups" | Where-Object { $_.name -eq $group.name })
+    }
+    if($found.Count -ne 1){throw "Expected one demo group: $($group.name)"}
+    $demoGroups[$group.name]=$found[0].id
+}
 foreach($user in $seed.users){
     $users=@(Get-KeycloakList -Uri "$realmUrl/users?username=$([Uri]::EscapeDataString($user.username))&exact=true")
     if($users.Count -eq 0){
@@ -39,11 +50,22 @@ foreach($user in $seed.users){
             Invoke-RestMethod -Method Post -Uri "$realmUrl/users/$($users[0].id)/role-mappings/realm" -Headers $headers -ContentType 'application/json' -Body $roleBody | Out-Null
         }
     }
+    foreach($path in $user.groups){
+        $groupName=$path.TrimStart('/')
+        if(-not $demoGroups.ContainsKey($groupName)){throw "Missing demo group: $groupName"}
+        Invoke-RestMethod -Method Put -Uri "$realmUrl/users/$($users[0].id)/groups/$($demoGroups[$groupName])" -Headers $headers | Out-Null
+    }
     Write-Output "Demo user ready: $($user.username)"
 }
 $clients=@(Get-KeycloakList -Uri "$realmUrl/clients?clientId=zt-dashboard")
 if($clients.Count -ne 1){throw 'zt-dashboard client missing; start Keycloak with the realm import first'}
 $scopes=@(Get-KeycloakList -Uri "$realmUrl/client-scopes")
+foreach($mapper in $seed.clients[0].protocolMappers){
+    $knownMappers=@(Get-KeycloakList -Uri "$realmUrl/clients/$($clients[0].id)/protocol-mappers/models")
+    if(-not ($knownMappers | Where-Object { $_.name -eq $mapper.name })){
+        Invoke-RestMethod -Method Post -Uri "$realmUrl/clients/$($clients[0].id)/protocol-mappers/models" -Headers $headers -ContentType 'application/json' -Body ($mapper | ConvertTo-Json -Depth 12) | Out-Null
+    }
+}
 foreach($scopeName in $seed.clients[0].defaultClientScopes){
     $scope=$scopes | Where-Object { $_.name -eq $scopeName }
     if(-not $scope){throw "Missing realm client scope: $scopeName"}
