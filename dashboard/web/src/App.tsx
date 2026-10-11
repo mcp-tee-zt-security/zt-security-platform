@@ -1,3 +1,4 @@
+import CommonActivity from './components/CommonActivity';
 import usePageRefresh from './components/usePageRefresh';
 import React from 'react';
 import {
@@ -326,6 +327,7 @@ function App(){
     {tab==='Incident Response'&&<IncidentResponse/>}
     {tab==='Command Center'&&<CommandCenter/>} {tab==='Decision Engine'&&<DecisionEngine/>}
     {tab==='Setup Guide'&&<SetupGuide/>} {tab==='Kubernetes Policies'&&<KubernetesPolicies/>}
+    {['Runtime Intelligence','Continuous Agent Risk','Agent Risk Forecast','Preventive Control Loop','Control Loop Verification','Security Graph','Compliance Evidence','Governance','Agent Behavior'].includes(tab)&&<CommonActivity onAudit={()=>navigate('Audit Logs')}/>}
 </div>
   </main>
   {copilotOpen&&<aside className="copilot-panel" id="security-copilot-panel" aria-label="AI Security Copilot"><div className="copilot-panel-heading"><h2>AI Security Copilot</h2><button autoFocus aria-label="Close Copilot" onClick={()=>{setCopilotOpen(false);copilotToggle.current?.focus()}}>Close</button></div><SecurityCopilot contextLabel={`${pageLabels[activePage]||activePage}${contextSubject?' · Agent: '+contextSubject:''}`} initialScenario={`Review security risks for ${contextSubject?'agent '+contextSubject:pageLabels[activePage]||activePage} and suggest policy changes for human review.`}/></aside>}
@@ -1485,9 +1487,9 @@ function SecurityGraph(){const [g,setG]=React.useState<any>(null),[err,
 <Metric label="Edges" value={
         g?.metrics?.edgeCount??'—'} icon={GitBranch} records={g?.edges||[]}/>
 <Metric label="Max risk" value={
-        g?.metrics?.maxRisk??'—'} icon={AlertTriangle} tone="danger" records={g?.nodes||[]}/>
+        g?.metrics?.maxRiskMeasured===false?'Not measured':g?.metrics?.maxRisk??'—'} icon={AlertTriangle} tone="danger" records={g?.nodes||[]}/>
 <Metric label="Anomalies" value={
-        g?.metrics?.anomalies??'—'} icon={Siren} tone="warn" records={(g?.nodes||[]).filter((row:any)=>row.type==="ANOMALY")}/>
+        g?.metrics?.anomalies??'—'} icon={Siren} tone="warn" records={(g?.nodes||[]).filter((row:any)=>row.type==="BEHAVIOR"||row.type==="ANOMALY")}/>
 <Metric label="MCP gateways" value={
         (g?.nodes||[]).filter((x:any)=>x.type==='MCP_GATEWAY').length} icon={ShieldCheck}
      records={g?.nodes||[]}/>
@@ -2407,7 +2409,7 @@ function GraphCanvas({graph}:any){if(!graph)return <Empty icon={Network}
     const by:any={};
     for(const n of graph.nodes||[]) (by[n.type]??=[]).push(n);
     const cols=['IDENTITY','AGENT','TASK','MCP_GATEWAY','TOOL','ACTION','RESOURCE',
-    'BEHAVIOR','POLICY'];
+    'RETRIEVAL_GATEWAY','BEHAVIOR','POLICY',...Object.keys(by).filter(type=>!['IDENTITY','AGENT','TASK','MCP_GATEWAY','TOOL','ACTION','RESOURCE','RETRIEVAL_GATEWAY','BEHAVIOR','POLICY'].includes(type))].filter(type=>by[type]?.length);
     return <div className="graph-card">
 <div className="graph-head">
 <div>
@@ -2432,7 +2434,7 @@ function GraphCanvas({graph}:any){if(!graph)return <Empty icon={Network}
                 `} key={n.id}>
 <b>{n.label}
 </b>
-<small>risk {Number(n.risk||0).toFixed(0)}
+<small>risk {n.riskMeasured===false?'Not measured':Number(n.risk||0).toFixed(0)}
             · {n.status||'—'}
 </small>
 </div>)}

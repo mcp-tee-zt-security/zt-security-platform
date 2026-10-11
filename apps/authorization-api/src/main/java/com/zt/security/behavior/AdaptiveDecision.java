@@ -17,6 +17,7 @@ public class AdaptiveDecision {
  @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String signals="[]";
  @org.hibernate.annotations.ColumnTransformer(write="cast(? as jsonb)") @Column(columnDefinition="jsonb") String evidence="{}";
  @Column(name="created_at") Instant createdAt=Instant.now();
+ public UUID getRequestId(){return requestId;}
  public UUID getId(){
      return id;
  }

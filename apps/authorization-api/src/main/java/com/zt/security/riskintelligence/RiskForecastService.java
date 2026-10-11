@@ -11,6 +11,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@org.springframework.transaction.annotation.Transactional(readOnly=true)
 public class RiskForecastService {
     @org.springframework.beans.factory.annotation.Value("${zt.security.risk-scoring.critical-threshold:85.0}")
     private double criticalThreshold;
@@ -19,6 +20,7 @@ public class RiskForecastService {
     @org.springframework.beans.factory.annotation.Value("${zt.security.risk-scoring.elevated-threshold:40.0}")
     private double elevatedThreshold;
 
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.event.SecurityActivityLedger ledger;
     private final AgentRuntimeEventRepository events;
     private final TenantSession tenant;
     private final RiskScoringProperties riskConfig;
@@ -31,29 +33,30 @@ public class RiskForecastService {
     public Map<String,Object> overview(UUID t,int hours,int horizon){
         tenant.set(t);
         Instant cutoff=Instant.now().minus(hours, ChronoUnit.HOURS);
-        List<AgentRuntimeEvent> rows=events.findTop10000ByTenantIdOrderByCreatedAtDesc(t).stream().filter(e->
+        List<AgentRuntimeEvent> rows=ledger.analysis(t,ledger.selectedWorkspace()).stream().filter(e->
         e.getCreatedAt()!=null&&e.getCreatedAt().isAfter(cutoff)).toList();
         Map<String,List<AgentRuntimeEvent>> grouped=rows.stream().filter(e->e.getAgentExternalId()!=
         null).collect(Collectors.groupingBy(AgentRuntimeEvent::getAgentExternalId));
         List<Map<String,Object>> forecasts=grouped.entrySet().stream().map(x->forecast(x.getKey(),
-        x.getValue(),hours,horizon)).sorted((a,b)->Double.compare(((Number)b.get("forecastScore")).doubleValue(),
-        ((Number)a.get("forecastScore")).doubleValue())).toList();
+        x.getValue(),hours,horizon)).sorted((a,b)->Double.compare(b.get("forecastScore") instanceof Number n?n.doubleValue():-1,
+        a.get("forecastScore") instanceof Number n?n.doubleValue():-1)).toList();
         return Map.of("windowHours",hours,"forecastHours",horizon,"eventCount",
         rows.size(),"agentCount",forecasts.size(),"highProbabilityAgents",forecasts.stream().filter(x->
-        ((Number)x.get("highProbability")).doubleValue()>=0.6).count(),
+        x.get("highProbability") instanceof Number n&&n.doubleValue()>=0.6).count(),
         "forecasts",forecasts);
     }
 
     public Map<String,Object> agent(UUID t,String id,int hours,int horizon){
         tenant.set(t);
         Instant cutoff=Instant.now().minus(hours,ChronoUnit.HOURS);
-        List<AgentRuntimeEvent> rows=events.findTop10000ByTenantIdOrderByCreatedAtDesc(t).stream().filter(e->
+        List<AgentRuntimeEvent> rows=ledger.analysis(t,ledger.selectedWorkspace()).stream().filter(e->
         id.equals(e.getAgentExternalId())&&e.getCreatedAt()!=null&&e.getCreatedAt().isAfter(cutoff)).sorted(Comparator.
         comparing(AgentRuntimeEvent::getCreatedAt)).toList();
         return forecast(id,rows,hours,horizon);
     }
 
     private Map<String,Object> forecast(String id,List<AgentRuntimeEvent> rows,int hours,int horizon){
+        rows=rows.stream().sorted(Comparator.comparing(AgentRuntimeEvent::getCreatedAt)).toList();
         double current=score(rows);
         double previous=rows.size()>1?score(rows.subList(0,
         Math.max(1,rows.size()/2))):current;
@@ -65,11 +68,11 @@ public class RiskForecastService {
         String band=projected>=criticalThreshold?"CRITICAL":projected>=highThreshold?"HIGH":projected>=elevatedThreshold?"ELEVATED":"NORMAL";
         List<String> drivers=drivers(rows);
         List<String> paths=new ArrayList<>();
-        if(rows.stream().anyMatch(e->e.getToolId()!=null)) paths.add("Agent → MCP Tool → Action");
+        if(rows.stream().anyMatch(e->e.getToolId()!=null)) paths.add("Agent â†’ MCP Tool â†’ Action");
         if(rows.stream().anyMatch(e->"DENY".equalsIgnoreCase(e.getDecision())))
-paths.add("Agent → Policy Enforcement → DENY pressure");
+paths.add("Agent â†’ Policy Enforcement â†’ DENY pressure");
         if(rows.stream().anyMatch(e->e.getRiskScore()!=null&&e.getRiskScore()>=
-        70)) paths.add("Agent → High-risk runtime event → Resource exposure");
+        70)) paths.add("Agent â†’ High-risk runtime event â†’ Resource exposure");
         Map<String,Object> out=new LinkedHashMap<>();
         out.put("agent",
         id);
@@ -89,6 +92,10 @@ paths.add("Agent → Policy Enforcement → DENY pressure");
         out.put("explainability","Forecast is deterministic and evidence-grounded; it"
 +
 " does not directly change enforcement.");
+        out.put("measuredEvents",rows.stream().filter(e->e.getRiskScore()!=null).count());
+        boolean sufficient=rows.size()>=5&&rows.stream().filter(e->e.getRiskScore()!=null).count()>=5&&java.time.Duration.between(rows.get(0).getCreatedAt(),rows.get(rows.size()-1).getCreatedAt()).toMinutes()>=5;
+        out.put("dataQuality",sufficient?"AVAILABLE":"INSUFFICIENT_DATA");
+        if(!sufficient){out.put("forecastScore",null);out.put("highProbability",null);out.put("confidence",null);out.put("forecastBand","INSUFFICIENT_DATA");out.put("recommendation","OBSERVE_MORE_DATA");out.put("explainability","At least five measured decisions over five minutes are required. Lifecycle events and unmeasured file access are not forecast samples.");}
         return out;
     }
     private double score(List<AgentRuntimeEvent> rows){

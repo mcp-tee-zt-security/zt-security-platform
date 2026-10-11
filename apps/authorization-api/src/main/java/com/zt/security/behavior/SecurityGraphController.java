@@ -29,19 +29,23 @@ public class SecurityGraphController {
     @GetMapping(value="/stream", produces=MediaType.TEXT_EVENT_STREAM_VALUE)
     @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','AUDITOR','AGENT_MANAGER')")
     public SseEmitter stream(@RequestHeader("X-Tenant-Id") UUID tenant,
+                             @RequestHeader("X-Workspace-Id") UUID workspace,
                              @RequestParam(defaultValue="60") int windowMinutes){
+        var authentication=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         SseEmitter emitter = new SseEmitter(65000L);
         final int[] count={
             0}
         ;
         ScheduledFuture<?> future=scheduler.scheduleAtFixedRate(()->{
             try {
-                emitter.send(SseEmitter.event().name("security-graph").data(service.snapshot(tenant,windowMinutes)));
+                if(authentication instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken jwt&&jwt.getToken().getExpiresAt()!=null&&jwt.getToken().getExpiresAt().isBefore(java.time.Instant.now())){emitter.complete();return;}
+                org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(authentication);
+                emitter.send(SseEmitter.event().name("security-graph").data(service.snapshot(tenant,workspace,windowMinutes)));
                 if(++count[0]>=12) emitter.complete();
             }
-            catch (IOException ex) {
+            catch (Exception ex) {
                 emitter.completeWithError(ex);
-            }
+            }finally{org.springframework.security.core.context.SecurityContextHolder.clearContext();}
         }
         ,0,5,TimeUnit.SECONDS);
         emitter.onCompletion(()->future.cancel(false));

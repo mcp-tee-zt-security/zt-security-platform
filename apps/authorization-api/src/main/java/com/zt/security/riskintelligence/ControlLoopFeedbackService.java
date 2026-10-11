@@ -15,6 +15,7 @@ import java.util.*;
 public class ControlLoopFeedbackService {
   private static final int MIN_EVENTS = 2;
   private final SecurityResponseActionRepository responses;
+  @org.springframework.beans.factory.annotation.Autowired private com.zt.security.event.SecurityActivityLedger ledger;
   private final AgentRuntimeEventRepository events;
   private final SecurityControlFeedbackRepository feedback;
   private final SecurityControlEffectivenessProfileRepository profiles;
@@ -107,10 +108,9 @@ row.setAfterDenyRate(number(result.get("afterDenyRate")));
     Instant beforeFrom=executed.minus(Duration.ofHours(hours));
     Instant afterTo=executed.plus(Duration.ofHours(hours));
     Instant now=Instant.now();
-List<AgentRuntimeEvent> before=events.findByTenantIdAndAgentExternalIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(t,
-    agent,beforeFrom,executed);
-List<AgentRuntimeEvent> after=events.findByTenantIdAndAgentExternalIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(t,
-    agent,executed,afterTo);
+List<AgentRuntimeEvent> samples=ledger.analysis(t,ledger.selectedWorkspace()).stream().filter(e->agent.equals(e.getAgentExternalId())).toList();
+List<AgentRuntimeEvent> before=samples.stream().filter(e->!e.getCreatedAt().isBefore(beforeFrom)&&e.getCreatedAt().isBefore(executed)).toList();
+List<AgentRuntimeEvent> after=samples.stream().filter(e->!e.getCreatedAt().isBefore(executed)&&e.getCreatedAt().isBefore(afterTo)).toList();
 
     int beforeRiskSamples=(int)before.stream().filter(e->e.getRiskScore()!=null).count();
     int afterRiskSamples=(int)after.stream().filter(e->e.getRiskScore()!=null).count();

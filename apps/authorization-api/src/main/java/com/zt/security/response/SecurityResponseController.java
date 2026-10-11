@@ -2,17 +2,17 @@ package com.zt.security.response;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 @RestController @RequestMapping("/v1/security/responses") public class SecurityResponseController {
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.riskintelligence.RiskForecastService forecasts;
     final SecurityResponseService service;
     SecurityResponseController(SecurityResponseService s){
         service=s;
         }
  @PostMapping("/forecast-propose") List<Map<String,Object>> forecastPropose(@RequestHeader("X-Tenant-Id") UUID t,
  @RequestBody Map<String,Object> b){
-     return service.proposeFromForecast(t,
-     String.valueOf(b.get("agent")),String.valueOf(b.getOrDefault("requestedBy",
-     "dashboard-admin")),Double.parseDouble(String.valueOf(b.getOrDefault("forecastScore",
-     0))),Double.parseDouble(String.valueOf(b.getOrDefault("highProbability",
-     0))),String.valueOf(b.getOrDefault("recommendation","MONITOR_AND_REASSESS")));
+     String agent=String.valueOf(b.get("agent"));var forecast=forecasts.agent(t,agent,24,12);
+     if(!"AVAILABLE".equals(forecast.get("dataQuality")))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"Insufficient measured evidence for preventive control");
+     var auth=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+     return service.proposeFromForecast(t,agent,auth.getName(),((Number)forecast.get("forecastScore")).doubleValue(),((Number)forecast.get("highProbability")).doubleValue(),String.valueOf(forecast.get("recommendation")));
  }
  @GetMapping List<Map<String,Object>> list(@RequestHeader("X-Tenant-Id") UUID t){
      return service.list(t);

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.*;
 @Service public class RuntimeSecurityService {
+ @org.springframework.beans.factory.annotation.Autowired private com.zt.security.event.SecurityEventService securityEvents;
  private final AgentRuntimeSessionRepository sessions;
  private final AgentRuntimeEventRepository events;
  private final ActionEvaluationService actions;
@@ -135,8 +136,7 @@ catch(IllegalArgumentException ex){
  s.getTaskExternalId());
  EvaluateModels.EvaluateRequest enriched=new EvaluateModels.EvaluateRequest(req.principal(),
  req.action(),req.resource(),c);
- EvaluateModels.EvaluateResponse out=actions.evaluate(t,
- enriched);
+ EvaluateModels.EvaluateResponse out=actions.evaluate(t,w,enriched,true);
  s.setLastSeenAt(Instant.now());
  sessions.save(s);
  AgentRuntimeEvent ev=new AgentRuntimeEvent();
@@ -157,6 +157,8 @@ catch(IllegalArgumentException ex){
  ev.setLatencyMs(out.latencyMs());
  ev.setContext(json(c));
  events.save(ev);
+ Map<String,Object> observation=new LinkedHashMap<>();observation.put("sessionId",sid);observation.put("toolId",ev.getToolId());observation.put("latencyMs",out.latencyMs());
+ securityEvents.publish(new com.zt.security.event.CommonSecurityEvent(t,w,"RUNTIME","RUNTIME_AUTHORIZATION_DECIDED","AUTHORIZATION",ev.getId().toString(),ev.getCreatedAt(),out.requestId().toString(),out.requestId(),req.principal().id(),null,req.principal().id(),req.action().name(),req.resource().type(),req.resource().id(),out.decision(),"EVALUATED",out.risk().score(),true,observation));
  idempotency.complete(t,idemKey,out);
  return out;
  }

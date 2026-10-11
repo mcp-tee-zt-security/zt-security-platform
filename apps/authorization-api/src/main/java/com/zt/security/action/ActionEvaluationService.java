@@ -115,8 +115,7 @@ import java.util.*;
      behavior.after(tenant,
      req,rid,d.decision(),finalRisk.score());
      siem.publish(al);
-     emitRuntimeEvents(tenant,
-     req,rid,d,finalRisk,td);
+     emitRuntimeEvents(tenant,workspace,al.getId(),req,rid,d,finalRisk,td);
      if(createApproval && "STEP_UP".equals(d.decision())){
          Approval ap=new Approval();
          ap.setId(UUID.randomUUID());
@@ -151,29 +150,16 @@ import java.util.*;
   td.signals().stream().map(RuntimeThreatDetectionService.Signal::type).toList());
   return new EvaluateModels.EvaluateRequest(req.principal(),req.action(),req.resource(),c);
 }
- private void emitRuntimeEvents(UUID tenant,EvaluateModels.EvaluateRequest req,
+ private void emitRuntimeEvents(UUID tenant,UUID workspace,UUID auditId,EvaluateModels.EvaluateRequest req,
  UUID rid,PolicyEvaluator.Result d,RiskEngine.Result finalRisk,RuntimeThreatDetectionService.Result td){
-  if(!"AI_AGENT".equalsIgnoreCase(req.principal().type())) return;
-  try {
-      Map<String,Object> p=new LinkedHashMap<>();
-      p.put("requestId",
-      rid);
-      p.put("agent",req.principal().id());
-      p.put("action",req.action().name());
-      p.put("resource",req.resource().type()+":"+req.resource().id());
-      p.put("decision",
-      d.decision());
-      p.put("riskScore",finalRisk.score());
-      p.put("threatScore",
-      td.score());
-      p.put("threatSignals",td.signals());
-      p.put("context",req.context());
-      String type=td.signals().isEmpty()?"AI_AGENT_ACTION":"AI_AGENT_THREAT";
-      securityEvents.enqueue(tenant, null, type, "AI_AGENT", req.principal().id(),
-      mapper.writeValueAsString(p));
-      }
-      catch(Exception ignored) {
-      }
+  var context=req.context()==null?Map.<String,Object>of():req.context();
+  var authenticated=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+  String caller=authenticated==null?req.principal().id():authenticated.getName();
+  String human=authenticated instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken jwt&&"HUMAN".equals(jwt.getToken().getClaimAsString("actor_type"))?caller:null;
+  String ai="AI_AGENT".equals(req.principal().type())?req.principal().id():null;
+  String source="mcp.tool.call".equals(req.action().name())?"MCP":Set.of("chat.respond","simulation.transfer").contains(req.action().name())?"WORKFLOW":"DECISION";
+  Map<String,Object> metadata=new LinkedHashMap<>();metadata.put("auditEventId",auditId);metadata.put("reason",d.reason());metadata.put("matchedPolicies",d.matched());metadata.put("threatScore",td.score());metadata.put("toolId",context.get("tool_id"));metadata.put("taskId",context.get("task_id"));metadata.put("operationType",context.get("operationType"));
+  securityEvents.publish(new com.zt.security.event.CommonSecurityEvent(tenant,workspace,source,"AUTHORIZATION_DECIDED","AUTHORIZATION",auditId.toString(),java.time.Instant.now(),rid.toString(),rid,caller,human,ai,req.action().name(),req.resource().type(),req.resource().id(),d.decision(),"EVALUATED",finalRisk.score(),ai!=null&&!"RETRIEVAL".equals(context.get("operationType")),metadata));
  }
 
  private void enforceAgentBoundary(UUID tenant,EvaluateModels.EvaluateRequest req){

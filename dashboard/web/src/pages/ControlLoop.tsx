@@ -91,16 +91,16 @@ setMsg(r.length?'Preventive control proposed. Approval is still required.':'An e
 </b>
 </td>
 <td>{
-         x.forecastScore}
+         x.forecastScore??'Insufficient data'}
 </td>
-<td>{Math.round(x.highProbability*100)}%</td>
+<td>{x.highProbability==null?'—':Math.round(x.highProbability*100)+'%'}</td>
 <td>{
          x.recommendation}
 </td>
-<td>{Number(x.forecastScore)>=RISK_THRESHOLDS.critical?'ISOLATE_AGENT':Number(x.forecastScore)>=RISK_THRESHOLDS.high?'STEP_UP_POLICY':'CREATE_DENY_POLICY'}
+<td>{x.dataQuality!=='AVAILABLE'?'Insufficient data':Number(x.forecastScore)>=RISK_THRESHOLDS.critical?'ISOLATE_AGENT':Number(x.forecastScore)>=RISK_THRESHOLDS.high?'STEP_UP_POLICY':'CREATE_DENY_POLICY'}
 </td>
 <td>
-<button onClick={()=>propose(x)}>Propose</button>
+<button disabled={x.dataQuality!=='AVAILABLE'} title={x.dataQuality!=='AVAILABLE'?'Insufficient measured evidence':undefined} onClick={()=>propose(x)}>Propose</button>
 </td>
 </tr>)}
 </tbody>

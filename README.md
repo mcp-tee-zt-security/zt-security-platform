@@ -283,6 +283,8 @@ Repository-wide distribution license terms are not currently specified. No publi
 
 The [combined audit and metric detail guide](docs/demo/AUDIT_AND_METRIC_DETAILS.ko.md) describes workspace-scoped order, file, Workflow and policy records in Audit Logs, with filters, detail views and pagination. Metric cards open related read-only record views.
 
+The [common security activity contract](docs/api/COMMON_SECURITY_EVENTS_V1.md) unifies Workflow Chat, order MCP, file access and future adapters. Audit history and analysis use scoped, deduplicated authorization evidence; lifecycle stages and missing risk measurements remain explicit. See the [dashboard activity guide](docs/demo/COMMON_SECURITY_ACTIVITY.ko.md).
+
 The [order AI client file access demo](docs/demo/ORDER_CLIENT_FILE_ACCESS.ko.md) connects the existing ai-agent-client to ZT retrieval tools. Human delegation and AI policies deny Payroll access while allowing authorized general documents, alongside the existing order connection. Policies are prepared as DRAFT for manual publication.
 
 The dashboard provides Keycloak login, general conversation, simulated transfer requests, authorized file reads/listings and a unified Workflow/MCP approval inbox. New messages show the recorded security checks before the answer. Transfers are evaluated on submission; independent approvers decide STEP_UP requests and authorized executors run saved contracts. The simulated executor writes EUR transactions to a local ledger and verifies their recorded values. It does not connect to a bank or move money. Ollama is the currently implemented planner provider. See the [Workflow Chat demo guide](docs/demo/WORKFLOW_CHAT.ko.md) for setup, roles and limitations.

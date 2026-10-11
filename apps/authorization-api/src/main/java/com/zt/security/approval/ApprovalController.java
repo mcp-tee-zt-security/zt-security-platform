@@ -6,6 +6,7 @@ import com.zt.security.common.TenantSession;
 import java.time.*;
 import java.util.*;
 @RestController @RequestMapping("/v1/approvals") public class ApprovalController {
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.event.SecurityEventService events;
     @org.springframework.beans.factory.annotation.Value("${zt.security.mcp.require-oidc-approval:false}")
     boolean requireOidcApproval;
     @org.springframework.beans.factory.annotation.Value("${zt.security.mcp.audience:zt-mcp-gateway}")
@@ -101,6 +102,7 @@ IllegalArgumentException("status must be APPROVED or REJECTED");
 new IllegalStateException("approval is not pending");
      if(a.getExpiresAt()!=null&&a.getExpiresAt().isBefore(Instant.now())){
          a.setStatus("EXPIRED");
+         emitApproval(t,workspace,a,actor);
          return repo.save(a);
          }
          String subject=actor==null?"unknown":actor.getName();
@@ -132,6 +134,13 @@ IllegalStateException("self-approval is not allowed");
              }
          }
      }
+     emitApproval(t,workspace,a,actor);
      return repo.save(a);
      }
+ private void emitApproval(UUID tenant,UUID workspace,Approval a,org.springframework.security.core.Authentication actor){
+  var metadata=new LinkedHashMap<String,Object>();metadata.put("approvalId",a.getId());metadata.put("reason",a.getReason());metadata.put("approvedBy",a.getDecidedBy());String human=null,ai=null;
+  if("MCP_EXECUTION".equals(a.getApprovalType())){var rows=jdbc.queryForList("SELECT actor_subject,policy_subject,id FROM mcp_invocations WHERE approval_id=? AND tenant_id=? AND workspace_id=?",a.getId(),tenant,workspace);if(!rows.isEmpty()){var row=rows.get(0);ai=(String)row.get("policy_subject");metadata.put("callId",row.get("id"));}}
+  else {var decision=records.workflowDecision(tenant,workspace,a.getRequestId());var request=mapper.valueToTree(decision.get("request"));human=request.path("context").path("requestedBy").asText(null);if("AI_AGENT".equals(request.path("principal").path("type").asText()))ai=request.path("principal").path("id").asText(null);}
+  events.publish(new com.zt.security.event.CommonSecurityEvent(tenant,workspace,"AUTH","APPROVAL_"+a.getStatus(),"LIFECYCLE",a.getId()+":"+a.getStatus(),Instant.now(),a.getRequestId()==null?a.getId().toString():a.getRequestId().toString(),a.getRequestId(),actor==null?null:actor.getName(),human,ai,"approval.decide","approval",a.getId().toString(),null,a.getStatus(),null,false,metadata));
+ }
 }

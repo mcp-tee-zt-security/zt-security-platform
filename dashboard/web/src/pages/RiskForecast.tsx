@@ -92,12 +92,11 @@ const inspect=async(id:string)=>{setSelected(null);setErr('');try{setSelected(aw
 </td>
 <td>
 <strong className={cls(Number(x.forecastScore))}
-     >{x.forecastScore}
+     >{x.forecastScore??'Insufficient data'}
 </strong> <TrendingUp size={13}/>
 </td>
-<td>{Math.round(x.highProbability*100)}
-     %</td>
-<td>{Math.round(x.confidence*100)}%</td>
+<td>{x.highProbability==null?'—':Math.round(x.highProbability*100)+'%'}</td>
+<td>{x.confidence==null?'—':Math.round(x.confidence*100)+'%'}</td>
 <td>{x.recommendation}
 </td>
 <td>
@@ -131,7 +130,7 @@ const inspect=async(id:string)=>{setSelected(null);setErr('');try{setSelected(aw
 <div>
 <small>Forecast</small>
 <b>{
-         selected.forecastScore}
+         selected.forecastScore??'Insufficient data'}
 </b>
 </div>
 </MetricLink>
@@ -139,14 +138,14 @@ const inspect=async(id:string)=>{setSelected(null);setErr('');try{setSelected(aw
 <div>
 <small>High-risk probability</small>
 <b>{
-         Math.round(selected.highProbability*100)}%</b>
+         selected.highProbability==null?'—':Math.round(selected.highProbability*100)+'%'}</b>
 </div>
 </MetricLink>
 <MetricLink label="Confidence" records={selected?[selected]:[]}>
 <div>
 <small>Confidence</small>
 <b>{
-         Math.round(selected.confidence*100)}%</b>
+         selected.confidence==null?'—':Math.round(selected.confidence*100)+'%'}</b>
 </div>
 </MetricLink>
 </div>

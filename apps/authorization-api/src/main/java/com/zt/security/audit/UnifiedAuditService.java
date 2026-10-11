@@ -19,58 +19,16 @@ import java.nio.charset.StandardCharsets;
 public class UnifiedAuditService {
     private final NamedParameterJdbcTemplate jdbc;private final TenantSession tenants;private final WorkspaceSession workspaces;private final ObjectMapper json;
     public UnifiedAuditService(NamedParameterJdbcTemplate jdbc,TenantSession tenants,WorkspaceSession workspaces,ObjectMapper json){this.jdbc=jdbc;this.tenants=tenants;this.workspaces=workspaces;this.json=json;}
-    private static final Set<String> KINDS=Set.of("ALL","MCP","FILE","WORKFLOW","DECISION","SYNC");
+    private static final Set<String> KINDS=Set.of("ALL","MCP","FILE","WORKFLOW","DECISION","SYNC","AUTH","RUNTIME","CONTROL","OTHER");
     private static final String PROJECTION="""
       WITH events AS (
-        SELECT 'MCP' AS kind,i.id,i.updated_at AS event_at,jsonb_build_object(
-          'caller',i.actor_subject,'humanSubject',null,
-          'aiSubject',CASE WHEN a.identity_type='AI_AGENT' THEN coalesce(i.policy_subject,i.actor_subject) END,'operation','mcp.tool.call','targetId',i.tool_id,
-          'targetTitle',t.name,'decision',coalesce(a.decision,CASE WHEN i.status='DENIED' THEN 'DENY' WHEN i.status='PENDING_APPROVAL' THEN 'STEP_UP' WHEN i.status IN ('SUCCEEDED','TOOL_ERROR','EXECUTING') THEN 'ALLOW' END),
-          'status',i.status,'reason',coalesce(a.reason,i.error_code,i.status),'returnedCount',null,
-          'auditEventId',a.id,'requestId',i.decision_request_id,'approvalId',i.approval_id,
-          'approvalStatus',p.status,'approvedBy',p.decided_by,'riskScore',a.risk_score,
-          'matchedPolicies',coalesce(a.metadata->'matchedPolicies','[]'::jsonb),'resultHash',i.result_hash,
-          'executed',CASE WHEN i.status IN ('SUCCEEDED','TOOL_ERROR') THEN true WHEN i.status IN ('DENIED','PENDING_APPROVAL','NOT_EXECUTED') THEN false ELSE null END
-        ) AS data FROM mcp_invocations i
-        LEFT JOIN agent_tools t ON t.tenant_id=i.tenant_id AND t.id=i.tool_id
-        LEFT JOIN LATERAL(SELECT * FROM audit_logs a WHERE a.tenant_id=i.tenant_id AND a.request_id=i.decision_request_id AND (a.workspace_id=i.workspace_id OR a.workspace_id IS NULL) ORDER BY a.created_at DESC,a.id DESC LIMIT 1) a ON true
-        LEFT JOIN approvals p ON p.tenant_id=i.tenant_id AND p.id=i.approval_id
-        WHERE i.tenant_id=:tenant AND i.workspace_id=:workspace
-        UNION ALL
-        SELECT CASE WHEN f.operation IN ('sync','syncSubject','delete','checkpoint','syncAcl') THEN 'SYNC' ELSE 'FILE' END,
-          f.id,f.created_at,jsonb_build_object(
-          'caller',f.subject,'humanSubject',f.human_subject,'aiSubject',coalesce(f.ai_subject,CASE WHEN f.subject LIKE 'client:%' OR f.subject LIKE 'workflow-chat-%' THEN f.subject END),
-          'operation',f.operation,'targetId',f.resource_id,'targetTitle',CASE WHEN :allAccess THEN r.title END,'decision',f.decision,
-          'status',CASE WHEN f.decision='ALLOW' THEN 'SUCCEEDED' ELSE 'DENIED' END,'reason',f.policy_reason,
-          'returnedCount',f.returned_count,'auditEventId',f.id,'matchedPolicies',f.matched_policies,
-          'aclVersion',f.acl_version,'sessionId',f.session_id,'sourceAclRequired',true
-        ) FROM stitch_integration_audit f LEFT JOIN stitch_resources r ON r.tenant_id=f.tenant_id AND r.workspace_id=f.workspace_id AND r.resource_id=f.resource_id
-        WHERE f.tenant_id=:tenant AND f.workspace_id=:workspace
-        UNION ALL
-        SELECT CASE WHEN a.action IN ('chat.respond','simulation.transfer') THEN 'WORKFLOW' ELSE 'DECISION' END,
-          a.id,a.created_at,jsonb_build_object(
-          'caller',coalesce(a.metadata->'context'->>'requestedBy',a.metadata->>'principal'),
-          'humanSubject',a.metadata->'context'->>'requestedBy','aiSubject',a.metadata->>'principal',
-          'operation',a.action,'targetId',a.resource_id,'targetTitle',a.resource_type,
-          'decision',a.decision,'status',CASE WHEN a.decision='DENY' THEN 'DENIED' WHEN a.decision='STEP_UP' THEN 'PENDING_APPROVAL' ELSE 'EVALUATED' END,
-          'reason',a.reason,'riskScore',a.risk_score,'auditEventId',a.id,'requestId',a.request_id,
-          'matchedPolicies',coalesce(a.metadata->'matchedPolicies','[]'::jsonb),'executed',false
-        ) FROM audit_logs a WHERE a.tenant_id=:tenant AND a.workspace_id=:workspace
-          AND NOT EXISTS(SELECT 1 FROM mcp_invocations i WHERE i.tenant_id=a.tenant_id AND i.workspace_id=a.workspace_id AND i.decision_request_id=a.request_id)
-        UNION ALL
-        SELECT 'WORKFLOW',e.id,e.created_at,jsonb_build_object(
-          'caller',e.payload->>'executedBy','humanSubject',d.payload->'request'->'context'->>'requestedBy',
-          'aiSubject',d.payload->'request'->'principal'->>'id','operation','workflow.execute',
-          'targetId',e.payload->>'contractId','targetTitle','Saved execution contract',
-          'decision',d.payload->>'decision','status',e.payload->>'status','reason',coalesce(e.payload->>'reason',d.payload->>'reason'),
-          'contractId',e.payload->>'contractId','executionId',e.id,'executedBy',e.payload->>'executedBy',
-          'requestId',d.payload->>'requestId','approvalId',c.payload->>'approvalId','approvalStatus',p.status,'approvedBy',p.decided_by,
-          'matchedPolicies',coalesce(d.payload->'matchedPolicies','[]'::jsonb),'executed',CASE WHEN e.payload->>'status'='SUCCEEDED' THEN true WHEN e.payload->>'status'='UNSUPPORTED' THEN false ELSE null END
-        ) FROM governance_records e
-        LEFT JOIN governance_records c ON c.tenant_id=e.tenant_id AND c.workspace_id=e.workspace_id AND c.kind='CONTRACT' AND c.id::text=e.payload->>'contractId'
-        LEFT JOIN governance_records d ON d.tenant_id=e.tenant_id AND d.workspace_id=e.workspace_id AND d.kind='DECISION' AND d.id::text=c.payload->>'decisionId'
-        LEFT JOIN approvals p ON p.tenant_id=e.tenant_id AND p.id::text=c.payload->>'approvalId'
-        WHERE e.tenant_id=:tenant AND e.workspace_id=:workspace AND e.kind='EXECUTION'
+       SELECT source AS kind,id,occurred_at AS event_at,
+        metadata || jsonb_build_object('caller',caller_subject,'humanSubject',human_subject,'aiSubject',ai_subject,
+         'operation',action,'targetId',resource_id,'targetTitle',resource_type,'decision',decision,'status',status,
+         'riskScore',risk_score,'requestId',request_id,'correlationId',correlation_id,'eventType',event_type,
+         'stage',stage,'analysisEligible',analysis_eligible,'sourceEventId',origin_id,
+         'executed',CASE WHEN stage='EXECUTION' AND status IN ('SUCCEEDED','TOOL_ERROR') THEN true WHEN stage='AUTHORIZATION' AND decision IN ('DENY','STEP_UP') THEN false ELSE null END) AS data
+       FROM security_activities WHERE tenant_id=:tenant AND workspace_id IS NOT DISTINCT FROM CAST(:workspace AS uuid)
       )
       SELECT kind,id,event_at,data::text AS data FROM events
       WHERE (:allAccess OR data->>'caller'=:reader OR data->>'humanSubject'=:reader OR data->>'aiSubject'=:reader)

@@ -60,7 +60,19 @@ public class GovernanceStore {
         jdbc.update("INSERT INTO governance_records(id,tenant_id,workspace_id,kind,payload) VALUES (:id,:tenant,:workspace,:kind,cast(:payload as jsonb))",
             params(tenant,workspace).addValue("id",id).addValue("kind",kind).addValue("payload",json(record)));
         if("EVENT".equals(kind))events.enqueue(tenant,workspace,String.valueOf(record.get("eventType")),"GOVERNANCE",id.toString(),json(record));
+        if(Set.of("WORKFLOW_PROPOSAL","CONTRACT","EXECUTION","VERIFICATION").contains(kind))emitActivity(tenant,workspace,kind,record,id.toString(),"WORKFLOW_"+kind);
         return record;
+    }
+
+    private void emitActivity(UUID tenant,UUID workspace,String kind,Map<String,Object> record,String origin,String type){
+        var request=mapper.valueToTree(record.get("request"));Map<String,Object> bound=record;
+        if("EXECUTION".equals(kind)&&record.get("contractId")!=null){bound=get(tenant,workspace,"CONTRACT",String.valueOf(record.get("contractId")),false);request=mapper.valueToTree(bound.get("request"));}
+        String human=record.get("requestedBy")==null?request==null?null:request.path("context").path("requestedBy").asText(null):String.valueOf(record.get("requestedBy"));
+        String ai=record.get("aiSubject")==null?request!=null&&"AI_AGENT".equals(request.path("principal").path("type").asText())?request.path("principal").path("id").asText(null):null:String.valueOf(record.get("aiSubject"));
+        String caller=record.get("executedBy")==null?human:String.valueOf(record.get("executedBy"));
+        String correlation=bound.get("traceId")==null?String.valueOf(record.get("id")):String.valueOf(bound.get("traceId"));
+        var metadata=new LinkedHashMap<>(record);if("EXECUTION".equals(kind))metadata.put("executionId",record.get("id"));if("CONTRACT".equals(kind))metadata.put("contractId",record.get("id"));
+        events.publish(new com.zt.security.event.CommonSecurityEvent(tenant,workspace,"WORKFLOW",type,"EXECUTION".equals(kind)?"EXECUTION":"LIFECYCLE",origin,Instant.now(),correlation,null,caller,human,ai,kind.toLowerCase(java.util.Locale.ROOT),"workflow_record",String.valueOf(record.get("id")),null,String.valueOf(record.getOrDefault("status","RECORDED")),null,false,metadata));
     }
 
     public Map<String,Object> decision(UUID tenant, UUID workspace,
@@ -94,9 +106,11 @@ public class GovernanceStore {
 
     public void update(UUID tenant, UUID workspace, String kind, Map<String,Object> record) {
         scope(tenant,workspace);
+        var previous=get(tenant,workspace,kind,String.valueOf(record.get("id")),false);
         int count=jdbc.update("UPDATE governance_records SET payload=cast(:payload as jsonb),updated_at=now() WHERE "+SCOPE+" AND id=:id AND kind=:kind",
             params(tenant,workspace).addValue("id",uuid(record.get("id"))).addValue("kind",kind).addValue("payload",json(record)));
         if(count!=1)throw new ResponseStatusException(HttpStatus.NOT_FOUND,kind+" not found");
+        if(Set.of("WORKFLOW_PROPOSAL","CONTRACT","EXECUTION","VERIFICATION").contains(kind)&&!Objects.equals(previous.get("status"),record.get("status")))emitActivity(tenant,workspace,kind,record,record.get("id")+":"+record.get("status"),"WORKFLOW_"+kind+"_"+record.get("status"));
     }
 
     public List<Map<String,Object>> workflowContracts(UUID tenant, UUID workspace, String subject, UUID requestId) {

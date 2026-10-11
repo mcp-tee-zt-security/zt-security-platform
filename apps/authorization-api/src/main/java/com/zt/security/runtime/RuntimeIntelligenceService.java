@@ -7,7 +7,9 @@ import java.time.*;
 import java.util.*;
 
 @Service
+@org.springframework.transaction.annotation.Transactional(readOnly=true)
 public class RuntimeIntelligenceService {
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.event.SecurityActivityLedger ledger;
     private final AgentRuntimeSessionRepository sessions;
     private final AgentRuntimeEventRepository runtimeEvents;
     private final AgentBehaviorService behavior;
@@ -22,11 +24,11 @@ public class RuntimeIntelligenceService {
 
     public Map<String,Object> agent(UUID t,String agent){
         tenant.set(t);
-        List<AgentRuntimeSession> ss=sessions.findTop50ByTenantIdOrderByLastSeenAtDesc(t).stream().filter(x->
+        List<AgentRuntimeSession> ss=scopedSessions(t).stream().filter(x->
         agent.equals(x.getAgentExternalId())).toList();
-        List<AgentAnomaly> anomalies=behavior.anomalies(t,agent);
-        List<AdaptiveDecision> decisions=behavior.decisions(t,
-        agent);
+        var requestIds=requestIds(t);
+        List<AgentAnomaly> anomalies=behavior.anomalies(t,agent).stream().filter(a->requestIds.contains(a.getRequestId())).toList();
+        List<AdaptiveDecision> decisions=behavior.decisions(t,agent).stream().filter(a->requestIds.contains(a.getRequestId())).toList();
         long active=ss.stream().filter(x->"ACTIVE".equals(x.getStatus())).count();
         Map<String,Object> out=new LinkedHashMap<>();
         out.put("agent",
@@ -41,13 +43,14 @@ public class RuntimeIntelligenceService {
     }
     public Map<String,Object> overview(UUID t){
         tenant.set(t);
-        List<AgentRuntimeSession> ss=sessions.findTop50ByTenantIdOrderByLastSeenAtDesc(t);
-        List<AgentAnomaly> all=behavior.anomalies(t,null);
+        List<AgentRuntimeSession> ss=scopedSessions(t);
+        var requestIds=requestIds(t);
+        List<AgentAnomaly> all=behavior.anomalies(t,null).stream().filter(a->requestIds.contains(a.getRequestId())).toList();
         Map<String,Object> out=new LinkedHashMap<>();
         out.put("activeSessions",
         ss.stream().filter(x->"ACTIVE".equals(x.getStatus())).count());
         out.put("agents",
-        ss.stream().map(AgentRuntimeSession::getAgentExternalId).filter(Objects::nonNull).distinct().count());
+        ledger.analysis(t,ledger.selectedWorkspace()).stream().map(AgentRuntimeEvent::getAgentExternalId).filter(Objects::nonNull).distinct().count());
         out.put("recentAnomalies",all.stream().limit(20).toList());
         out.put("threatSummary",
         summary(all));
@@ -64,13 +67,15 @@ public class RuntimeIntelligenceService {
     public Object records(UUID t,String view,String severity){
         tenant.set(t);
         if(!Set.of("SESSIONS","AGENTS","ANOMALIES").contains(view)||!Set.of("ALL","HIGH_CRITICAL").contains(severity))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,"Invalid runtime record filter");
-        var ss=sessions.findTop50ByTenantIdOrderByLastSeenAtDesc(t);
+        var ss=scopedSessions(t);
         List<?> rows;
         if("SESSIONS".equals(view))rows=ss.stream().filter(s->"ACTIVE".equals(s.getStatus())).map(this::session).toList();
-        else if("AGENTS".equals(view))rows=ss.stream().map(AgentRuntimeSession::getAgentExternalId).filter(Objects::nonNull).distinct().map(agent->Map.of("agent",agent,"activeSessions",ss.stream().filter(s->agent.equals(s.getAgentExternalId())&&"ACTIVE".equals(s.getStatus())).count())).toList();
-        else rows=behavior.anomalies(t,null).stream().filter(a->"ALL".equals(severity)||"HIGH".equals(a.getSeverity())||"CRITICAL".equals(a.getSeverity())).limit(500).toList();
-        return Map.of("items",rows,"scope","TENANT","limit","ANOMALIES".equals(view)?500:50);
+        else if("AGENTS".equals(view))rows=ledger.analysis(t,ledger.selectedWorkspace()).stream().map(AgentRuntimeEvent::getAgentExternalId).filter(Objects::nonNull).distinct().map(agent->Map.of("agent",agent,"activeSessions",ss.stream().filter(s->agent.equals(s.getAgentExternalId())&&"ACTIVE".equals(s.getStatus())).count())).toList();
+        else {var visible=requestIds(t);rows=behavior.anomalies(t,null).stream().filter(a->visible.contains(a.getRequestId())).filter(a->"ALL".equals(severity)||"HIGH".equals(a.getSeverity())||"CRITICAL".equals(a.getSeverity())).limit(500).toList();}
+        return Map.of("items",rows,"scope","WORKSPACE","limit","ANOMALIES".equals(view)?500:50);
     }
+    private List<AgentRuntimeSession> scopedSessions(UUID t){UUID workspace=ledger.selectedWorkspace();var auth=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();boolean all=auth!=null&&auth.getAuthorities().stream().anyMatch(a->Set.of("ROLE_PLATFORM","ROLE_ADMIN","ROLE_AUDITOR","ROLE_SOC_ANALYST","ROLE_AGENT_MANAGER").contains(a.getAuthority()));return sessions.findTop50ByTenantIdOrderByLastSeenAtDesc(t).stream().filter(s->Objects.equals(workspace,s.getWorkspaceId())&&(all||auth!=null&&auth.getName().equals(s.getAgentExternalId()))).toList();}
+    private Set<UUID> requestIds(UUID t){return ledger.analysis(t,ledger.selectedWorkspace()).stream().map(AgentRuntimeEvent::getRequestId).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());}
     private Map<String,Object> session(AgentRuntimeSession s){
         return Map.of("id",
         s.getId(),"agent",s.getAgentExternalId(),"task",String.valueOf(s.getTaskExternalId()),

@@ -9,6 +9,7 @@ import java.util.*;
 import java.util.stream.*;
 
 @Service
+@org.springframework.transaction.annotation.Transactional(readOnly=true)
 public class ContinuousRiskService {
     @org.springframework.beans.factory.annotation.Value("${zt.security.risk-scoring.critical-threshold:85.0}")
     private double criticalThreshold;
@@ -17,6 +18,7 @@ public class ContinuousRiskService {
     @org.springframework.beans.factory.annotation.Value("${zt.security.risk-scoring.elevated-threshold:40.0}")
     private double elevatedThreshold;
 
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.event.SecurityActivityLedger ledger;
     private final AgentRuntimeEventRepository events;
     private final TenantSession tenant;
     private final RiskScoringProperties riskConfig;
@@ -28,7 +30,7 @@ public class ContinuousRiskService {
 
     public Map<String,Object> overview(UUID t,int hours){
         tenant.set(t);
-        List<AgentRuntimeEvent> rows=events.findTop10000ByTenantIdOrderByCreatedAtDesc(t);
+        List<AgentRuntimeEvent> rows=ledger.analysis(t,ledger.selectedWorkspace());
         Instant cutoff=Instant.now().minus(hours, java.time.temporal.ChronoUnit.HOURS);
         rows=rows.stream().filter(e->e.getCreatedAt()!=null && e.getCreatedAt().isAfter(cutoff)).toList();
         Map<String,List<AgentRuntimeEvent>> grouped=rows.stream().filter(e->e.getAgentExternalId()!=
@@ -47,7 +49,7 @@ public class ContinuousRiskService {
     public Map<String,Object> agent(UUID t,String id,int hours){
         tenant.set(t);
         Instant cutoff=Instant.now().minus(hours, java.time.temporal.ChronoUnit.HOURS);
-        List<AgentRuntimeEvent> rows=events.findTop10000ByTenantIdOrderByCreatedAtDesc(t).stream().filter(e->
+        List<AgentRuntimeEvent> rows=ledger.analysis(t,ledger.selectedWorkspace()).stream().filter(e->
         id.equals(e.getAgentExternalId()) && e.getCreatedAt()!=null &&
 e.getCreatedAt().isAfter(cutoff)).sorted(Comparator.
         comparing(AgentRuntimeEvent::getCreatedAt)).toList();
@@ -62,6 +64,7 @@ e.getCreatedAt().isAfter(cutoff)).sorted(Comparator.
     }
 
     private Map<String,Object> score(String agent,List<AgentRuntimeEvent> rows,int hours){
+        rows=rows.stream().sorted(Comparator.comparing(AgentRuntimeEvent::getCreatedAt)).toList();
         double base=riskConfig.getContinuousBaseRisk();
         long denied=rows.stream().filter(e->"DENY".equalsIgnoreCase(e.getDecision())).count();
         long step=rows.stream().filter(e->"STEP_UP".equalsIgnoreCase(e.getDecision())).count();
@@ -88,7 +91,10 @@ e.getCreatedAt().isAfter(cutoff)).sorted(Comparator.
         out.put("stepUpCount",
         step);
         out.put("highRiskEvents",high);
-        out.put("averageEventRisk",round(avgRisk));
+        out.put("averageEventRisk",rows.stream().anyMatch(e->e.getRiskScore()!=null)?round(avgRisk):null);
+        out.put("measuredEvents",rows.stream().filter(e->e.getRiskScore()!=null).count());
+        out.put("unmeasuredEvents",rows.stream().filter(e->e.getRiskScore()==null).count());
+        out.put("scoreBasis","Authorization outcome pressure plus measured scores; not a runtime threat score");
         out.put("windowHours",hours);
         return out;
     }
@@ -113,7 +119,7 @@ e.getCreatedAt().isAfter(cutoff)).sorted(Comparator.
     }
     private List<String> drivers(List<AgentRuntimeEvent> rows){
         List<String> d=new ArrayList<>();
-        if(rows.stream().anyMatch(e->"DENY".equalsIgnoreCase(e.getDecision())))d.
+        if(rows.stream().filter(e->"DENY".equalsIgnoreCase(e.getDecision())).count()>=2)d.
         add("Repeated policy DENY decisions");
         if(rows.stream().anyMatch(e->"STEP_UP".equalsIgnoreCase(e.getDecision())))d.add("Step-up pressure increased");
         if(rows.stream().anyMatch(e->e.getRiskScore()!=null&&e.getRiskScore()>=
