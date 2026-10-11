@@ -11,6 +11,7 @@ import java.util.*;
 
 @Component
 public class TenantSecurityFilter extends OncePerRequestFilter {
+  @org.springframework.beans.factory.annotation.Autowired private com.zt.security.workspace.WorkspaceAccess workspaceAccess;
   public static final String TENANT = "zt.tenant";
   @Override protected void doFilterInternal(HttpServletRequest req,HttpServletResponse res,
   FilterChain chain)throws ServletException,IOException {
@@ -25,7 +26,15 @@ public class TenantSecurityFilter extends OncePerRequestFilter {
     }
     if(a instanceof JwtAuthenticationToken jwt){
         String workspaceClaim=jwt.getToken().getClaimAsString("workspace_id");
-        if(workspaceClaim!=null&&!workspaceClaim.equalsIgnoreCase(req.getHeader("X-Workspace-Id"))){
+        boolean discovery="GET".equals(req.getMethod())&&"/v1/workspaces/accessible".equals(req.getRequestURI());
+        if("HUMAN".equals(jwt.getToken().getClaimAsString("actor_type"))&&!discovery){
+            try{
+                UUID t=UUID.fromString(tenant),w=UUID.fromString(req.getHeader("X-Workspace-Id"));
+                workspaceAccess.require(a,t,w);
+                req.setAttribute(com.zt.security.workspace.WorkspaceAccess.VERIFIED_SCOPE,new com.zt.security.workspace.WorkspaceAccess.Verified(t,w,jwt.getToken().getSubject(),jwt.getToken().getTokenValue()));
+            }catch(IllegalArgumentException|NullPointerException ex){res.sendError(400,"A valid selected workspace is required");return;}
+            catch(org.springframework.security.access.AccessDeniedException ex){res.sendError(403,"No access to selected workspace");return;}
+        }else if(!discovery&&workspaceClaim!=null&&!workspaceClaim.equalsIgnoreCase(req.getHeader("X-Workspace-Id"))){
             res.sendError(403,"workspace mismatch");return;
         }
     }

@@ -20,9 +20,13 @@ import java.util.*;
     }
     public AuditLog record(UUID tenant,
     UUID request,EvaluateRequest r,PolicyEvaluator.Result d,RiskEngine.Result risk){
+        return record(tenant,null,request,r,d,risk);
+    }
+    public AuditLog record(UUID tenant,UUID workspace,UUID request,EvaluateRequest r,PolicyEvaluator.Result d,RiskEngine.Result risk){
         AuditLog a=new AuditLog();
         a.setId(UUID.randomUUID());
         a.setTenantId(tenant);
+        a.setWorkspaceId(workspace);
         a.setRequestId(request);
         a.setIdentityType(r.principal().type());
         a.setAction(r.action().name());

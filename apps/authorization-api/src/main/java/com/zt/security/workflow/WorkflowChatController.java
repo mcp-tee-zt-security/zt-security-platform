@@ -16,7 +16,7 @@ public class WorkflowChatController {
     @GetMapping("/config") public Object config(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader("X-Workspace-Id") UUID w,Authentication auth){access.human(auth,t,w);return chat.config(t,w);}
     @PostMapping("/setup") @PreAuthorize("hasAnyRole('ADMIN','PLATFORM')") public Object setup(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader("X-Workspace-Id") UUID w,Authentication auth){return chat.setup(t,w,auth);}
     @PostMapping("/messages") @PreAuthorize("hasAnyRole('REQUESTER','ADMIN','PLATFORM')") public Object message(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader("X-Workspace-Id") UUID w,Authentication auth,@RequestBody Message body){
-        access.request(auth,t,w);var reply=chat.respond(body.message(),chat.history(t,w,auth));var saved=chat.saveReply(t,w,auth,body.message(),reply);
+        access.request(auth,t,w);access.agent(t,w,"workflow-chat-"+w);var reply=chat.respond(body.message(),chat.history(t,w,auth));var saved=chat.saveReply(t,w,auth,body.message(),reply);
         if("RETRIEVAL".equals(saved.get("type"))&&"ALLOW".equals(saved.get("securityDecision"))){var file=read(t,w,UUID.fromString(String.valueOf(saved.get("id"))),auth);var output=new LinkedHashMap<String,Object>(saved);output.put("fileResult",file);return output;}
         return saved;
     }

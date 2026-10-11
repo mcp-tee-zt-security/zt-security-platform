@@ -5,6 +5,9 @@ import java.util.*;
 @Entity @Table(name="audit_logs") public class AuditLog {
     @Id UUID id;
     @Column(name="tenant_id") UUID tenantId;
+    @Column(name="workspace_id") UUID workspaceId;
+    public UUID getWorkspaceId(){return workspaceId;}
+    public void setWorkspaceId(UUID value){workspaceId=value;}
     @Column(name="request_id") UUID requestId;
     @Column(name="identity_id") UUID identityId;
     @Column(name="identity_type") String identityType;

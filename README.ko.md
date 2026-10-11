@@ -282,7 +282,7 @@ cargo test --manifest-path apps/policy-data-plane/Cargo.toml
 
 대시보드의 공통 Keycloak 로그인, 일반 대화·가상 이체·파일 읽기/목록 조회, Workflow/MCP 통합 승인함을 제공합니다. 새 메시지는 실제 보안 평가 기록을 먼저 표시한 뒤 답변을 표시합니다. 이체는 전송 시 평가하고 STEP_UP 요청은 독립 승인자가 결정하며 실행 권한자가 저장된 계약을 실행합니다. 가상 실행기는 로컬 원장에 EUR 거래를 기록하고 값을 대조합니다. 실제 은행이나 결제에는 연결하지 않습니다. 현재 모델 공급자는 Ollama입니다. 구성·역할·제한은 [Workflow Chat 데모 안내](docs/demo/WORKFLOW_CHAT.ko.md)를 참고하세요.
 
-[실제 파일 접근 데모](docs/demo/FILE_ACCESS_NFS.ko.md)는 Payroll/IT 파일, NFSv4 export, 인증된 connector와 별도 3001 대시보드를 제공합니다. Keycloak의 finance/IT 계정으로 원본 ACL과 ZT AI 정책의 교집합을 테스트합니다. connector는 NFS가 내보내는 실제 볼륨을 직접 읽으며 채팅 테스트는 NFS 마운트/프로토콜 테스트가 아닙니다. AI 정책은 DRAFT로 생성하고 직접 검토·Publish합니다.
+[실제 파일 접근 데모](docs/demo/FILE_ACCESS_NFS.ko.md)는 Payroll/IT 파일, NFSv4 export와 인증된 connector를 제공합니다. **3000 공통 대시보드**의 상단 선택기에서 **File Access Demo**로 전환합니다. 서버가 워크스페이스 접근 권한을 검증하며 채팅·정책·승인·감사 조회는 선택한 범위를 사용합니다. Keycloak의 finance/IT 계정으로 원본 ACL과 ZT AI 정책의 교집합을 테스트합니다. connector는 NFS가 내보내는 실제 볼륨을 직접 읽으며 채팅 테스트는 NFS 마운트/프로토콜 테스트가 아닙니다. AI 정책은 DRAFT로 생성하고 직접 검토·Publish합니다. 범위 및 기존 토큰 호환 규칙은 [공통 워크스페이스 범위](docs/security/WORKSPACE_SCOPE.ko.md)를 참고하세요.
 
 ## 공통 Retrieval 연동
 

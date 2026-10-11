@@ -11,6 +11,7 @@ import java.util.*;
 
 @Component @ConditionalOnProperty(name="zt.stitch.enabled",havingValue="true")
 public class StitchIdentity {
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.workspace.WorkspaceAccess workspaceAccess;
     private final org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc;
     private final com.zt.security.common.TenantSession tenants;
     private final com.zt.security.common.WorkspaceSession workspaces;
@@ -23,7 +24,9 @@ public class StitchIdentity {
         var roles=auth.getAuthorities().stream().map(x->x.getAuthority()).toList();
         if(auth instanceof JwtAuthenticationToken jwt){
             var token=jwt.getToken();String kind=token.getClaimAsString("actor_type");
-            if(!token.getAudience().contains(audience)||!tenant.toString().equalsIgnoreCase(token.getClaimAsString("tenant_id"))||!workspace.toString().equalsIgnoreCase(token.getClaimAsString("workspace_id"))||token.getId()==null||token.getId().isBlank()||token.getId().length()>512||token.getExpiresAt()==null||!token.getExpiresAt().isAfter(Instant.now()))throw new AccessDeniedException("JWT requires matching audience/scope, jti and expiration");
+            boolean browser=com.zt.security.workspace.WorkspaceAccess.selectingHuman(auth);
+            if((!browser&&!token.getAudience().contains(audience))||!tenant.toString().equalsIgnoreCase(token.getClaimAsString("tenant_id"))||(!browser&&!workspace.toString().equalsIgnoreCase(token.getClaimAsString("workspace_id")))||token.getId()==null||token.getId().isBlank()||token.getId().length()>512||token.getExpiresAt()==null||!token.getExpiresAt().isAfter(Instant.now()))throw new AccessDeniedException("JWT requires matching audience/scope, jti and expiration");
+            if(browser)workspaceAccess.require(auth,tenant,workspace);
             if(!List.of("HUMAN","AI_AGENT","CONNECTOR").contains(kind==null?"":kind))throw new AccessDeniedException("Trusted actor_type required");
             if(token.getSubject()==null||token.getSubject().isBlank()||token.getSubject().length()>512)throw new AccessDeniedException("Valid subject required");
             tenants.set(tenant);workspaces.set(workspace);

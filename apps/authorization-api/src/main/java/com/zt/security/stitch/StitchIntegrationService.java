@@ -87,6 +87,7 @@ public class StitchIntegrationService {
     /** Internal, confirmed dashboard delegation. Never accepts an AI identity from the model/browser. */
     public Map<String,Object> workflowFile(UUID t,UUID w,String target,boolean listOnly,Authentication auth){
         workflowAccess.request(auth,t,w);
+        workflowAccess.agent(t,w,"workflow-chat-"+w);
         var token=((org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken)auth).getToken();
         if(token.getId()==null||token.getId().isBlank()||token.getExpiresAt()==null||!token.getExpiresAt().isAfter(Instant.now()))throw new AccessDeniedException("An unexpired human token with jti is required for file retrieval");
         var p=scope(t,w);sourceFresh(p);

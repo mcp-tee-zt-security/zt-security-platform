@@ -16,6 +16,7 @@ import org.springframework.stereotype.*;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 @Service public class ActionEvaluationService {
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.workspace.WorkspaceAccess workspaceAccess;
     final PolicyService policies;
     final PolicyEvaluator evaluator;
     final RiskEngine risk;
@@ -110,7 +111,7 @@ import java.util.*;
      cd.reason(),d.matched());
      var finalRisk=new RiskEngine.Result(cd.compositeScore(),
      cd.compositeScore()>=70?"HIGH":cd.compositeScore()>=40?"MEDIUM":"LOW", rr.evidence());
-     var al=audit.record(tenant,rid,req,d,finalRisk);
+     var al=audit.record(tenant,workspace,rid,req,d,finalRisk);
      behavior.after(tenant,
      req,rid,d.decision(),finalRisk.score());
      siem.publish(al);
@@ -177,6 +178,7 @@ import java.util.*;
 
  private void enforceAgentBoundary(UUID tenant,EvaluateModels.EvaluateRequest req){
      if(!"AI_AGENT".equals(req.principal().type())||req.context()==null)return;
+     if(Set.of("simulation.transfer","chat.respond").contains(req.action().name())&&req.context().get("_workflowWorkspace")!=null&&workspaceAccess!=null)workspaceAccess.workflowAgent(tenant,UUID.fromString(String.valueOf(req.context().get("_workflowWorkspace"))),req.principal().id());
      Object taskId=req.context().get("task_id"),toolId=req.context().get("tool_id");
      if(taskId==null)return;
      var task=tasks.findByTenantIdAndExternalTaskId(tenant,

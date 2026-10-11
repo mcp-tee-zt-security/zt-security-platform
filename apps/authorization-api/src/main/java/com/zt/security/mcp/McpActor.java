@@ -25,7 +25,9 @@ public record McpActor(String key, String subject, String requestedAgent) {
                 throw new AccessDeniedException("MCP token requires matching audience, subject and tenant");
             }
             String scope = token.getClaimAsString("workspace_id");
-            if (scope != null && (workspace == null || !scope.equalsIgnoreCase(workspace.toString()))) {
+            if(com.zt.security.workspace.WorkspaceAccess.selectingHuman(auth)){
+                if(!com.zt.security.workspace.WorkspaceAccess.verifiedRequest(auth,tenant,workspace))throw new AccessDeniedException("Selected MCP workspace must be authorized by the server");
+            }else if (scope != null && (workspace == null || !scope.equalsIgnoreCase(workspace.toString()))) {
                 throw new AccessDeniedException("MCP workspace mismatch");
             }
             String issuer = token.getIssuer().toString();

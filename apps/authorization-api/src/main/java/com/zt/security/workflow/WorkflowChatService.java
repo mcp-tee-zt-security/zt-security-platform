@@ -46,6 +46,7 @@ public class WorkflowChatService {
     }
     @Transactional public Map<String,Object> saveReply(UUID t,UUID w,Authentication auth,String message,WorkflowReply reply){
         access.request(auth,t,w);
+        access.agent(t,w,agent(w));
         var body=new LinkedHashMap<String,Object>();body.put("requestedBy",auth.getName());body.put("message",message);body.put("type",reply.type());body.put("answer",reply.answer());body.put("aiSubject",agent(w));body.put("provider",provider);body.put("expiresAt",Instant.now().plusSeconds(900).toString());
         if(reply.transfer()!=null){body.put("proposal",reply.transfer());body.put("simulation",true);}
         if("RETRIEVAL".equals(reply.type())){body.put("target",reply.target());body.put("operation",reply.operation());}
@@ -112,6 +113,7 @@ public class WorkflowChatService {
     }
     @Transactional public Object submit(UUID tenant,UUID workspace,UUID proposalId,Authentication auth){
         access.request(auth,tenant,workspace);
+        access.agent(tenant,workspace,agent(workspace));
         var saved=records.get(tenant,workspace,"WORKFLOW_PROPOSAL",proposalId.toString(),true);
         if(!auth.getName().equals(saved.get("requestedBy")))throw new AccessDeniedException("Only the original requester can submit this proposal");
         if("CHAT".equals(saved.get("type")))throw new IllegalArgumentException("Conversation messages do not execute operations");

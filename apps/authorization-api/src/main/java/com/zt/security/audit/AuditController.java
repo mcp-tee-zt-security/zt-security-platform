@@ -12,8 +12,8 @@ import com.zt.security.common.TenantSession;
         session=s;
     }
     @GetMapping @Transactional(readOnly=true) List<AuditLog>
-list(@RequestHeader("X-Tenant-Id") UUID t){
+list(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader(value="X-Workspace-Id",required=false) UUID workspace){
         session.set(t);
-        return repo.findTop100ByTenantIdOrderByCreatedAtDesc(t);
+        return workspace==null?repo.findTop100ByTenantIdOrderByCreatedAtDesc(t):repo.findTop100ByTenantIdAndWorkspaceIdOrderByCreatedAtDesc(t,workspace);
     }
     }

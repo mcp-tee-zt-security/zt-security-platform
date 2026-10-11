@@ -32,7 +32,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\setup-
 
 - 기존 사용자의 비밀번호를 초기화하지 않고 finance/IT 계정·그룹과 REQUESTER 역할을 추가합니다.
 - **File Access Demo** 워크스페이스를 새로 만들거나 같은 slug의 기존 워크스페이스를 재사용합니다.
-- 별도의 대시보드 OIDC client `zt-file-dashboard`와 최소 sync 권한의 connector client `zt-file-sync`를 구성합니다.
+- 공통 대시보드의 workspace 선택 claim을 추가하고, finance/IT 사용자의 실제 `sub`와 Workflow AI에 **File Access Demo** 접근 권한을 등록합니다. 기존에 명시적으로 비활성화한 권한은 다시 활성화하지 않습니다.
+- 최소 sync 권한의 connector client `zt-file-sync`를 구성합니다. 기존 `zt-file-dashboard` client는 제거합니다.
 - 실제 Keycloak 사용자 `sub`와 그룹을 source 설정에 기록합니다. 사용자 이름을 임의 신원으로 사용하지 않습니다.
 - 워크스페이스의 Workflow AI identity와 `file-demo` 연결을 등록합니다.
 - `allow_file_demo_<workspace UUID>` 정책을 **DRAFT로만 저장**합니다. Publish는 자동 실행하지 않습니다.
@@ -43,7 +44,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\setup-
 파일 서비스를 시작합니다.
 
 ```powershell
-docker compose --env-file .local/file-access-demo/demo.env -f docker/docker-compose.yml -f docker/mcp-oidc.compose.yml -f docker/file-access-demo.compose.yml up -d --build file-demo-seed file-nfs file-connector file-dashboard
+docker compose --env-file .local/file-access-demo/demo.env -f docker/docker-compose.yml -f docker/mcp-oidc.compose.yml -f docker/file-access-demo.compose.yml up -d --build file-demo-seed file-nfs file-connector
 ```
 
 초기 파일은 Linux named volume에 생성됩니다. Windows의 파일 시스템을 NFS VFS로 직접 export하지 않습니다. NFS 컨테이너에는 VFS 파일 핸들 접근에 필요한 `DAC_READ_SEARCH`만 추가하며 `privileged` 모드를 사용하지 않습니다. 기반 설명은 [NFS-Ganesha의 VFS 문서](https://github.com/nfs-ganesha/nfs-ganesha/wiki/VFS)를 참고하세요.
@@ -52,8 +53,8 @@ docker compose --env-file .local/file-access-demo/demo.env -f docker/docker-comp
 
 ## 정책을 수동으로 활성화
 
-1. **http://localhost:3001**을 열어 `demo-admin / demo-admin`으로 로그인합니다.
-2. 상단 workspace가 **File Access Demo**인지 확인합니다. 기존 **3000** 대시보드와 분리된 workspace입니다.
+1. **http://localhost:3000**을 열어 `demo-admin / demo-admin`으로 로그인합니다. 설정 스크립트 실행 전에 로그인했다면 로그아웃 후 다시 로그인해 새 JWT를 받습니다.
+2. 상단 공통 **Workspace** 선택기에서 **File Access Demo**를 선택합니다. 페이지가 다시 로드되고 채팅·정책·승인·감사 기록이 이 범위를 사용합니다. 계정을 바꾼 뒤에도 선택기를 확인하세요. 워크스페이스 접근 권한은 파일 ACL과 별개입니다.
 3. **Policies → Policy Studio**에서 `allow_file_demo_<workspace UUID>` DRAFT를 선택합니다. 메뉴가 없으면 Navigation view를 DEVOPS로 바꾸세요.
 4. DSL의 AI subject와 `connectionId == "file-demo"`를 확인하고 Validate → Publish 합니다. 화면에서 reviewed DRAFT를 선택하는 흐름이면 그 단계를 따릅니다.
 5. **Retrieval Access**에서 연결이 Enabled이고 `payroll`, `it`, 파일들이 동기화되어 있는지 확인합니다.
@@ -115,6 +116,8 @@ finance에만 허용됩니다. CSV/텍스트는 모두 가상의 데이터이며
 docker compose --env-file .local/file-access-demo/demo.env -f docker/docker-compose.yml -f docker/mcp-oidc.compose.yml -f docker/file-access-demo.compose.yml logs --tail 80 file-connector file-nfs
 ```
 
-`workspace mismatch`: 생성된 env로 대시보드를 다시 빌드하고 로그아웃 후 재로그인합니다. `No matching allow policy`: 새 workspace의 DRAFT를 Publish합니다. `User is not provisioned`: 설정 스크립트를 다시 실행하고 connector의 다음 sync를 기다립니다. `source stale`: connector 인증·등록·볼륨 접근을 확인합니다.
+`workspace mismatch`: 공통 서버/대시보드가 새 코드인지 확인하고 설정 스크립트 실행 후 로그아웃·재로그인합니다. File Access Demo가 선택기에 없으면 해당 사용자의 workspace grant를 확인하세요. `No matching allow policy`: 선택한 workspace의 DRAFT를 Publish합니다. `User is not provisioned`: 설정 스크립트를 다시 실행하고 connector의 다음 sync를 기다립니다. `source stale`: connector 인증·등록·볼륨 접근을 확인합니다.
+
+워크스페이스 선택과 서버 인가의 세부 규칙은 [공통 워크스페이스 범위](../security/WORKSPACE_SCOPE.ko.md)를 참고하세요. 이전 3001 대시보드는 사용하지 않습니다.
 
 작성 후 빌드·컨테이너 실행·로그인·NFS 접속 테스트는 자동으로 실행하지 않았습니다.

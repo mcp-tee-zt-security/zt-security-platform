@@ -85,29 +85,29 @@ try{
     SaveMappers $bootstrapId $bootstrap.protocolMappers
     $ztToken=ServiceToken $bootstrapName $bootstrapSecret
 
-    $dashboard=$seed.clients[0] | ConvertTo-Json -Depth 24 | ConvertFrom-Json
-    $dashboard.clientId='zt-file-dashboard'
-    $dashboard.redirectUris=@('http://localhost:3001/*','http://127.0.0.1:3001/*')
-    $dashboard.webOrigins=@('http://localhost:3001','http://127.0.0.1:3001')
-    $dashboard.attributes.'post.logout.redirect.uris'='http://localhost:3001/*##http://127.0.0.1:3001/*'
-    ($dashboard.protocolMappers | Where-Object { $_.name -eq 'workspace' }).config.'claim.value'=$workspaceId
-    SetClient $dashboard | Out-Null
     $connectorSecret='local-file-sync-only'
     $connector=@{clientId='zt-file-sync';enabled=$true;protocol='openid-connect';publicClient=$false;secret=$connectorSecret;serviceAccountsEnabled=$true;standardFlowEnabled=$false;directAccessGrantsEnabled=$false;fullScopeAllowed=$true;defaultClientScopes=@('basic','roles');protocolMappers=@((ClaimMapper 'tenant_id' $tenantId),(ClaimMapper 'workspace_id' $workspaceId),(ClaimMapper 'actor_type' 'CONNECTOR'),(AudienceMapper 'zt-stitch-integration'))}
     $connectorId=SetClient $connector
     $connectorUser=KcCall "/clients/$connectorId/service-account-user"
     GrantRole $connectorUser.id 'RETRIEVAL_SYNC'
+    $accessRows=@(ZtList "/v1/workspaces/$workspaceId/access")
     $subjects=@()
     foreach($username in @('finance','it-user')){
         $people=@(KcList "/users?username=$username&exact=true")
         if($people.Count -ne 1){throw "Expected exactly one $username user"}
         $groupName=if($username -eq 'it-user'){'it'}else{'finance'}
         $subjects+=@{subject=$people[0].id;groups=@($groupName)}
+        if(-not ($accessRows | Where-Object { $_.principal_type -eq 'HUMAN' -and $_.principal_id -eq $people[0].id })){
+            ZtCall "/v1/workspaces/$workspaceId/access" 'PUT' @{principalType='HUMAN';principalId=$people[0].id;enabled=$true} | Out-Null
+        }
     }
     $aiSubject="workflow-chat-$workspaceId"
     $knownIdentities=@(ZtList '/v1/identities' | Where-Object { $_.externalId -eq $aiSubject })
     if($knownIdentities.Count -eq 0){ZtCall '/v1/identities' 'POST' @{externalId=$aiSubject;type='AI_AGENT';name='File Demo Workflow Agent';attributes=@{}} | Out-Null}
     elseif($knownIdentities[0].status -ne 'ACTIVE'){throw 'Existing file-demo AI identity is inactive; activate it manually'}
+    if(-not ($accessRows | Where-Object { $_.principal_type -eq 'AI_AGENT' -and $_.principal_id -eq $aiSubject })){
+        ZtCall "/v1/workspaces/$workspaceId/access" 'PUT' @{principalType='AI_AGENT';principalId=$aiSubject;enabled=$true} | Out-Null
+    }
     ZtCall '/v1/retrieval/connections' 'POST' @{connectionId='file-demo';displayName='Local NFS demo files';connectorSubject=$connectorUser.id;enabled=$true} | Out-Null
 
     $policyName="allow_file_demo_$workspaceId"
@@ -125,7 +125,7 @@ policy "$policyName" {
 "@
     $knownPolicies=@(ZtList '/v1/policies/all' | Where-Object { $_.name -eq $policyName })
     if($knownPolicies.Count -eq 0){ZtCall '/v1/policies' 'POST' @{name=$policyName;version=1;status='DRAFT';policyText=$dsl} | Out-Null}
-    # Policy activation remains a manual review step in the isolated dashboard.
+    # Policy activation remains a manual review step in the common dashboard.
     $localDir=Join-Path $repoRoot '.local/file-access-demo'
     New-Item -ItemType Directory -Path $localDir -Force | Out-Null
     $configPath=Join-Path $localDir 'config.json'
@@ -134,9 +134,12 @@ policy "$policyName" {
     [IO.File]::WriteAllText($configPath,(ConvertTo-Json -InputObject $config -Depth 12),$utf8)
     [IO.File]::WriteAllText((Join-Path $localDir 'demo.env'),("ZT_FILE_WORKSPACE_ID=$workspaceId`nZT_FILE_CONFIG_PATH="+$configPath.Replace([char]92,[char]47)+"`n"),$utf8)
     [IO.File]::WriteAllText((Join-Path $localDir 'allow-file-demo.policy'),$dsl,$utf8)
+    # The common 3000 client replaces the old file-only login; keep users and source credentials.
+    $retiredClients=@(KcList '/clients?clientId=zt-file-dashboard')
+    foreach($retired in $retiredClients){KcCall "/clients/$($retired.id)" 'DELETE' | Out-Null}
     Write-Output "Workspace: File Access Demo ($workspaceId)"
     Write-Output "Connector subject: $($connectorUser.id)"
-    Write-Output "Policy: $policyName (DRAFT; publish manually at localhost:3001)"
+    Write-Output "Policy: $policyName (publish manually at localhost:3000 in File Access Demo)"
     Write-Output 'Local accounts: finance / demo-finance; it-user / demo-it (existing passwords are retained).'
     Write-Output 'Start the file-access-demo Compose overlay using .local/file-access-demo/demo.env.'
 }finally{

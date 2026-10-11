@@ -9,6 +9,7 @@ import java.util.*;
 
 @Component
 public class WorkflowAccess {
+    @org.springframework.beans.factory.annotation.Autowired private com.zt.security.workspace.WorkspaceAccess workspaceAccess;
     @Value("${zt.workflow.require-oidc:false}") private boolean requireOidc;
     @Value("${zt.security.mcp.audience:zt-mcp-gateway}") private String audience="zt-mcp-gateway";
     public boolean has(Authentication auth,String... roles){
@@ -20,12 +21,15 @@ public class WorkflowAccess {
             ||jwt.getToken().getExpiresAt()==null||!jwt.getToken().getExpiresAt().isAfter(java.time.Instant.now())
             ||!jwt.getToken().getAudience().contains(audience)
             ||!tenant.toString().equalsIgnoreCase(jwt.getToken().getClaimAsString("tenant_id"))
-            ||workspace==null||!workspace.toString().equalsIgnoreCase(jwt.getToken().getClaimAsString("workspace_id"))
+            ||workspace==null
             ||!"HUMAN".equals(jwt.getToken().getClaimAsString("actor_type")))
             throw new AccessDeniedException("Human OIDC authentication with matching audience, tenant and workspace required");
+        if(workspaceAccess!=null)workspaceAccess.require(auth,tenant,workspace);
+        else if(!workspace.toString().equalsIgnoreCase(jwt.getToken().getClaimAsString("workspace_id")))throw new AccessDeniedException("Workspace mismatch");
         return jwt.getToken().getSubject();
     }
     public void scoped(Authentication auth,UUID tenant,UUID workspace){if(requireOidc)human(auth,tenant,workspace);}
+    public void agent(UUID tenant,UUID workspace,String externalId){workspaceAccess.workflowAgent(tenant,workspace,externalId);}
     public void request(Authentication auth,UUID tenant,UUID workspace){
         human(auth,tenant,workspace);
         if(!has(auth,"ROLE_REQUESTER","ROLE_ADMIN","ROLE_PLATFORM"))throw new AccessDeniedException("Workflow requester role required");

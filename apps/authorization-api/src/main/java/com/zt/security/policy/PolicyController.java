@@ -23,13 +23,13 @@ import java.util.*;
  @RequestHeader(value="X-Workspace-Id",required=false) UUID w){
      session.set(t);
      workspace.set(w);
-     return service.active(t);
+     return service.active(t).stream().filter(p->w==null||p.getWorkspaceId()==null||w.equals(p.getWorkspaceId())).toList();
      }
  @GetMapping("/all") @Transactional(readOnly=true) List<Policy> all(@RequestHeader("X-Tenant-Id") UUID t,
  @RequestHeader(value="X-Workspace-Id",required=false) UUID w){
      session.set(t);
      workspace.set(w);
-     return repo.findAll().stream().filter(x->t.equals(x.getTenantId())).toList();
+     return repo.findAll().stream().filter(x->t.equals(x.getTenantId())&&(w==null||x.getWorkspaceId()==null||w.equals(x.getWorkspaceId()))).toList();
  }
  @PostMapping @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','POLICY_MANAGER')") @Transactional Policy create(@RequestHeader("X-Tenant-Id") UUID t,
  @RequestHeader(value="X-Workspace-Id",required=false) UUID w,@RequestBody Upsert x){
@@ -53,6 +53,8 @@ import java.util.*;
  @RequestHeader(value="X-Workspace-Id",required=false) UUID w,@PathVariable UUID id){
      session.set(t);
      workspace.set(w);
+     var existing=repo.findByIdAndTenantId(id,t).orElseThrow();
+     if(existing.getWorkspaceId()!=null&&!existing.getWorkspaceId().equals(w))throw new org.springframework.security.access.AccessDeniedException("Policy belongs to another workspace");
      return service.publish(t,id);
      }
  @PostMapping("/rollback") @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','POLICY_MANAGER')") @Transactional Map<String,Object> rollback(@RequestHeader("X-Tenant-Id") UUID t,
@@ -60,6 +62,7 @@ import java.util.*;
  @RequestParam int version){
      session.set(t);
      workspace.set(w);
+     if(repo.findByTenantIdAndNameOrderByVersionDesc(t,name).stream().anyMatch(p->p.getWorkspaceId()!=null&&!p.getWorkspaceId().equals(w)))throw new org.springframework.security.access.AccessDeniedException("Policy belongs to another workspace");
      service.rollback(t,
      name,version);
      return Map.of("rolledBackTo",version,"name",name);

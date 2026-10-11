@@ -39,3 +39,4 @@ export async function oidcToken():Promise<string> {
   return keycloak.token;
 }
 export function oidcUser() { return keycloak.tokenParsed?.preferred_username || ''; }
+export function oidcSubject(){return keycloak.tokenParsed?.sub||'';}

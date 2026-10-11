@@ -37,7 +37,7 @@ public class GovernanceStore {
         return new MapSqlParameterSource("tenant",tenant).addValue("workspace",workspace);
     }
 
-    private static final String SCOPE = "tenant_id=:tenant AND (workspace_id IS NULL OR workspace_id=:workspace)";
+    private static final String SCOPE = "tenant_id=:tenant AND workspace_id IS NOT DISTINCT FROM CAST(:workspace AS uuid)";
 
     public Map<String,Object> create(UUID tenant, UUID workspace, String kind, Map<String,Object> body) {
         scope(tenant,workspace);
@@ -101,11 +101,11 @@ public class GovernanceStore {
 
     public List<Map<String,Object>> workflowContracts(UUID tenant, UUID workspace, String subject, UUID requestId) {
         scope(tenant,workspace);
-        String scoped = "g.tenant_id=:tenant AND (g.workspace_id IS NULL OR g.workspace_id=:workspace)";
+        String scoped = "g.tenant_id=:tenant AND g.workspace_id IS NOT DISTINCT FROM CAST(:workspace AS uuid)";
         String sql = "SELECT g.payload::text FROM governance_records g WHERE " + scoped + " AND g.kind='CONTRACT'"
             + (subject == null ? "" : " AND g.payload->>'subject'=:subject")
             + (requestId == null ? "" : " AND EXISTS (SELECT 1 FROM governance_records d WHERE d.tenant_id=:tenant"
-                + " AND (d.workspace_id IS NULL OR d.workspace_id=:workspace) AND d.kind='DECISION'"
+                + " AND d.workspace_id IS NOT DISTINCT FROM CAST(:workspace AS uuid) AND d.kind='DECISION'"
                 + " AND d.id::text=g.payload->>'decisionId' AND d.payload->>'requestId'=:requestId)")
             + " ORDER BY g.created_at DESC,g.id DESC LIMIT 100";
         return jdbc.query(sql,params(tenant,workspace).addValue("subject",subject)
@@ -125,7 +125,7 @@ public class GovernanceStore {
         scope(tenant,workspace);
         String sql="SELECT a.id FROM approvals a WHERE a.tenant_id=:tenant AND EXISTS"
             +" (SELECT 1 FROM governance_records d WHERE d.tenant_id=:tenant"
-            +" AND (d.workspace_id IS NULL OR d.workspace_id=:workspace) AND d.kind='DECISION'"
+            +" AND d.workspace_id IS NOT DISTINCT FROM CAST(:workspace AS uuid) AND d.kind='DECISION'"
             +" AND d.payload->>'requestId'=a.request_id::text"
             +(subject==null?"":" AND d.payload->'request'->'principal'->>'id'=:subject")+")"
             +" ORDER BY a.created_at DESC,a.id DESC LIMIT 100";

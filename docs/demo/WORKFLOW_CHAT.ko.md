@@ -35,7 +35,7 @@ API 컨테이너는 `http://host.docker.internal:11434`의 Ollama를 사용합�
 ## 최초 구성: 수동 등록
 
 1. `http://localhost:3000`에서 `demo-admin`으로 로그인합니다.
-2. 사용할 tenant/workspace를 확인합니다. 채팅 화면에는 자동 셋업·정책 게시 버튼이 없습니다.
+2. 상단 공통 Workspace 선택기로 사용할 범위를 선택합니다. 기존 데모는 **Security Demo**, 파일 데모는 **File Access Demo**입니다. 접근이 허용된 공간만 표시되며 전환하면 페이지가 다시 로드되어 기존 채팅·파일 미리보기·승인 상세 상태가 초기화됩니다. 채팅 화면에는 자동 셋업·정책 게시 버튼이 없습니다.
 3. AI identity의 externalId를 `workflow-chat-<workspace UUID>`, type을 `AI_AGENT`로 등록합니다. 예: `workflow-chat-88888888-8888-8888-8888-888888888801`. 이미 ACTIVE로 등록되어 있다면 재등록하지 않습니다.
 4. 이체 테스트에는 `workflow.simulatedTransfer`라는 agent tool을 등록합니다. MCP upstream 도구와 별개인 로컬 가상 실행 도구입니다.
 5. `GET /v1/workflow-chat/config`의 `policyTemplates`를 확인하고 Policy Studio에서 각각 **Validate → Save DRAFT → Publish**합니다. 자동으로 정책을 활성화하지 않습니다.
@@ -135,6 +135,7 @@ policy "allow_workflow_retrieval" {
 - 통합 승인함은 Workflow와 MCP를 함께 표시합니다. MCP 승인 후에는 여전히 원래 AI 서비스 클라이언트가 `/resume`해야 합니다. 다른 사용자의 MCP 호출을 실행하는 버튼은 제공하지 않습니다.
 - Workflow Chat은 자신의 요청 또는 검토 역할에 허용된 요청을 DB에서 불러옵니다. 상태는 15초마다 갱신하며 새로고침 버튼도 제공합니다.
 - 요청자·AI 신원은 결정 기록, 승인자는 `approvals.decided_by`, 실행자는 실행 기록의 `executedBy`, 거래는 `workflow_simulated_transfers`에 남습니다. 읽기·쓰기 범위는 tenant/workspace로 제한됩니다.
+- 정책에는 명시적인 tenant-wide 공유 정책도 포함됩니다. 신원·자산 등 tenant-wide 인벤토리는 공통 데이터입니다. 범위를 확인할 수 없는 과거 감사/결정 기록은 선택한 workspace 기록에 섞지 않습니다. 상세 규칙은 [공통 워크스페이스 범위](../security/WORKSPACE_SCOPE.ko.md)를 참고하세요.
 - 공통 OIDC 모드에서는 개발 키로 자동 전환하지 않습니다. 기본 Compose만 사용하는 명시적 개발 모드의 키 인증은 유지됩니다. DPoP/mTLS 토큰 바인딩은 별도 TODO입니다.
 
 ## 설정 및 API

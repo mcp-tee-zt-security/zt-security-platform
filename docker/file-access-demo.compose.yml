@@ -46,18 +46,6 @@ services:
       interval: 30s
       timeout: 5s
       retries: 4
-  file-dashboard:
-    build:
-      context: ../dashboard/web
-      args:
-        VITE_OIDC_ISSUER: http://localhost:8089/realms/zt-mcp-demo
-        VITE_OIDC_CLIENT_ID: zt-file-dashboard
-        VITE_AUTH_MODE: oidc
-        VITE_WORKSPACE_ID: ${ZT_FILE_WORKSPACE_ID:?Run setup-file-access-demo.ps1 first}
-    ports: ["3001:80"]
-    depends_on:
-      authorization-api:
-        condition: service_healthy
 volumes:
   file_demo_files:
   file_demo_cursor:

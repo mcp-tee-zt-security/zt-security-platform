@@ -5,4 +5,5 @@ public interface AuditRepository extends JpaRepository<AuditLog,
 UUID>{
     Optional<AuditLog> findTopByTenantIdOrderByCreatedAtDesc(UUID t);
     List<AuditLog> findTop100ByTenantIdOrderByCreatedAtDesc(UUID t);
+    List<AuditLog> findTop100ByTenantIdAndWorkspaceIdOrderByCreatedAtDesc(UUID t,UUID workspace);
     }

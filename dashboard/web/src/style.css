@@ -94,6 +94,10 @@ button:disabled
 .workflow-security-report li:last-child {margin-bottom:0;}
 .workflow-security-report p {margin:6px 0;font-size:13px;overflow-wrap:anywhere;}
 .workflow-security-note {color:var(--muted);font-size:13px;}
+.scope-selector{display:flex;align-items:center;flex-wrap:wrap;gap:12px;}
+.scope-selector label{display:flex;align-items:center;gap:10px;font-weight:600;}
+.scope-selector select{min-width:220px;max-width:100%;}
+.scope-selector small{flex-basis:100%;color:var(--muted);}
 .workflow-file-response {margin-top:16px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft);}
 .workflow-file-response pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font:inherit;}
 .workflow-chat-empty {margin:auto;text-align:center;color:var(--muted);}

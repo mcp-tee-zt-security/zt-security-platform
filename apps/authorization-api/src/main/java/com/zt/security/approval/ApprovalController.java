@@ -90,10 +90,10 @@ IllegalArgumentException("status must be APPROVED or REJECTED");
              ||!jwt.getToken().getAudience().contains(mcpAudience)
              ||!t.toString().equalsIgnoreCase(jwt.getToken().getClaimAsString("tenant_id"))
              ||!"HUMAN".equals(jwt.getToken().getClaimAsString("actor_type"))
-             ||workspace==null
-             ||!workspace.toString().equalsIgnoreCase(jwt.getToken().getClaimAsString("workspace_id"))){
+             ||workspace==null){
              throw new org.springframework.security.access.AccessDeniedException("MCP approval requires a human OIDC token with matching audience, tenant and workspace");
          }
+         workflowAccess.human(actor,t,workspace);
          Integer bound=jdbc.queryForObject("SELECT count(*) FROM mcp_invocations WHERE approval_id=? AND tenant_id=? AND workspace_id=?",Integer.class,id,t,workspace);
          if(bound==null||bound!=1)throw new org.springframework.security.access.AccessDeniedException("MCP approval unavailable in this workspace");
      }

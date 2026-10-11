@@ -8,14 +8,15 @@ import com.zt.security.common.TenantSession;
 @RestController @RequestMapping("/v1/security/decisions") public class SecurityDecisionController {
     final ContinuousSecurityDecisionService service;
     final TenantSession session;
+    @org.springframework.beans.factory.annotation.Autowired private SecurityDecisionRepository decisions;
     SecurityDecisionController(ContinuousSecurityDecisionService s,TenantSession ts){
         service=s;
         session=ts;
         }
  @GetMapping @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','AUDITOR')") @Transactional(readOnly=
- true) List<SecurityDecision> recent(@RequestHeader("X-Tenant-Id") UUID t){
+ true) List<SecurityDecision> recent(@RequestHeader("X-Tenant-Id") UUID t,@RequestHeader(value="X-Workspace-Id",required=false) UUID w){
      session.set(t);
-     return service.recent(t);
+     return w==null?service.recent(t):decisions.recentInWorkspace(t,w);
      }
  @GetMapping("/assets") @PreAuthorize("hasAnyRole('PLATFORM','ADMIN','AUDITOR'" +
 ",'AGENT_MANAGER')") @Transactional(readOnly=
