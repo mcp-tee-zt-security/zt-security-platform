@@ -17,6 +17,7 @@ This documentation describes the **4.75.0 Revision 2** codebase. It is intention
 11. [Compliance evidence](compliance/enterprise-compliance-mapping.md)
 12. [3.x → 4.x migration](migration/3.X_TO_4.0_MIGRATION.md)
 13. [리스크·Agent 행동·런타임 위협 계산 상세](security/RISK_BEHAVIOR_RUNTIME.ko.md)
+14. [Security Graph: dashboard guide](security/SECURITY_GRAPH.md)
 
 ## Current implementation boundaries
 

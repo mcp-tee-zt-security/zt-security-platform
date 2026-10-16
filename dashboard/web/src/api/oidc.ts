@@ -7,7 +7,8 @@ if (!realmPath) throw new Error('OIDC issuer must be a Keycloak realm URL');
 const keycloak = new Keycloak({url:issuer.origin + realmPath[1],realm:realmPath[2],
   clientId:import.meta.env.VITE_OIDC_CLIENT_ID || 'zt-dashboard'});
 let initialization:Promise<boolean>|undefined;
-export const COMMON_OIDC = import.meta.env.VITE_AUTH_MODE === 'oidc';
+// Compose can derive this build flag from the API's ZT_OIDC_ENABLED boolean.
+export const COMMON_OIDC = ['oidc','true'].includes(String(import.meta.env.VITE_AUTH_MODE).toLowerCase());
 const redirectUri = () => {
   const page=new URLSearchParams(window.location.search).get('zt_page') || (COMMON_OIDC?'Workflow Chat':'MCP Gateway');
   return window.location.origin + window.location.pathname + '?zt_login=dashboard&zt_page='+encodeURIComponent(page);
